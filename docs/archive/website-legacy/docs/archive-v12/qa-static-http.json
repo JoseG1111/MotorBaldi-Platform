@@ -1,0 +1,7 @@
+{
+  "static_missing": [],
+  "http_total": 42,
+  "http_failures": [],
+  "3d_binaries": [],
+  "webgl_runtime_refs": false
+}

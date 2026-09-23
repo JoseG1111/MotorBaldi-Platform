@@ -1,0 +1,101 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "motorbaldi-worker-dev",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "AUTH_BASE_URL": "http://localhost:8787",
+    "CORS_ORIGINS": "http://localhost:5173,http://localhost:5174",
+    "EMAIL_PROVIDER": "DEVELOPMENT_SINK",
+    "MALWARE_SCANNER_PROVIDER": "DETERMINISTIC_TEST",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "motorbaldi-core-dev",
+      "database_id": "REPLACE_WITH_LOCAL_D1_DATABASE_ID",
+    },
+  ],
+  "queues": {
+    "consumers": [
+      {
+        "queue": "motorbaldi-events-dev",
+        "dead_letter_queue": "motorbaldi-events-dlq-dev",
+      },
+    ],
+    "producers": [
+      { "binding": "EVENTS_QUEUE", "queue": "motorbaldi-events-dev" },
+    ],
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "OUTBOX_COORDINATOR",
+        "class_name": "OutboxCoordinator",
+        "script_name": "motorbaldi-api-dev",
+      },
+    ],
+  },
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "env": {
+    "staging": {
+      "name": "motorbaldi-worker-staging",
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "AUTH_BASE_URL": "https://REPLACE_WITH_API_WORKER_URL",
+        "CORS_ORIGINS": "https://REPLACE_WITH_PORTAL_URL,https://REPLACE_WITH_ADMIN_URL",
+        "EMAIL_PROVIDER": "UNCONFIGURED",
+        "MALWARE_SCANNER_PROVIDER": "UNCONFIGURED",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "motorbaldi-core-staging",
+          "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+        },
+      ],
+      "queues": {
+        "consumers": [
+          {
+            "queue": "motorbaldi-events-staging",
+            "dead_letter_queue": "motorbaldi-events-dlq-staging",
+          },
+        ],
+        "producers": [
+          { "binding": "EVENTS_QUEUE", "queue": "motorbaldi-events-staging" },
+        ],
+      },
+    },
+    "production": {
+      "name": "motorbaldi-worker-prod",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "AUTH_BASE_URL": "https://REPLACE_WITH_API_WORKER_URL",
+        "CORS_ORIGINS": "https://REPLACE_WITH_PORTAL_URL,https://REPLACE_WITH_ADMIN_URL",
+        "EMAIL_PROVIDER": "UNCONFIGURED",
+        "MALWARE_SCANNER_PROVIDER": "UNCONFIGURED",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "motorbaldi-core-prod",
+          "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+        },
+      ],
+      "queues": {
+        "consumers": [
+          {
+            "queue": "motorbaldi-events-prod",
+            "dead_letter_queue": "motorbaldi-events-dlq-prod",
+          },
+        ],
+        "producers": [
+          { "binding": "EVENTS_QUEUE", "queue": "motorbaldi-events-prod" },
+        ],
+      },
+    },
+  },
+}

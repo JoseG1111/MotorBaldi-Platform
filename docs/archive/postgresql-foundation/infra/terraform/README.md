@@ -1,0 +1,7 @@
+# Infrastructure foundation
+
+Terraform creates only a private R2 bucket with public r2.dev disabled and destroy protection. No DNS/marketing overwrite, no actual apply performed. Provider credentials via CLOUDFLARE_API_TOKEN from a secret manager. Use separate encrypted remote state and credentials per environment; do not commit state or plans. Validate with `terraform init -backend=false`, `terraform validate`; review a saved plan before any authorized apply. No credentials are Terraform input variables.
+
+Target: managed container compute (API + worker, independent replicas), managed PostgreSQL 18 with verified TLS/private network/PITR, managed Redis with TLS/AOF/noeviction, R2, external secret manager, OTLP collector. Provider/account/region/budget for compute/database are not supplied: no fictitious provisioned resources. Reserve api/app/admin subdomains only when services exist; retain current marketing/FTPS until migration validated.
+
+Required remote resources: private networking, egress allowlists, TLS ingress restricted to Cloudflare, DB roles (owner migration job/runtime), worker graceful drain, immutable image registry, readiness/liveness, DB backups and restore test, queue/DLQ alarms, OTLP exporter, runtime secret injection. RPO ≤15min/RTO ≤60min are targets requiring measured restore evidence. A bucket is not a backup or regulatory archive. R2 storage versioning support must be verified separately; immutable object keys are used by the adapter.

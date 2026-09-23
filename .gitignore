@@ -1,0 +1,27 @@
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+.idea/
+.vscode/
+test-results/
+playwright-report/
+motorbaldi-hubspot.php
+motorbaldi-wompi.php
+motorbaldi-wompi.sqlite
+motorbaldi-wompi.sqlite-*
+motorbaldi-wompi-test.sqlite
+motorbaldi-wompi-test.sqlite-*
+motorbaldi-pagos-listo-para-subir.zip
+.env
+.env.*
+!.env.example
+
+# Project exclude paths
+/dist/
+/build/
+/.local/
+*.tsbuildinfo
+infra/terraform/.terraform/
+*.tfstate*
+*.tfplan

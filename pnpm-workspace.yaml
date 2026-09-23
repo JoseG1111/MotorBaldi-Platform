@@ -1,0 +1,7 @@
+packages:
+  - apps/*
+  - packages/*
+onlyBuiltDependencies:
+  - esbuild
+overrides:
+  sharp: ">=0.35.4"

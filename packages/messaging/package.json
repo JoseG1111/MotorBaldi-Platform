@@ -1,0 +1,16 @@
+{
+  "name": "@motorbaldi/messaging",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./handler": "./src/handler.js",
+    "./queue": "./src/queue.js",
+    "./providers": "./src/providers.js"
+  },
+  "dependencies": {
+    "@motorbaldi/db": "workspace:*",
+    "@motorbaldi/shared": "workspace:*"
+  }
+}

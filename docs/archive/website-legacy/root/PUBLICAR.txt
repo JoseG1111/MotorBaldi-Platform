@@ -1,0 +1,27 @@
+MOTORBALDI 12.2 — PUBLICACIÓN
+
+1. Ejecuta npm ci y npm test para verificar el build si modificaste el código.
+   La primera vez instala los navegadores: npx playwright install chromium firefox
+2. Ejecuta npm run build. Revisa el resultado con npm run preview.
+3. Haz copia de seguridad de la raíz pública actual del dominio de destino.
+4. Sube EL CONTENIDO de dist/ a esa raíz: index.html y assets/ deben quedar directamente allí.
+   Incluye .htaccess, que puede estar oculto en el gestor de archivos.
+5. Copia config/hubspot.example.php como ~/motorbaldi-hubspot.php, fuera de public_html.
+   Coloca allí el token vigente de la app privada y aplica permisos 600 al archivo.
+   No subas este archivo privado dentro de public_html ni lo agregues al ZIP.
+6. Si el hosting ya tiene reglas propias en .htaccess, combínalas con las del proyecto.
+7. Limpia la caché del hosting o CDN y comprueba la URL pública en móvil y escritorio.
+8. Comprueba el hero y sus tres frases, las cinco opciones de Servicios, Carro/Moto,
+   Plataforma, MB-100, menú, preguntas, páginas auxiliares y apertura de WhatsApp.
+9. Envía una solicitud real de control. Confirma que crea/actualiza el contacto y crea
+   un negocio asociado en pipeline default, etapa 1433840728, antes de borrar la prueba.
+10. En producción confirma HTTPS y que la portada NO devuelve X-Robots-Tag: noindex.
+   El staging sí debe mantener noindex. Canonical y sitemap apuntan a motorbaldi.com.
+
+No subas node_modules/, docs/, tests/, scripts/ ni design-originals/.
+El hosting necesita PHP 7.4 o superior, cURL y PDO SQLite para los pagos y PHP para HubSpot; no necesita Node.js.
+Si ya configuraste Wompi, conserva motorbaldi-wompi.php fuera de public_html,
+el webhook y el cron existentes. El ZIP de publicación no contiene secretos.
+
+La revisión local no modifica el staging ni el dominio de producción.
+Evidencias: docs/qa/REVISION.md, docs/qa/results.json y docs/qa/galeria.html.

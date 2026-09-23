@@ -1,0 +1,9 @@
+{
+  "name": "@motorbaldi/migrator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@motorbaldi/db": "workspace:*"
+  }
+}

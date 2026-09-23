@@ -1,0 +1,16 @@
+{
+  "name": "@motorbaldi/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@motorbaldi/config": "workspace:*",
+    "@motorbaldi/contracts": "workspace:*",
+    "@motorbaldi/db": "workspace:*",
+    "@motorbaldi/shared": "workspace:*",
+    "better-auth": "1.7.5"
+  }
+}

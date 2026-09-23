@@ -1,0 +1,6 @@
+Options -Indexes
+
+<IfModule mod_headers.c>
+  Header always set Cache-Control "no-store, max-age=0"
+  Header always set X-Content-Type-Options "nosniff"
+</IfModule>

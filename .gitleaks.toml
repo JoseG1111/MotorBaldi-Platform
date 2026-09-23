@@ -1,0 +1,10 @@
+title = "MotorBaldi Foundation Secret Scan"
+
+[allowlist]
+description = "Synthetic documentation and tests only; no real credentials."
+paths = [
+  '''scripts/foundation/security-fixtures\.mjs''',
+  '''config/hubspot\.example\.php''',
+  '''config/legacy-hubspot\.env\.example''',
+  '''\.env\.example''',
+]

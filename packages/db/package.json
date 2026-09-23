@@ -1,0 +1,19 @@
+{
+  "name": "@motorbaldi/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./audit": "./src/audit.js",
+    "./environment": "./src/environment.js",
+    "./idempotency": "./src/idempotency.js",
+    "./outbox": "./src/outbox.js"
+  },
+  "dependencies": {
+    "@motorbaldi/config": "workspace:*",
+    "@motorbaldi/contracts": "workspace:*",
+    "@motorbaldi/shared": "workspace:*",
+    "zod": "^4.3.0"
+  }
+}

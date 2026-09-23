@@ -1,0 +1,12 @@
+{
+  "name": "@motorbaldi/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@motorbaldi/config": "workspace:*",
+    "@motorbaldi/db": "workspace:*",
+    "@motorbaldi/messaging": "workspace:*",
+    "@motorbaldi/observability": "workspace:*"
+  }
+}

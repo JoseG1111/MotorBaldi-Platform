@@ -1,0 +1,19 @@
+{
+  "name": "@motorbaldi/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./openapi": "./src/openapi.js"
+  },
+  "dependencies": {
+    "@motorbaldi/auth": "workspace:*",
+    "@motorbaldi/config": "workspace:*",
+    "@motorbaldi/contracts": "workspace:*",
+    "@motorbaldi/db": "workspace:*",
+    "@motorbaldi/messaging": "workspace:*",
+    "@motorbaldi/observability": "workspace:*",
+    "@motorbaldi/shared": "workspace:*"
+  }
+}

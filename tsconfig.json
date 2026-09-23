@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "rootDir": ".",
+    "outDir": "build",
+    "sourceMap": true,
+    "types": ["@cloudflare/workers-types", "@types/node", "@cloudflare/vitest-pool-workers/types"],
+    "baseUrl": ".",
+    "paths": {
+      "@motorbaldi/api": ["apps/api/src/index.ts"],
+      "@motorbaldi/api/openapi": ["apps/api/src/openapi.ts"],
+      "@motorbaldi/auth": ["packages/auth/src/index.ts"],
+      "@motorbaldi/authz": ["packages/authz/src/index.ts"],
+      "@motorbaldi/config": ["packages/config/src/index.ts"],
+      "@motorbaldi/contracts": ["packages/contracts/src/index.ts"],
+      "@motorbaldi/contracts/openapi": ["packages/contracts/src/openapi.ts"],
+      "@motorbaldi/contracts/validation": ["packages/contracts/src/validation.ts"],
+      "@motorbaldi/db": ["packages/db/src/index.ts"],
+      "@motorbaldi/db/audit": ["packages/db/src/audit.ts"],
+      "@motorbaldi/db/environment": ["packages/db/src/environment.ts"],
+      "@motorbaldi/db/idempotency": ["packages/db/src/idempotency.ts"],
+      "@motorbaldi/db/outbox": ["packages/db/src/outbox.ts"],
+      "@motorbaldi/messaging": ["packages/messaging/src/index.ts"],
+      "@motorbaldi/messaging/handler": ["packages/messaging/src/handler.ts"],
+      "@motorbaldi/messaging/queue": ["packages/messaging/src/queue.ts"],
+      "@motorbaldi/observability": ["packages/observability/src/index.ts"],
+      "@motorbaldi/payments": ["packages/payments/src/index.ts"],
+      "@motorbaldi/shared": ["packages/shared/src/index.ts"],
+      "@motorbaldi/storage": ["packages/storage/src/index.ts"],
+      "@motorbaldi/testing": ["packages/testing/src/index.ts"]
+    }
+  },
+  "include": ["apps/**/*.ts", "packages/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts", "vitest.config.ts", "vitest.workers.config.ts"]
+}

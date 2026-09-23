@@ -1,0 +1,14 @@
+{
+  "name": "@motorbaldi/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./openapi": "./src/openapi.js",
+    "./validation": "./src/validation.js"
+  },
+  "dependencies": {
+    "zod": "^4.3.0"
+  }
+}

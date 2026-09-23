@@ -1,0 +1,11 @@
+{
+  "name": "@motorbaldi/observability",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./metrics": "./src/metrics.js",
+    "./tracing": "./src/tracing.js"
+  }
+}

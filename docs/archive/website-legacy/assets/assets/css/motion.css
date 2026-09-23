@@ -1,0 +1,1528 @@
+/* MotorBaldi V12 — Cinematic Production Motion
+   Direction: editorial + campaign motion, image-led, no mascot/WebGL.
+   Heavy choreography is progressive enhancement and desktop-biased. */
+
+:root {
+  --v12-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --v12-ease-sharp: cubic-bezier(0.76, 0, 0.24, 1);
+  --v12-red: #d7192d;
+  --v12-black: #070a0c;
+}
+body.motorbaldi {
+  overflow-x: clip;
+}
+body.motorbaldi main {
+  isolation: isolate;
+}
+body.motorbaldi main > section {
+  position: relative;
+  --v12-enter: 1;
+  --v12-exit: 0;
+  --v12-local: 0.5;
+}
+
+/* ---------- premium first-load brand wipe ---------- */
+.motion-intro {
+  display: none;
+}
+html.motion-v12-ready .motion-intro {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  pointer-events: none;
+  overflow: hidden;
+  animation: v12IntroGone 1.55s var(--v12-ease) forwards;
+}
+.motion-intro-panel {
+  position: absolute;
+  inset: 0;
+  background: #070a0c;
+  transform-origin: top;
+  animation: v12IntroPanel 1.45s var(--v12-ease) forwards;
+}
+.motion-intro-brand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  font-size: 9px;
+  letter-spacing: 0.32em;
+  font-weight: 800;
+  animation: v12IntroBrand 1.05s ease forwards;
+}
+.motion-intro-brand img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.3));
+}
+.motion-intro-brand i {
+  width: 110px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.16);
+  position: relative;
+  overflow: hidden;
+}
+.motion-intro-brand i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--v12-red);
+  transform: translateX(-100%);
+  animation: v12IntroLine 0.85s 0.08s var(--v12-ease-sharp) forwards;
+}
+@keyframes v12IntroLine {
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes v12IntroBrand {
+  0%,
+  62% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -58%);
+  }
+}
+@keyframes v12IntroPanel {
+  0%,
+  58% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-102%);
+  }
+}
+@keyframes v12IntroGone {
+  0%,
+  92% {
+    visibility: visible;
+  }
+  100% {
+    visibility: hidden;
+  }
+}
+
+/* ---------- fixed chapter rail ---------- */
+.chapter-rail {
+  display: none;
+}
+@media (min-width: 1180px) and (min-height: 680px) {
+  html.motion-v12-ready .chapter-rail {
+    display: block;
+    position: fixed;
+    z-index: 700;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 102px;
+    color: #fff;
+    mix-blend-mode: difference;
+    pointer-events: none;
+  }
+  .chapter-rail ol {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 18px;
+    display: grid;
+    gap: 12px;
+  }
+  .chapter-rail li {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 7px;
+    align-items: center;
+    opacity: 0.34;
+    transition:
+      opacity 0.35s ease,
+      transform 0.45s var(--v12-ease);
+  }
+  .chapter-rail li span {
+    font-size: 8px;
+    letter-spacing: 0.12em;
+  }
+  .chapter-rail li b {
+    font-size: 8px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+  .chapter-rail li.is-active {
+    opacity: 1;
+    transform: translateX(-6px);
+  }
+  .chapter-rail-line {
+    position: absolute;
+    left: 5px;
+    top: 2px;
+    bottom: 2px;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.2);
+    overflow: hidden;
+  }
+  .chapter-rail-line i {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    transform: scaleY(var(--chapter-progress, 0));
+    transform-origin: top;
+    will-change: transform;
+  }
+}
+
+/* ---------- header movement ---------- */
+body.motorbaldi .site-header {
+  transition:
+    transform 0.55s var(--v12-ease),
+    background 0.4s ease,
+    border-color 0.4s ease,
+    opacity 0.35s ease !important;
+  will-change: transform;
+}
+body.motorbaldi.header-hidden .site-header {
+  transform: translate3d(-50%, -140%, 0);
+}
+body.motorbaldi .desktop-nav a {
+  position: relative;
+}
+body.motorbaldi .desktop-nav a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: -8px;
+  height: 1px;
+  background: currentColor;
+  transition: right 0.42s var(--v12-ease);
+}
+body.motorbaldi .desktop-nav a:hover::after,
+body.motorbaldi .desktop-nav a.is-active::after {
+  right: 0;
+}
+
+/* ---------- hero: image-led cinematic exit ---------- */
+body.motorbaldi .hero {
+  --v12-hero: 0;
+  overflow: hidden;
+}
+body.motorbaldi .hero-media img {
+  transform: translate3d(
+      calc(var(--v12-pointer-x, 0px) * 0.025),
+      calc(var(--v12-hero) * 24px + var(--v12-pointer-y, 0px) * 0.018),
+      0
+    )
+    scale(calc(1.045 + var(--v12-hero) * 0.075)) !important;
+  filter: saturate(calc(0.92 - var(--v12-hero) * 0.08)) contrast(1.06);
+  will-change: transform;
+}
+body.motorbaldi .hero-grid {
+  transform: translate3d(0, calc(var(--v12-hero) * 18px), 0);
+  opacity: calc(0.22 - var(--v12-hero) * 0.08);
+}
+body.motorbaldi .hero-orbits {
+  transform: translate3d(
+      calc(var(--v12-hero) * 65px),
+      calc(var(--v12-hero) * -28px),
+      0
+    )
+    rotate(calc(var(--v12-hero) * 4deg));
+  opacity: calc(0.9 - var(--v12-hero) * 0.75);
+}
+body.motorbaldi .hero-copy {
+  transform: translate3d(0, calc(var(--v12-hero) * -42px), 0);
+  opacity: calc(1 - var(--v12-hero) * 0.92);
+  will-change: transform, opacity;
+}
+body.motorbaldi .hero-hud {
+  transform: translate3d(
+      calc(var(--v12-hero) * 36px),
+      calc(var(--v12-hero) * 18px),
+      0
+    )
+    scale(calc(1 - var(--v12-hero) * 0.035));
+  opacity: calc(1 - var(--v12-hero) * 0.88);
+  will-change: transform, opacity;
+}
+body.motorbaldi .hero-bottom {
+  opacity: calc(1 - var(--v12-hero) * 1.1);
+}
+body.motorbaldi .hero-line {
+  clip-path: inset(-8% 0 -8% 0);
+  transition:
+    opacity 0.64s ease,
+    transform 0.9s var(--v12-ease),
+    filter 0.8s ease,
+    clip-path 0.9s var(--v12-ease) !important;
+}
+body.motorbaldi .hero-line:not(.is-active) {
+  clip-path: inset(0 0 100% 0) !important;
+  transform: translate3d(0, 30px, 0) skewY(2.2deg) !important;
+  filter: blur(8px) !important;
+}
+body.motorbaldi .hero-line.is-active {
+  clip-path: inset(-8% 0 -8% 0) !important;
+  transform: translate3d(0, 0, 0) !important;
+  filter: blur(0) !important;
+}
+
+/* ---------- reveal choreography ---------- */
+/* Individual translate keeps reveals separate from the scene's scroll transforms. */
+html.motion-v12-ready:not(.reduce-motion) .v12-reveal {
+  transition:
+    opacity 0.6s ease,
+    translate 0.8s var(--v12-ease),
+    filter 0.7s ease !important;
+  transition-delay: var(--v12-delay, 0ms) !important;
+}
+html.motion-v12-ready:not(.reduce-motion) .v12-reveal:not(.is-v12-visible) {
+  opacity: 0 !important;
+  translate: var(--v12-from-x, 0) 24px;
+  filter: blur(3px);
+}
+.v12-from-left {
+  --v12-from-x: -24px;
+}
+.v12-from-right {
+  --v12-from-x: 24px;
+}
+.v12-reveal.is-v12-visible {
+  translate: 0 0;
+  filter: none;
+}
+
+/* ---------- section edge transitions ---------- */
+body.motorbaldi [data-cinematic-section]::after {
+  content: "";
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0,
+    var(--v12-red) 24%,
+    rgba(255, 255, 255, 0.9) 52%,
+    transparent 100%
+  );
+  transform: scaleX(var(--v12-enter));
+  transform-origin: left;
+  opacity: 0.45;
+  pointer-events: none;
+}
+body.motorbaldi [data-cinematic-section] > .shell {
+  position: relative;
+  z-index: 2;
+}
+
+/* ---------- Universe: photo-rich campaign cards ---------- */
+body.motorbaldi .manifesto {
+  --v12-universe: 0.5;
+  overflow: hidden;
+}
+body.motorbaldi .manifesto-grid h2 {
+  transform: translate3d(calc((0.5 - var(--v12-universe)) * 22px), 0, 0);
+}
+body.motorbaldi .universe-cards {
+  perspective: 1400px;
+}
+body.motorbaldi .universe-card-photo {
+  position: relative;
+  min-height: 390px;
+  padding: 0 !important;
+  overflow: hidden;
+  background: #111518;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.08);
+  isolation: isolate;
+  box-shadow: 0 26px 70px rgba(20, 25, 28, 0.12);
+}
+body.motorbaldi .universe-card-media {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+}
+body.motorbaldi .universe-card-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(5, 8, 10, 0.08),
+      rgba(5, 8, 10, 0.34) 44%,
+      rgba(5, 8, 10, 0.92) 100%
+    ),
+    linear-gradient(100deg, rgba(8, 10, 12, 0.64), transparent 64%);
+}
+body.motorbaldi .universe-card-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: translate3d(0, calc((0.5 - var(--v12-universe)) * 22px), 0)
+    scale(1.12);
+  filter: saturate(0.8) contrast(1.05);
+  transition:
+    filter 0.45s ease,
+    transform 0.7s var(--v12-ease);
+}
+body.motorbaldi .universe-card-copy {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 28px 26px 30px;
+  z-index: 2;
+}
+body.motorbaldi .universe-card-copy > span {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.72);
+}
+body.motorbaldi .universe-card-copy h3 {
+  font-size: 36px;
+  letter-spacing: -0.04em;
+  margin-top: 54px !important;
+}
+body.motorbaldi .universe-card-copy p {
+  color: rgba(255, 255, 255, 0.7);
+  max-width: 310px;
+}
+body.motorbaldi .universe-card-copy i {
+  position: absolute;
+  right: 24px;
+  top: 26px;
+  color: #fff;
+}
+@media (hover: hover) and (pointer: fine) {
+  body.motorbaldi .universe-card-photo:hover .universe-card-media img {
+    transform: scale(1.18);
+    filter: saturate(1) contrast(1.06);
+  }
+  body.motorbaldi .universe-card-photo:hover {
+    transform: translate3d(0, -8px, 0) !important;
+    box-shadow: 0 40px 90px rgba(10, 15, 20, 0.24);
+  }
+}
+
+/* ---------- Services: sticky campaign sequence ---------- */
+body.motorbaldi .services-space {
+  --v12-services: 0;
+  --v12-service-local: 0;
+  overflow: clip;
+}
+body.motorbaldi .service-scroll-meter {
+  display: none;
+}
+body.motorbaldi .service-campaign-word {
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%)
+    translateX(calc((var(--v12-services) - 0.5) * -190px));
+  font-size: clamp(100px, 14vw, 220px);
+  line-height: 0.8;
+  font-weight: 900;
+  letter-spacing: -0.07em;
+  color: rgba(255, 255, 255, 0.018);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  will-change: transform;
+}
+body.motorbaldi .service-tab {
+  position: relative;
+  overflow: hidden;
+}
+body.motorbaldi .service-tab::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--v12-red);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.55s var(--v12-ease);
+}
+body.motorbaldi .service-tab.is-active::after {
+  transform: scaleX(1);
+}
+body.motorbaldi .service-tab b,
+body.motorbaldi .service-tab small {
+  transition:
+    transform 0.5s var(--v12-ease),
+    opacity 0.3s ease;
+}
+body.motorbaldi .service-tab.is-active b,
+body.motorbaldi .service-tab.is-active small {
+  transform: translateX(9px);
+}
+body.motorbaldi .service-scene {
+  position: relative;
+  overflow: hidden;
+  perspective: 1400px;
+}
+body.motorbaldi .scene-card-main {
+  will-change: transform;
+  transform: translate3d(0, calc((0.5 - var(--v12-service-local)) * 14px), 0)
+    rotateX(calc((0.5 - var(--v12-service-local)) * 1.7deg)) !important;
+}
+body.motorbaldi .scene-image {
+  position: relative;
+  overflow: hidden;
+}
+body.motorbaldi .scene-image::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: #f2f0e9;
+  transform: translate3d(-102%, 0, 0);
+  pointer-events: none;
+}
+body.motorbaldi .scene-card-main.is-switching .scene-image::before {
+  animation: v12ServiceWipe 0.72s var(--v12-ease-sharp) both;
+}
+body.motorbaldi .scene-image img {
+  transform: translate3d(0, calc((0.5 - var(--v12-service-local)) * 24px), 0)
+    scale(calc(1.06 + var(--v12-service-local) * 0.04)) !important;
+  will-change: transform;
+}
+body.motorbaldi .scene-card-back {
+  transform: translate3d(
+      calc(40px + var(--v12-services) * 18px),
+      calc(-22px + var(--v12-services) * -12px),
+      -90px
+    )
+    rotateY(calc(-6deg + var(--v12-services) * 2deg)) !important;
+}
+@keyframes v12ServiceWipe {
+  0% {
+    transform: translateX(-102%);
+  }
+  48%,
+  56% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(102%);
+  }
+}
+
+@media (min-width: 1180px) and (min-height: 800px) {
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .services-space {
+    height: 310svh;
+    padding: 0 !important;
+  }
+  html.motion-v12-ready:not(.reduce-motion)
+    body.motorbaldi
+    .services-space
+    > .shell {
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    padding-top: 88px;
+    padding-bottom: 34px;
+  }
+  html.motion-v12-ready:not(.reduce-motion)
+    body.motorbaldi
+    .services-space
+    .section-meta {
+    align-self: end;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .services-heading {
+    padding: 18px 0 24px !important;
+    grid-template-columns: 1fr minmax(280px, 350px);
+    gap: 42px;
+  }
+  html.motion-v12-ready:not(.reduce-motion)
+    body.motorbaldi
+    .services-heading
+    h2 {
+    font-size: clamp(48px, 4.6vw, 68px) !important;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .service-lab {
+    position: relative;
+    min-height: 0;
+    height: 100%;
+    grid-template-columns: minmax(220px, 0.63fr) minmax(0, 1.45fr) !important;
+    gap: 48px !important;
+    align-items: center !important;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .service-scene {
+    min-height: 0 !important;
+    height: 100%;
+  }
+  html.motion-v12-ready:not(.reduce-motion)
+    body.motorbaldi
+    .service-scroll-meter {
+    display: flex;
+    position: absolute;
+    z-index: 8;
+    left: -38px;
+    top: 8%;
+    bottom: 8%;
+    width: 18px;
+    align-items: center;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .service-scroll-meter::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 82px;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.15);
+  }
+  .service-scroll-meter span {
+    position: absolute;
+    left: 8px;
+    top: 0;
+    width: 1px;
+    height: calc(100% - 82px);
+    background: #fff;
+    transform: scaleY(var(--v12-services));
+    transform-origin: top;
+    will-change: transform;
+  }
+  .service-scroll-meter b {
+    position: absolute;
+    bottom: 0;
+    left: -43px;
+    width: 104px;
+    transform: rotate(-90deg);
+    font-size: 7px;
+    letter-spacing: 0.18em;
+    color: rgba(255, 255, 255, 0.45);
+    white-space: nowrap;
+  }
+}
+
+/* ---------- Mobility: full-photo reveal and kinetic typography ---------- */
+body.motorbaldi .mobility {
+  --v12-mobility: 0.5;
+  overflow: hidden;
+}
+body.motorbaldi .vehicle-photo-real {
+  position: relative;
+  isolation: isolate;
+  clip-path: inset(
+    calc((1 - var(--v12-enter)) * 6%) calc((1 - var(--v12-enter)) * 3%) round
+      24px
+  );
+  will-change: clip-path;
+}
+body.motorbaldi .vehicle-photo-real img {
+  transform: translate3d(
+      calc((var(--v12-mobility) - 0.5) * -34px),
+      calc((0.5 - var(--v12-mobility)) * 32px),
+      0
+    )
+    scale(calc(1.08 + var(--v12-mobility) * 0.05)) !important;
+  will-change: transform;
+}
+body.motorbaldi .vehicle-kinetic-word {
+  position: absolute;
+  z-index: 1;
+  left: -3%;
+  right: -3%;
+  top: 50%;
+  display: flex;
+  justify-content: space-between;
+  transform: translateY(-50%);
+  font-size: clamp(92px, 14vw, 210px);
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  color: rgba(255, 255, 255, 0.055);
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  white-space: nowrap;
+}
+body.motorbaldi .vehicle-kinetic-word span:first-child {
+  transform: translateX(calc((var(--v12-mobility) - 0.5) * -120px));
+}
+body.motorbaldi .vehicle-kinetic-word span:last-child {
+  transform: translateX(calc((var(--v12-mobility) - 0.5) * 120px));
+}
+body.motorbaldi .vehicle-photo-caption {
+  z-index: 5;
+}
+body.motorbaldi .vehicle-panel {
+  transform: translate3d(0, calc((0.5 - var(--v12-mobility)) * 24px), 0)
+    rotateY(calc((0.5 - var(--v12-mobility)) * -1.3deg));
+  will-change: transform;
+}
+body.motorbaldi .vehicle-switch button {
+  overflow: hidden;
+  position: relative;
+}
+body.motorbaldi .vehicle-switch button::after {
+  content: "";
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  bottom: 8px;
+  height: 1px;
+  background: #fff;
+  transform: scaleX(0);
+  transition: transform 0.4s var(--v12-ease);
+}
+body.motorbaldi .vehicle-switch button.is-active::after {
+  transform: scaleX(1);
+}
+
+/* ---------- Platform: pinned UI depth scene ---------- */
+body.motorbaldi .platform {
+  --v12-platform: 0;
+  overflow: clip;
+}
+body.motorbaldi .platform-grid {
+  transform: translate3d(
+      calc((var(--v12-platform) - 0.5) * -42px),
+      calc((var(--v12-platform) - 0.5) * -62px),
+      0
+    )
+    scale(1.08);
+  will-change: transform;
+}
+body.motorbaldi .platform-copy {
+  transform: translate3d(0, calc((var(--v12-platform) - 0.5) * -24px), 0);
+}
+body.motorbaldi .digital-twin {
+  perspective: 1600px;
+  transform-style: preserve-3d;
+}
+body.motorbaldi .device-card {
+  transform: translate3d(0, calc((0.5 - var(--v12-platform)) * 48px), 0)
+    rotateX(calc((0.5 - var(--v12-platform)) * 7deg))
+    rotateY(calc((var(--v12-platform) - 0.5) * -5deg))
+    scale(calc(0.94 + var(--v12-platform) * 0.08)) !important;
+  will-change: transform;
+  box-shadow: 0 46px 130px rgba(0, 0, 0, 0.38) !important;
+}
+body.motorbaldi .float-card-a {
+  transform: translate3d(
+    calc((0.5 - var(--v12-platform)) * -72px),
+    calc((0.5 - var(--v12-platform)) * -96px),
+    80px
+  ) !important;
+}
+body.motorbaldi .float-card-b {
+  transform: translate3d(
+    calc((0.5 - var(--v12-platform)) * 62px),
+    calc((0.5 - var(--v12-platform)) * 66px),
+    110px
+  ) !important;
+}
+body.motorbaldi .float-card-c {
+  transform: translate3d(
+    calc((0.5 - var(--v12-platform)) * -84px),
+    calc((0.5 - var(--v12-platform)) * 94px),
+    65px
+  ) !important;
+}
+body.motorbaldi .platform-orbits {
+  position: absolute;
+  inset: 5%;
+  z-index: -1;
+  pointer-events: none;
+  transform: translateZ(-1px);
+}
+body.motorbaldi .platform-orbits i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 70%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 1px solid rgba(145, 196, 255, 0.12);
+  transform: translate(-50%, -50%) rotateX(67deg)
+    rotateZ(calc(var(--v12-platform) * 48deg));
+  box-shadow: 0 0 60px rgba(72, 142, 209, 0.05);
+}
+body.motorbaldi .platform-orbits i:nth-child(2) {
+  width: 48%;
+  border-color: rgba(215, 25, 45, 0.18);
+  transform: translate(-50%, -50%) rotateX(70deg)
+    rotateZ(calc(var(--v12-platform) * -72deg));
+}
+body.motorbaldi .platform-orbits i:nth-child(3) {
+  width: 92%;
+  opacity: 0.5;
+  transform: translate(-50%, -50%) rotateX(72deg)
+    rotateZ(calc(var(--v12-platform) * 29deg));
+}
+body.motorbaldi .platform-scan {
+  position: absolute;
+  left: 11%;
+  right: 11%;
+  height: 1px;
+  top: calc(12% + var(--v12-platform) * 72%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(134, 197, 255, 0.7),
+    transparent
+  );
+  box-shadow: 0 0 18px rgba(111, 183, 255, 0.45);
+  opacity: 0.42;
+  pointer-events: none;
+}
+@media (min-width: 1180px) and (min-height: 800px) {
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .platform {
+    height: 175svh;
+    padding: 0 !important;
+  }
+  html.motion-v12-ready:not(.reduce-motion)
+    body.motorbaldi
+    .platform
+    > .platform-shell {
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    padding-top: 102px;
+    padding-bottom: 48px;
+    align-items: center;
+  }
+}
+
+/* ---------- signature red chapter transition ---------- */
+body.motorbaldi .pioneer-transition {
+  height: 150svh;
+  background: #080b0d;
+  position: relative;
+  z-index: 6;
+  margin-top: -1px;
+  --v12-red-y: 100%;
+  --v12-red-skew: 2deg;
+  --v12-red-copy-opacity: 0;
+  --v12-red-copy-y: 46px;
+  --v12-marquee-x: 10%;
+  --v12-red-grid: 0.1;
+  --v12-red-counter: 0;
+}
+body.motorbaldi .pioneer-transition-sticky {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+  background: #080b0d;
+  color: #fff;
+  isolation: isolate;
+}
+body.motorbaldi .transition-black {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 70% 30%, rgba(54, 71, 83, 0.18), transparent 28%),
+    #080b0d;
+}
+body.motorbaldi .transition-red {
+  position: absolute;
+  z-index: 1;
+  inset: -5%;
+  background: linear-gradient(135deg, #a9081a 0, #d7192d 48%, #ef233c 100%);
+  transform: translate3d(0, var(--v12-red-y), 0) skewY(var(--v12-red-skew))
+    scale(1.08);
+  transform-origin: center;
+  will-change: transform;
+}
+body.motorbaldi .transition-red::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      circle at 72% 25%,
+      rgba(255, 255, 255, 0.16),
+      transparent 26%
+    ),
+    radial-gradient(circle at 18% 72%, rgba(59, 0, 9, 0.18), transparent 38%);
+}
+body.motorbaldi .transition-grid {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  opacity: var(--v12-red-grid);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(
+    180deg,
+    transparent,
+    #000 20%,
+    #000 80%,
+    transparent
+  );
+}
+body.motorbaldi .transition-diagonal {
+  position: absolute;
+  z-index: 3;
+  left: -12vw;
+  right: -12vw;
+  top: 47%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.36);
+  transform: rotate(-7deg) translateY(calc(var(--v12-red-copy-y) * -0.2));
+  opacity: var(--v12-red-copy-opacity);
+}
+body.motorbaldi .transition-marquee {
+  position: absolute;
+  z-index: 3;
+  left: -10vw;
+  top: 50%;
+  width: 120vw;
+  transform: translate3d(var(--v12-marquee-x), -50%, 0) rotate(-7deg);
+  white-space: nowrap;
+  overflow: visible;
+  opacity: 0.12;
+  mix-blend-mode: screen;
+}
+body.motorbaldi .transition-marquee span {
+  display: block;
+  font-size: clamp(110px, 18vw, 290px);
+  font-weight: 900;
+  letter-spacing: -0.075em;
+  line-height: 0.8;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.95);
+}
+body.motorbaldi .transition-copy {
+  position: absolute;
+  z-index: 5;
+  left: clamp(24px, 7vw, 110px);
+  right: clamp(24px, 12vw, 180px);
+  top: 50%;
+  transform: translate3d(0, calc(-50% + var(--v12-red-copy-y)), 0);
+  opacity: var(--v12-red-copy-opacity);
+  max-width: 970px;
+  will-change: transform, opacity;
+}
+body.motorbaldi .transition-copy small {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-bottom: 26px;
+  color: rgba(255, 255, 255, 0.7);
+}
+body.motorbaldi .transition-copy strong {
+  display: block;
+  font-size: clamp(58px, 7.8vw, 126px);
+  line-height: 0.86;
+  letter-spacing: -0.068em;
+  text-wrap: balance;
+}
+body.motorbaldi .transition-copy > span {
+  display: block;
+  margin-top: 34px;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.72);
+}
+body.motorbaldi .transition-counter {
+  position: absolute;
+  z-index: 5;
+  right: clamp(24px, 6vw, 100px);
+  bottom: clamp(28px, 6vw, 86px);
+  display: flex;
+  align-items: end;
+  gap: 5px;
+  opacity: var(--v12-red-copy-opacity);
+}
+body.motorbaldi .transition-counter b {
+  font-size: clamp(58px, 8vw, 128px);
+  line-height: 0.72;
+  letter-spacing: -0.08em;
+}
+body.motorbaldi .transition-counter span {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.65);
+}
+body.motorbaldi .pioneers {
+  margin-top: -1px;
+  z-index: 7;
+  overflow: hidden;
+  --v12-pioneers: 0.5;
+}
+body.motorbaldi .pioneers::before {
+  transform: translate3d(
+      calc((var(--v12-pioneers) - 0.5) * -24px),
+      calc((var(--v12-pioneers) - 0.5) * -44px),
+      0
+    )
+    scale(1.08);
+}
+body.motorbaldi .mb-pass {
+  transform: translate3d(0, calc((0.5 - var(--v12-pioneers)) * 46px), 0)
+    rotateZ(calc((var(--v12-pioneers) - 0.5) * 2.4deg))
+    rotateX(calc((0.5 - var(--v12-pioneers)) * 2.5deg)) !important;
+  will-change: transform;
+}
+body.motorbaldi .pass-orbit {
+  transform: rotateX(68deg) rotateZ(calc(-18deg + var(--v12-pioneers) * 42deg)) !important;
+}
+
+/* ---------- Process: oversized active journey ---------- */
+body.motorbaldi .process {
+  --v12-process: 0;
+  overflow: hidden;
+}
+body.motorbaldi .process-track {
+  position: relative;
+}
+body.motorbaldi .process-track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--v12-red);
+  transform: scaleY(var(--v12-process));
+  transform-origin: top;
+  z-index: 3;
+}
+body.motorbaldi .process-track li {
+  position: relative;
+  transition:
+    transform 0.55s var(--v12-ease),
+    opacity 0.35s ease,
+    background 0.35s ease !important;
+}
+body.motorbaldi .process-track li::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--v12-red);
+  transform: translateY(-50%) scale(0);
+  transition: transform 0.45s var(--v12-ease);
+  z-index: 4;
+}
+body.motorbaldi .process-track li.step-active {
+  transform: translateX(14px);
+  background: rgba(255, 255, 255, 0.42);
+}
+body.motorbaldi .process-track li.step-active::before {
+  transform: translateY(-50%) scale(1);
+}
+body.motorbaldi .process-track li > span {
+  transition:
+    transform 0.45s var(--v12-ease),
+    color 0.35s ease;
+}
+body.motorbaldi .process-track li.step-active > span {
+  transform: scale(1.15);
+  color: var(--v12-red);
+}
+
+/* ---------- Contact / UI finish ---------- */
+body.motorbaldi .faq-list details {
+  transition:
+    background 0.35s ease,
+    transform 0.45s var(--v12-ease),
+    padding 0.45s var(--v12-ease);
+}
+body.motorbaldi .faq-list details[open] {
+  background: rgba(255, 255, 255, 0.4);
+  transform: translateX(-8px);
+}
+body.motorbaldi .faq-list summary span {
+  transition: transform 0.45s var(--v12-ease);
+}
+body.motorbaldi .faq-list details[open] summary span {
+  transform: rotate(45deg);
+}
+body.motorbaldi .contact {
+  overflow: hidden;
+}
+body.motorbaldi .contact-glow {
+  transform: translate3d(
+      calc((var(--v12-local, 0.5) - 0.5) * -80px),
+      calc((var(--v12-local, 0.5) - 0.5) * 50px),
+      0
+    )
+    scale(1.12);
+}
+body.motorbaldi .quote-form {
+  transition:
+    transform 0.55s var(--v12-ease),
+    box-shadow 0.4s ease !important;
+}
+
+/* ---------- magnetic / tactile controls ---------- */
+body.motorbaldi .button,
+body.motorbaldi .nav-cta {
+  transform: translate3d(var(--v12-mag-x, 0), var(--v12-mag-y, 0), 0);
+  transition:
+    transform 0.24s ease,
+    box-shadow 0.3s ease,
+    background 0.3s ease !important;
+}
+body.motorbaldi .button span,
+body.motorbaldi .text-link span,
+body.motorbaldi .ghost-link span {
+  display: inline-block;
+  transition: transform 0.38s var(--v12-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  body.motorbaldi .button:hover {
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2);
+  }
+  body.motorbaldi .button:hover span,
+  body.motorbaldi .text-link:hover span,
+  body.motorbaldi .ghost-link:hover span {
+    transform: translate3d(5px, -2px, 0);
+  }
+  body.motorbaldi .scene-card-main:hover {
+    box-shadow: 0 50px 130px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* ---------- mobile/tablet: motion remains rich but never pinned ---------- */
+@media (max-width: 1179px), (max-height: 799px) {
+  body.motorbaldi .chapter-rail {
+    display: none !important;
+  }
+  body.motorbaldi .pioneer-transition {
+    height: 65svh;
+    min-height: 480px;
+  }
+  body.motorbaldi .transition-copy strong {
+    font-size: clamp(48px, 13vw, 80px);
+  }
+  body.motorbaldi .transition-marquee span {
+    font-size: clamp(96px, 26vw, 180px);
+  }
+  body.motorbaldi .service-scroll-meter {
+    display: none !important;
+  }
+  body.motorbaldi .service-campaign-word {
+    font-size: 28vw;
+    opacity: 0.6;
+  }
+}
+@media (max-width: 760px) {
+  body.motorbaldi .hero-media img {
+    transform: translate3d(0, calc(var(--v12-hero) * 14px), 0)
+      scale(calc(1.025 + var(--v12-hero) * 0.035)) !important;
+  }
+  body.motorbaldi .hero-copy {
+    transform: translate3d(0, calc(var(--v12-hero) * -18px), 0);
+  }
+  body.motorbaldi .hero-hud {
+    transform: translate3d(0, calc(var(--v12-hero) * 10px), 0);
+  }
+  body.motorbaldi .universe-card-photo {
+    min-height: 330px;
+  }
+  body.motorbaldi .universe-card-copy h3 {
+    font-size: 34px;
+    margin-top: 44px !important;
+  }
+  body.motorbaldi .vehicle-photo-real img {
+    transform: translate3d(0, calc((0.5 - var(--v12-mobility)) * 14px), 0)
+      scale(calc(1.06 + var(--v12-mobility) * 0.03)) !important;
+  }
+  body.motorbaldi .vehicle-kinetic-word {
+    font-size: 24vw;
+    top: 45%;
+  }
+  body.motorbaldi .platform-copy {
+    transform: none;
+    opacity: 1;
+  }
+  body.motorbaldi .device-card {
+    transform: translate3d(0, calc((0.5 - var(--v12-platform)) * 18px), 0)
+      scale(calc(0.97 + var(--v12-platform) * 0.03)) !important;
+  }
+  body.motorbaldi .float-card-a,
+  body.motorbaldi .float-card-b,
+  body.motorbaldi .float-card-c {
+    transform: translate3d(0, var(--float-shift, 0), 0) !important;
+  }
+  body.motorbaldi .platform-orbits {
+    inset: 14% 0;
+  }
+  body.motorbaldi .pioneer-transition {
+    height: 65svh;
+    min-height: 480px;
+  }
+  body.motorbaldi .transition-copy {
+    left: 18px;
+    right: 18px;
+    top: 46%;
+  }
+  body.motorbaldi .transition-copy small {
+    margin-bottom: 18px;
+  }
+  body.motorbaldi .transition-copy strong {
+    font-size: clamp(46px, 13.2vw, 68px);
+    line-height: 0.9;
+  }
+  body.motorbaldi .transition-counter {
+    right: 18px;
+    bottom: 30px;
+  }
+  body.motorbaldi .transition-counter b {
+    font-size: 70px;
+  }
+  body.motorbaldi .transition-grid {
+    background-size: 46px 46px;
+  }
+}
+
+/* ---------- reduced motion / print ---------- */
+.reduce-motion .motion-intro {
+  display: none !important;
+}
+.reduce-motion body.motorbaldi .v12-reveal,
+.reduce-motion body.motorbaldi .v12-reveal.is-v12-visible {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  transition: none !important;
+}
+.reduce-motion body.motorbaldi .pioneer-transition {
+  height: auto;
+  min-height: 70vh;
+  background: var(--v12-red);
+}
+.reduce-motion body.motorbaldi .pioneer-transition-sticky {
+  position: relative;
+  min-height: 70vh;
+  height: auto;
+  background: var(--v12-red);
+}
+.reduce-motion body.motorbaldi .transition-red {
+  transform: none !important;
+}
+.reduce-motion body.motorbaldi .transition-copy {
+  opacity: 1 !important;
+  transform: translateY(-50%) !important;
+}
+.reduce-motion body.motorbaldi .transition-marquee {
+  transform: translateY(-50%) rotate(-7deg) !important;
+}
+.reduce-motion body.motorbaldi .transition-counter {
+  opacity: 1 !important;
+}
+.reduce-motion body.motorbaldi .hero-media img,
+.reduce-motion body.motorbaldi .hero-copy,
+.reduce-motion body.motorbaldi .hero-hud,
+.reduce-motion body.motorbaldi .device-card,
+.reduce-motion body.motorbaldi .vehicle-photo-real img,
+.reduce-motion body.motorbaldi .mb-pass {
+  transform: none !important;
+  opacity: 1 !important;
+}
+@media print {
+  .motion-intro,
+  .chapter-rail,
+  .pioneer-transition {
+    display: none !important;
+  }
+  .v12-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
+body.motorbaldi.red-chapter .site-header.is-scrolled {
+  background: rgba(118, 5, 18, 0.78) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 18px 55px rgba(64, 0, 9, 0.22) !important;
+}
+
+/* Layout constraints shared by the photographic chapters. */
+body.motorbaldi .universe-card-photo {
+  display: flex;
+  align-items: flex-end;
+  min-height: 390px !important;
+  background: #111518 !important;
+  color: #fff !important;
+  transform-style: flat;
+}
+body.motorbaldi .universe-card-copy {
+  position: relative;
+  inset: auto;
+  width: 100%;
+}
+body.motorbaldi .universe-card-photo p {
+  color: #e0e2e3 !important;
+}
+body.motorbaldi .universe-card-photo::before {
+  display: none;
+}
+body.motorbaldi .scene-card-main {
+  position: relative;
+  inset: auto;
+}
+body.motorbaldi .service-scene {
+  overflow: visible;
+}
+body.motorbaldi .scene-image img {
+  position: absolute;
+  inset: 0;
+}
+body.motorbaldi .service-tab {
+  opacity: 1 !important;
+}
+body.motorbaldi .service-tab:not(.is-active) b {
+  color: #c9ced1;
+}
+body.motorbaldi .service-tab:not(.is-active) small {
+  color: #aab3b7;
+}
+body.motorbaldi .service-tab b,
+body.motorbaldi .service-tab small {
+  transform: none !important;
+}
+body.motorbaldi .hero-rotator-controls button {
+  min-width: 32px;
+  min-height: 32px;
+}
+body.motorbaldi .mobile-contact-bar.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+body.motorbaldi .site-header:focus-within {
+  transform: translateX(-50%);
+}
+
+@media (min-width: 1180px) and (min-height: 800px) {
+  body.motorbaldi .chapter-rail {
+    width: 18px;
+    right: 12px;
+  }
+  body.motorbaldi .chapter-rail ol {
+    padding-left: 0;
+    gap: 16px;
+  }
+  body.motorbaldi .chapter-rail li {
+    display: block;
+  }
+  body.motorbaldi .chapter-rail li b,
+  body.motorbaldi .chapter-rail-line {
+    display: none;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .scene-card-main {
+    min-height: 0;
+    height: min(100%, 490px);
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 0.9fr);
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .scene-image {
+    min-height: 0;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .scene-content {
+    padding: 24px !important;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .service-tab {
+    padding-top: 15px !important;
+    padding-bottom: 15px !important;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .platform-copy {
+    padding-top: 0;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .platform-copy h2 {
+    font-size: clamp(48px, 4.8vw, 72px) !important;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .digital-twin {
+    min-height: 0 !important;
+    height: min(620px, calc(100svh - 160px));
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .device-card {
+    min-height: 480px;
+  }
+}
+@media (max-width: 1179px), (max-height: 799px) {
+  body.motorbaldi .pioneer-transition-sticky {
+    position: relative;
+    height: 100%;
+    min-height: 480px;
+  }
+  body.motorbaldi .transition-red {
+    transform: none;
+  }
+  body.motorbaldi .transition-copy {
+    opacity: 1;
+    transform: translateY(-50%);
+  }
+  body.motorbaldi .transition-counter {
+    display: none;
+  }
+  body.motorbaldi .transition-copy > span {
+    display: none;
+  }
+}
+@media (max-width: 860px) {
+  body.motorbaldi .universe-card-photo {
+    min-height: 340px !important;
+  }
+  body.motorbaldi .service-list {
+    scrollbar-width: thin;
+    scrollbar-color: #a5adb1 transparent;
+    scroll-padding-inline: 14px;
+  }
+  body.motorbaldi .service-list::-webkit-scrollbar {
+    display: block;
+    height: 3px;
+  }
+  body.motorbaldi .service-list::-webkit-scrollbar-thumb {
+    background: #a5adb1;
+  }
+}
+/* No script: the decorative interstitial does not create an empty scroll chapter. */
+html:not(.motion-v12-ready) .pioneer-transition {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.motorbaldi .pioneer-transition {
+    display: none;
+  }
+  body.motorbaldi .v12-reveal {
+    translate: none !important;
+    filter: none !important;
+  }
+  body.motorbaldi .float-card,
+  body.motorbaldi .vehicle-panel,
+  body.motorbaldi .platform-copy,
+  body.motorbaldi .scene-card-main,
+  body.motorbaldi .mb-pass,
+  body.motorbaldi .process-track li {
+    transform: none !important;
+  }
+}
+body.motorbaldi .skip-link {
+  position: fixed;
+}
+body.motorbaldi .site-header .brand {
+  width: 136px;
+}
+body.motorbaldi .site-header .brand img {
+  max-height: 54px;
+  object-fit: contain;
+}
+body.motorbaldi .hero-line em {
+  color: #cbd0d2 !important;
+}
+@media (min-width: 1180px) and (min-height: 800px) {
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .platform-shell {
+    grid-template-rows: auto minmax(0, 1fr);
+    row-gap: 24px !important;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .digital-twin {
+    height: 100%;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .platform-copy {
+    align-self: center;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .device-card {
+    width: 85% !important;
+    margin-inline: auto;
+    min-height: 0;
+  }
+  html.motion-v12-ready:not(.reduce-motion) body.motorbaldi .device-vehicle {
+    padding: 20px 4px 24px;
+  }
+  html.motion-v12-ready:not(.reduce-motion)
+    body.motorbaldi
+    .device-status
+    > div {
+    padding: 12px;
+  }
+  html.motion-v12-ready:not(.reduce-motion)
+    body.motorbaldi
+    .device-timeline
+    > div {
+    padding-bottom: 14px;
+  }
+}
+@media (max-width: 600px) {
+  body.motorbaldi .site-header .brand {
+    width: 120px;
+  }
+  body.motorbaldi .hero-copy {
+    padding-top: 36px;
+  }
+  body.motorbaldi .hero-title-rotator {
+    font-size: clamp(42px, 12.5vw, 62px) !important;
+  }
+  body.motorbaldi .scene-card-main {
+    transform: none !important;
+  }
+}
+
+/* The pass contents follow normal flow so its logo and label never collide. */
+body.motorbaldi .mb-pass {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  aspect-ratio: auto;
+}
+body.motorbaldi .pass-head img {
+  width: 136px;
+}
+body.motorbaldi .pass-code,
+body.motorbaldi .pass-foot {
+  position: relative;
+  inset: auto;
+  transform: none;
+}
+body.motorbaldi .pass-code strong {
+  font-size: clamp(62px, 7.5vw, 108px);
+  white-space: nowrap;
+}
+body.motorbaldi .pass-foot {
+  margin-top: 4px;
+}
+@media (max-width: 600px) {
+  body.motorbaldi .pass-head img {
+    width: 112px;
+  }
+  body.motorbaldi .pass-code strong {
+    font-size: clamp(60px, 20vw, 82px);
+  }
+  body.motorbaldi .mobile-contact-bar {
+    left: auto;
+    right: 14px;
+    bottom: max(14px, env(safe-area-inset-bottom));
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+  }
+  body.motorbaldi .mobile-contact-bar > span {
+    display: none;
+  }
+  body.motorbaldi .mobile-contact-bar a {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding-inline: 20px;
+  }
+}

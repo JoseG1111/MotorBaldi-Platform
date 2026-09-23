@@ -1,0 +1,63 @@
+{
+  "name": "motorbaldi-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.34.5",
+  "description": "MotorBaldi Platform foundation targeting Cloudflare Workers, D1, R2, Queues and Durable Objects.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "eslint apps packages scripts tests && prettier --check README.md 'apps/**/*.{ts,md,json,jsonc}' 'packages/**/*.{ts,json}' 'scripts/**/*.ts' 'scripts/**/*.mjs' 'tests/**/*.ts' 'docs/{architecture,cloudflare,contracts,runbooks,adr}/*.md'",
+    "typecheck": "tsc --noEmit",
+    "build": "pnpm build:portal && pnpm build:admin && pnpm build:api && pnpm build:worker",
+    "build:api": "wrangler deploy --config apps/api/wrangler.jsonc --dry-run --outdir dist/api",
+    "build:worker": "wrangler deploy --config apps/worker/wrangler.jsonc --dry-run --outdir dist/worker",
+    "build:portal": "wrangler deploy --config apps/portal/wrangler.jsonc --dry-run --outdir dist/portal",
+    "build:admin": "wrangler deploy --config apps/admin/wrangler.jsonc --dry-run --outdir dist/admin",
+    "dev:api": "wrangler dev --config apps/api/wrangler.jsonc --local",
+    "dev:worker": "wrangler dev --config apps/worker/wrangler.jsonc --local --test-scheduled",
+    "d1:migrate:local": "wrangler d1 migrations apply motorbaldi-core-dev --local --config apps/api/wrangler.jsonc",
+    "test": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:workers && pnpm openapi:check && pnpm boundaries:check && pnpm security:check",
+    "test:unit": "vitest run tests/foundation/unit.test.ts tests/foundation/migrations.test.ts",
+    "test:workers": "vitest run --config vitest.workers.config.ts",
+    "openapi:check": "tsx scripts/foundation/openapi.ts",
+    "security:check": "node scripts/foundation/security.mjs && node scripts/foundation/security-fixtures.mjs",
+    "security:scan:history": "gitleaks detect --config .gitleaks.toml --redact --no-banner",
+    "boundaries:check": "node scripts/foundation/boundaries.mjs",
+    "wrangler:types": "wrangler types --config apps/api/wrangler.jsonc worker-configuration.d.ts"
+  },
+  "devDependencies": {
+    "@apidevtools/swagger-parser": "^12.1.0",
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20260923.1",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.39.0",
+    "prettier": "^3.9.6",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.0",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.40.0"
+  },
+  "dependencies": {
+    "@motorbaldi/admin": "workspace:*",
+    "@motorbaldi/api": "workspace:*",
+    "@motorbaldi/auth": "workspace:*",
+    "@motorbaldi/authz": "workspace:*",
+    "@motorbaldi/config": "workspace:*",
+    "@motorbaldi/contracts": "workspace:*",
+    "@motorbaldi/db": "workspace:*",
+    "@motorbaldi/messaging": "workspace:*",
+    "@motorbaldi/observability": "workspace:*",
+    "@motorbaldi/payments": "workspace:*",
+    "@motorbaldi/portal": "workspace:*",
+    "@motorbaldi/shared": "workspace:*",
+    "@motorbaldi/storage": "workspace:*",
+    "better-auth": "1.7.5",
+    "file-type": "^21.3.0",
+    "uuid": "^13.0.0",
+    "zod": "^4.3.0"
+  }
+}

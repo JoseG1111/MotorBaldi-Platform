@@ -1,0 +1,12 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "motorbaldi-admin-dev",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "AUTH_BASE_URL": "http://localhost:8787",
+    "CORS_ORIGINS": "http://localhost:5174",
+  },
+}

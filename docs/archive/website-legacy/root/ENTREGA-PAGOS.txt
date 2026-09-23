@@ -1,0 +1,26 @@
+MOTORBALDI — VERSIÓN CON PAGOS WOMPI
+
+Sube y extrae motorbaldi-pagos-listo-para-subir.zip en public_html.
+index.html, pricing.html, api/, assets/ y .htaccess deben quedar directamente
+en public_html, sin otra carpeta contenedora. Haz una copia de la versión anterior.
+
+Conserva el archivo motorbaldi-wompi.php que ya configuraste FUERA de public_html.
+No se cambian las URLs del webhook ni del cron. El ZIP no incluye credenciales.
+Si el hosting tiene reglas propias de Apache, conserva esas reglas al combinar .htaccess.
+
+Esta versión verifica la configuración completa antes de ofrecer el pago, muestra
+las autorizaciones de Wompi, evita el reenvío del mismo cobro y confirma los pagos
+con Wompi antes de activar el plan. Los pagos pendientes no generan otro débito.
+
+Pruebas locales: proveedor simulado, endpoints PHP, firmas, reenvíos, renovaciones,
+fechas y navegación. No se ha realizado un cobro real ni validado el archivo
+privado de tu hosting. La comprobación final del comercio requiere el sitio publicado.
+
+Las credenciales pub_test cobran en pruebas; pub_prod cobra dinero real.
+Pruebas y producción usan bases separadas por defecto:
+motorbaldi-wompi-test.sqlite y motorbaldi-wompi.sqlite, fuera de public_html.
+Si defines WOMPI_DB_PATH, usa una base distinta para cada ambiente.
+
+Si una conexión se interrumpe después de enviar un cobro, no se reintenta
+automáticamente: el webhook lo confirma. Si no llega, revisa la referencia en
+Wompi antes de intentar otro pago. Conserva copias de seguridad de las bases.

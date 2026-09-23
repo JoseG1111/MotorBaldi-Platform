@@ -1,0 +1,1065 @@
+/* MotorBaldi v10.0 — elegant/light production pass
+   Goal: premium real-business presentation without persistent WebGL. */
+
+body.motorbaldi {
+  --surface: #f3f1ec;
+  --surface-2: #ebe8e1;
+  --ink-soft: #62676b;
+  --dark: #080b0d;
+  --dark-2: #0e1316;
+  background: var(--surface);
+}
+body.motorbaldi .sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+body.motorbaldi .ambient-layer {
+  position: fixed;
+  inset: 0;
+  z-index: -20;
+  pointer-events: none;
+  overflow: hidden;
+  background: #080b0d;
+}
+body.motorbaldi .ambient-layer i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.18;
+  transform: translateZ(0);
+}
+body.motorbaldi .ambient-layer i:first-child {
+  width: 34vw;
+  height: 34vw;
+  right: -8vw;
+  top: 24vh;
+  background: rgba(215, 25, 45, 0.24);
+}
+body.motorbaldi .ambient-layer i:last-child {
+  width: 28vw;
+  height: 28vw;
+  left: -10vw;
+  top: 70vh;
+  background: rgba(65, 98, 128, 0.12);
+}
+body.motorbaldi .pointer-aura {
+  width: 320px;
+  height: 320px;
+  opacity: 0.09;
+  background: radial-gradient(circle, rgba(255, 62, 78, 0.18), transparent 68%);
+}
+
+/* Header: quieter, more like a premium corporate/product site. */
+body.motorbaldi .site-header {
+  top: 16px;
+  background: rgba(9, 12, 14, 0.7);
+  border-color: rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.14);
+}
+body.motorbaldi .site-header.is-scrolled {
+  background: rgba(8, 11, 13, 0.91);
+  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.22);
+}
+body.motorbaldi .desktop-nav {
+  gap: 24px;
+}
+body.motorbaldi .desktop-nav a {
+  font-size: 11px;
+  letter-spacing: 0.015em;
+}
+body.motorbaldi .nav-cta {
+  min-width: 112px;
+  justify-content: center;
+}
+
+/* Hero: preserve V8.3's real photographic composition. */
+body.motorbaldi .hero {
+  min-height: 100svh;
+  background: #080b0d;
+  color: #fff;
+  position: relative;
+  isolation: isolate;
+}
+body.motorbaldi .hero-shell {
+  min-height: 100svh;
+  padding-top: 108px;
+  padding-bottom: 26px;
+}
+body.motorbaldi .hero-media {
+  opacity: 1 !important;
+  z-index: -5 !important;
+  overflow: hidden;
+}
+body.motorbaldi .hero-media img {
+  transform: translate3d(0, var(--hero-scroll-y, 0px), 0)
+    scale(var(--hero-scroll-scale, 1.035));
+  object-position: center 46%;
+  filter: saturate(0.92) contrast(1.06);
+  transition: none;
+}
+body.motorbaldi .hero-vignette {
+  z-index: -3 !important;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(4, 6, 7, 0.93) 0%,
+      rgba(4, 6, 7, 0.66) 37%,
+      rgba(4, 6, 7, 0.18) 68%,
+      rgba(4, 6, 7, 0.32) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(4, 6, 7, 0.5) 0%,
+      transparent 30%,
+      transparent 66%,
+      rgba(4, 6, 7, 0.88) 100%
+    );
+}
+body.motorbaldi .hero-grid {
+  z-index: -2 !important;
+  opacity: 0.09 !important;
+  background-size: 86px 86px;
+}
+body.motorbaldi .hero-grid::after {
+  background: radial-gradient(
+    circle at var(--mx) var(--my),
+    rgba(215, 25, 45, 0.13),
+    transparent 24%
+  );
+}
+body.motorbaldi .hero-orbits {
+  opacity: 0.11 !important;
+  right: -12vw;
+  top: 15vh;
+}
+body.motorbaldi .hero-topline {
+  color: #cbd0d2;
+}
+body.motorbaldi .hero-copy {
+  max-width: 810px;
+  padding: 46px 0 50px;
+}
+body.motorbaldi .hero-copy .eyebrow {
+  margin-bottom: 18px;
+  color: #f3f5f6;
+}
+body.motorbaldi .hero-title-rotator {
+  position: relative;
+  display: grid;
+  align-items: start;
+  min-height: 2.64em;
+  font-size: clamp(58px, 7.25vw, 112px) !important;
+  line-height: 0.9 !important;
+  letter-spacing: -0.066em !important;
+  max-width: 900px !important;
+}
+body.motorbaldi .hero-line {
+  grid-area: 1/1;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, 30px, 0) skewY(1.7deg);
+  filter: blur(8px);
+  transition:
+    opacity 0.58s ease,
+    transform 0.82s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.72s ease,
+    visibility 0s linear 0.82s;
+  pointer-events: none;
+}
+body.motorbaldi .hero-line.is-active {
+  opacity: 1;
+  visibility: visible;
+  transform: translate3d(0, 0, 0) skewY(0);
+  filter: blur(0);
+  transition-delay: 0s;
+}
+body.motorbaldi .hero-line em {
+  font-style: normal;
+  color: #d2d6d8;
+}
+body.motorbaldi .hero-rotator-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+  min-height: 32px;
+  color: #c9ced0;
+}
+body.motorbaldi .hero-dots {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+body.motorbaldi .hero-dots button {
+  position: relative;
+  z-index: 5;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  transition:
+    border-color 0.25s,
+    background 0.25s,
+    transform 0.25s;
+}
+body.motorbaldi .hero-dots button span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+}
+body.motorbaldi .hero-dots button.is-active {
+  border-color: rgba(255, 52, 75, 0.66);
+  background: rgba(255, 52, 75, 0.12);
+  transform: scale(1.06);
+}
+body.motorbaldi .hero-dots button.is-active span {
+  background: #fff;
+}
+body.motorbaldi #hero-rotator-count {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: #9fa7ab;
+}
+body.motorbaldi #hero-rotator-pause {
+  position: relative;
+  z-index: 5;
+  padding: 7px 0;
+  color: #b9c0c3;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+body.motorbaldi #hero-rotator-pause:hover {
+  color: #fff;
+}
+body.motorbaldi .hero-lead {
+  max-width: 570px;
+  margin-top: 22px;
+  color: #d0d4d6;
+  font-size: clamp(15px, 1.25vw, 19px);
+}
+body.motorbaldi .hero-actions {
+  margin-top: 28px;
+}
+body.motorbaldi .hero-hud {
+  width: min(100%, 405px);
+  margin-bottom: 48px;
+  padding: 20px;
+  border-radius: 18px;
+  background: rgba(8, 12, 14, 0.62);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(14px);
+}
+body.motorbaldi .hud-head {
+  color: #aeb6ba;
+}
+body.motorbaldi .hud-status i {
+  background: #72d9a2;
+  box-shadow: 0 0 10px rgba(114, 217, 162, 0.55);
+}
+body.motorbaldi .hud-core {
+  padding: 22px 0 18px;
+}
+body.motorbaldi .hud-core strong {
+  font-size: 27px !important;
+  line-height: 1.04;
+}
+body.motorbaldi .hud-metrics > div {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.075);
+}
+body.motorbaldi .hero-bottom {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Global rhythm: no forced 108vh chapters. */
+body.motorbaldi .manifesto,
+body.motorbaldi .services-space,
+body.motorbaldi .mobility,
+body.motorbaldi .platform {
+  min-height: 0;
+  padding-top: 112px;
+  padding-bottom: 122px;
+  border-radius: 0;
+}
+
+/* 01 / Universe: light editorial chapter. */
+body.motorbaldi .manifesto {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  position: relative;
+  overflow: hidden;
+}
+body.motorbaldi .manifesto::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: auto -12vw -28vw auto !important;
+  width: 58vw !important;
+  height: 58vw !important;
+  border-radius: 50% !important;
+  background: radial-gradient(
+    circle,
+    rgba(215, 25, 45, 0.055),
+    transparent 66%
+  ) !important;
+  z-index: 0 !important;
+}
+body.motorbaldi .manifesto > .shell {
+  position: relative;
+  z-index: 2;
+}
+body.motorbaldi .manifesto .section-meta {
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+body.motorbaldi .manifesto .section-meta small {
+  color: #757a7d !important;
+}
+body.motorbaldi .manifesto-grid {
+  grid-template-columns: minmax(0, 1.28fr) minmax(280px, 0.58fr) !important;
+  padding-top: 66px !important;
+}
+body.motorbaldi .manifesto-grid::before {
+  display: none !important;
+}
+body.motorbaldi .manifesto h2 {
+  font-size: clamp(52px, 6vw, 92px) !important;
+  max-width: 930px !important;
+  color: var(--ink);
+}
+body.motorbaldi .manifesto h2 em {
+  color: #777b7e !important;
+}
+body.motorbaldi .manifesto-copy p {
+  color: #5f6568 !important;
+  font-size: 15px;
+  line-height: 1.72;
+}
+body.motorbaldi .manifesto-copy .text-link {
+  color: var(--ink) !important;
+}
+body.motorbaldi .universe-cards {
+  width: 100% !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 14px !important;
+  margin-top: 12px;
+}
+body.motorbaldi .universe-card {
+  min-height: 260px !important;
+  padding: 25px !important;
+  background: #fff !important;
+  border: 1px solid rgba(20, 24, 26, 0.09) !important;
+  color: var(--ink) !important;
+  box-shadow: 0 16px 42px rgba(17, 21, 23, 0.05) !important;
+  backdrop-filter: none !important;
+  border-radius: 18px;
+}
+body.motorbaldi .universe-card > span,
+body.motorbaldi .universe-card p {
+  color: #6e7376 !important;
+}
+body.motorbaldi .universe-card > i {
+  border-color: rgba(20, 24, 26, 0.1) !important;
+}
+body.motorbaldi .universe-card-dark {
+  background: linear-gradient(145deg, #d7192d, #b90f21) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: 0 20px 50px rgba(183, 14, 32, 0.14) !important;
+}
+body.motorbaldi .universe-card-dark > span,
+body.motorbaldi .universe-card-dark p {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+body.motorbaldi .universe-card-dark > i {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* 02 / Services: dark, but based on real photography and flat UI. */
+body.motorbaldi .services-space {
+  background: var(--dark) !important;
+  color: #fff !important;
+  position: relative;
+  overflow: hidden;
+}
+body.motorbaldi .services-bg {
+  background:
+    radial-gradient(
+      circle at 77% 50%,
+      rgba(215, 25, 45, 0.12),
+      transparent 30%
+    ),
+    linear-gradient(120deg, #080b0d, #101518 60%, #090c0e) !important;
+}
+body.motorbaldi .services-bg::before {
+  opacity: 0.35;
+  background-size: 96px 96px;
+}
+body.motorbaldi .services-heading {
+  grid-template-columns: minmax(0, 1fr) 340px !important;
+  padding: 58px 0 64px !important;
+}
+body.motorbaldi .services-heading::before {
+  display: none !important;
+}
+body.motorbaldi .services-heading h2 {
+  font-size: clamp(52px, 6vw, 90px) !important;
+}
+body.motorbaldi .services-heading h2 em {
+  color: #91999d !important;
+}
+body.motorbaldi .services-heading > p {
+  color: #b8c0c4 !important;
+}
+body.motorbaldi .service-lab {
+  grid-template-columns: minmax(240px, 0.64fr) minmax(0, 1.36fr) !important;
+  gap: 54px !important;
+  align-items: stretch !important;
+}
+body.motorbaldi .service-list {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  backdrop-filter: none !important;
+}
+body.motorbaldi .service-tab {
+  padding: 20px 2px !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+body.motorbaldi .service-tab.is-active {
+  padding-left: 12px !important;
+  background: linear-gradient(
+    90deg,
+    rgba(215, 25, 45, 0.13),
+    transparent
+  ) !important;
+}
+body.motorbaldi .service-tab:not(.is-active) {
+  opacity: 0.65 !important;
+}
+body.motorbaldi .service-scene {
+  min-height: 560px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  perspective: none !important;
+  transform: none !important;
+}
+body.motorbaldi .scene-orbit,
+body.motorbaldi .scene-card-back,
+body.motorbaldi .scene-tag {
+  display: none !important;
+}
+body.motorbaldi .scene-card {
+  width: min(100%, 760px) !important;
+  border-radius: 22px !important;
+}
+body.motorbaldi .scene-card-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.22fr) minmax(280px, 0.78fr);
+  min-height: 470px;
+  background: #f1efe9 !important;
+  transform: none !important;
+  box-shadow: 0 34px 88px rgba(0, 0, 0, 0.28) !important;
+  transition:
+    opacity 0.25s ease,
+    transform 0.35s var(--ease) !important;
+}
+body.motorbaldi .scene-card-main.is-switching {
+  opacity: 0.64;
+  transform: translateY(5px) !important;
+}
+body.motorbaldi .scene-image {
+  aspect-ratio: auto !important;
+  height: 100% !important;
+  min-height: 470px;
+  overflow: hidden;
+}
+body.motorbaldi .scene-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.015);
+  transition:
+    opacity 0.25s ease,
+    transform 0.7s var(--ease) !important;
+}
+body.motorbaldi .scene-card-main:hover .scene-image img {
+  transform: scale(1.045);
+}
+body.motorbaldi .scene-content {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end !important;
+  padding: 30px !important;
+  gap: 0;
+}
+body.motorbaldi .scene-number {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: baseline !important;
+  gap: 4px !important;
+  border: 0 !important;
+  margin-bottom: auto;
+  padding-bottom: 24px;
+}
+body.motorbaldi .scene-number span {
+  font-size: 28px !important;
+}
+body.motorbaldi .scene-content > p:first-of-type {
+  font-size: 9px !important;
+}
+body.motorbaldi .scene-content h3 {
+  font-size: clamp(30px, 3vw, 42px) !important;
+  margin-top: 8px;
+}
+body.motorbaldi .scene-content > p:nth-of-type(2) {
+  margin-top: 14px !important;
+  font-size: 13px !important;
+}
+body.motorbaldi .scene-content > a {
+  margin-top: 20px !important;
+}
+
+/* 03 / Car + Moto: real photography, light and spacious. */
+body.motorbaldi .mobility {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  position: relative;
+  overflow: hidden;
+}
+body.motorbaldi .mobility::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  background: linear-gradient(180deg, #f3f1ec, #efede7) !important;
+  z-index: 0 !important;
+}
+body.motorbaldi .mobility > .shell {
+  position: relative;
+  z-index: 2;
+}
+body.motorbaldi .mobility .section-meta {
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+}
+body.motorbaldi .mobility .section-meta small {
+  color: #767b7e !important;
+}
+body.motorbaldi .mobility-intro {
+  padding: 56px 0 48px !important;
+}
+body.motorbaldi .mobility-intro::before {
+  display: none !important;
+}
+body.motorbaldi .mobility-intro h2 {
+  font-size: clamp(52px, 6vw, 88px) !important;
+  color: var(--ink);
+}
+body.motorbaldi .mobility-intro h2 em {
+  color: #7d8184 !important;
+}
+body.motorbaldi .vehicle-switch {
+  border-color: #cbc7bf !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: none !important;
+  box-shadow: 0 8px 26px rgba(16, 20, 22, 0.05);
+}
+body.motorbaldi .vehicle-switch button {
+  color: #666b6e !important;
+}
+body.motorbaldi .vehicle-switch button.is-active {
+  background: #101416 !important;
+  color: #fff !important;
+}
+body.motorbaldi .vehicle-world {
+  grid-template-columns: minmax(0, 1.46fr) minmax(300px, 0.54fr) !important;
+  gap: 22px !important;
+  align-items: stretch !important;
+  perspective: none !important;
+}
+body.motorbaldi .vehicle-photo {
+  min-height: 590px !important;
+  max-width: none !important;
+  opacity: 1 !important;
+  border: 0 !important;
+  border-radius: 22px !important;
+  box-shadow: 0 22px 70px rgba(16, 20, 22, 0.12) !important;
+  transform: none !important;
+  background: #0d1113;
+}
+body.motorbaldi .vehicle-photo::after {
+  display: none !important;
+}
+body.motorbaldi .vehicle-photo picture,
+body.motorbaldi .vehicle-photo img {
+  width: 100%;
+  height: 100%;
+}
+body.motorbaldi .vehicle-photo img {
+  object-fit: cover;
+  transform: scale(calc(0.97 + var(--cinematic-progress, 0) * 0.055))
+    translate3d(0, calc((0.5 - var(--cinematic-progress, 0)) * 18px), 0);
+  transition: opacity 0.35s var(--ease);
+  will-change: transform, opacity;
+}
+body.motorbaldi .vehicle-photo.is-switching img {
+  opacity: 0.24 !important;
+}
+body.motorbaldi .vehicle-photo-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(4, 6, 7, 0.03),
+    rgba(4, 6, 7, 0.04) 52%,
+    rgba(4, 6, 7, 0.7) 100%
+  );
+  pointer-events: none;
+}
+body.motorbaldi .vehicle-photo-caption {
+  position: absolute;
+  z-index: 2;
+  left: 26px;
+  right: 26px;
+  bottom: 24px;
+  color: #fff;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 16px;
+  align-items: end;
+}
+body.motorbaldi .vehicle-photo-caption > span {
+  grid-column: 1/-1;
+  font-size: 9px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: #d3d8da;
+  margin-bottom: 8px;
+}
+body.motorbaldi .vehicle-photo-caption strong {
+  font-size: clamp(38px, 5vw, 74px);
+  font-weight: 500;
+  line-height: 0.85;
+  letter-spacing: -0.06em;
+}
+body.motorbaldi .vehicle-photo-caption small {
+  justify-self: end;
+  align-self: end;
+  max-width: 210px;
+  text-align: right;
+  font-size: 10px;
+  color: #d8dcde;
+  line-height: 1.45;
+}
+body.motorbaldi .vehicle-panel {
+  min-height: 590px !important;
+  background: #fff !important;
+  color: var(--ink) !important;
+  border: 1px solid rgba(18, 22, 24, 0.08) !important;
+  backdrop-filter: none !important;
+  box-shadow: 0 18px 55px rgba(16, 20, 22, 0.065) !important;
+  border-radius: 22px !important;
+  padding: 34px 30px !important;
+  transform: none !important;
+}
+body.motorbaldi .vehicle-panel .eyebrow {
+  color: #8a8f92;
+}
+body.motorbaldi .vehicle-panel h3 {
+  font-size: clamp(38px, 4vw, 58px) !important;
+  max-width: 380px;
+}
+body.motorbaldi .vehicle-panel > p:not(.eyebrow) {
+  color: #606669 !important;
+  font-size: 14px;
+  line-height: 1.7;
+}
+body.motorbaldi .vehicle-data {
+  border-color: #ddd9d1 !important;
+}
+body.motorbaldi .vehicle-data > div {
+  border-color: #e3dfd8 !important;
+}
+body.motorbaldi .vehicle-data small {
+  color: #7a7f82 !important;
+}
+body.motorbaldi .vehicle-panel .text-link {
+  color: var(--ink) !important;
+}
+
+/* 04 / Platform: one dark technology chapter, not a whole dark universe. */
+body.motorbaldi .platform {
+  background: linear-gradient(120deg, #090c0e, #11171a 62%, #0a0d0f) !important;
+  color: #fff !important;
+  position: relative;
+  overflow: hidden;
+}
+body.motorbaldi .platform::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  background:
+    radial-gradient(
+      circle at 70% 47%,
+      rgba(62, 120, 178, 0.13),
+      transparent 27%
+    ),
+    radial-gradient(circle at 70% 62%, rgba(215, 25, 45, 0.1), transparent 34%) !important;
+  z-index: 0 !important;
+}
+body.motorbaldi .platform > .shell {
+  position: relative;
+  z-index: 2;
+}
+body.motorbaldi .platform-grid {
+  opacity: 0.075 !important;
+}
+body.motorbaldi .platform-shell {
+  grid-template-columns: 0.8fr 1.2fr !important;
+  gap: 70px !important;
+}
+body.motorbaldi .platform-copy::before {
+  display: none !important;
+}
+body.motorbaldi .platform-copy h2 {
+  font-size: clamp(52px, 5.8vw, 88px) !important;
+}
+body.motorbaldi .platform-copy h2 em {
+  color: #a5adb1 !important;
+}
+body.motorbaldi .platform-copy > p {
+  color: #b7bfc3 !important;
+}
+body.motorbaldi .platform-note {
+  background: rgba(255, 255, 255, 0.035) !important;
+  border-color: rgba(255, 255, 255, 0.11) !important;
+  color: #b6bec2 !important;
+}
+body.motorbaldi .platform-actions {
+  margin-top: 20px;
+}
+body.motorbaldi .digital-twin {
+  min-height: 650px !important;
+}
+body.motorbaldi .device-card {
+  width: min(72%, 520px) !important;
+  background: rgba(8, 12, 14, 0.86) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(14px) !important;
+  box-shadow:
+    0 34px 94px rgba(0, 0, 0, 0.28),
+    0 0 85px rgba(57, 114, 169, 0.08) !important;
+}
+body.motorbaldi .float-card {
+  background: rgba(9, 13, 15, 0.82) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* 05 / Pioneers: preserve strong branded red chapter, simplify decoration. */
+body.motorbaldi .pioneers {
+  background: linear-gradient(
+    135deg,
+    #d7192d 0%,
+    #b81123 66%,
+    #990d1c 100%
+  ) !important;
+  box-shadow: none !important;
+  padding-top: 112px;
+  padding-bottom: 122px;
+}
+body.motorbaldi .pioneers::before {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px) !important;
+  background-size: 96px 96px !important;
+  opacity: 0.5;
+}
+body.motorbaldi .pioneer-noise {
+  opacity: 0.65;
+}
+body.motorbaldi .pass-orbit {
+  opacity: 0.22;
+}
+body.motorbaldi .mb-pass {
+  box-shadow: 0 32px 84px rgba(65, 0, 8, 0.3) !important;
+  transform: perspective(1300px) rotateX(var(--tilt-rx, 0deg))
+    rotateY(var(--tilt-ry, 0deg)) !important;
+}
+
+/* Remaining chapters: calmer spacing. */
+body.motorbaldi .process,
+body.motorbaldi .faq,
+body.motorbaldi .contact {
+  padding-top: 108px;
+  padding-bottom: 116px;
+}
+body.motorbaldi .process {
+  background: #f5f3ee;
+}
+body.motorbaldi .faq {
+  background: #ebe8e1;
+}
+body.motorbaldi .process-track li:hover {
+  padding-left: 10px;
+}
+body.motorbaldi .contact {
+  background: linear-gradient(120deg, #080b0d, #0d1215);
+}
+body.motorbaldi .contact::after {
+  background-size: 96px 96px;
+  opacity: 0.5;
+}
+body.motorbaldi .quote-form {
+  border-radius: 22px;
+  box-shadow: 0 28px 76px rgba(0, 0, 0, 0.24);
+}
+body.motorbaldi .quote-form [aria-invalid="true"] {
+  border-color: #d7192d !important;
+  box-shadow: 0 0 0 3px rgba(215, 25, 45, 0.1) !important;
+}
+body.motorbaldi .field input:focus-visible,
+body.motorbaldi .consent-field input:focus-visible {
+  border-color: #d7192d;
+  box-shadow: 0 0 0 3px rgba(215, 25, 45, 0.1);
+}
+body.motorbaldi #vehicle-fieldset[aria-invalid="true"] .vehicle-options {
+  outline: 2px solid rgba(215, 25, 45, 0.55);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
+/* Reveal transitions are intentionally restrained. */
+body.motorbaldi.js [data-reveal].will-reveal {
+  opacity: 0;
+  transform: translate3d(0, 24px, 0);
+}
+body.motorbaldi.js [data-reveal].is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 0.68s var(--ease),
+    transform 0.78s var(--ease-spring);
+}
+body.motorbaldi .hero-reveal {
+  opacity: 1;
+  transform: none;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  body.motorbaldi .hero-shell {
+    grid-template-columns: 1fr 0.62fr;
+  }
+  body.motorbaldi .desktop-nav {
+    gap: 16px;
+  }
+  body.motorbaldi .scene-card-main {
+    grid-template-columns: 1fr;
+  }
+  body.motorbaldi .scene-image {
+    min-height: 330px;
+  }
+  body.motorbaldi .scene-content {
+    min-height: 300px;
+  }
+  body.motorbaldi .vehicle-world {
+    grid-template-columns: 1fr !important;
+  }
+  body.motorbaldi .vehicle-photo,
+  body.motorbaldi .vehicle-panel {
+    min-height: 500px !important;
+  }
+}
+@media (max-width: 860px) {
+  body.motorbaldi .manifesto,
+  body.motorbaldi .services-space,
+  body.motorbaldi .mobility,
+  body.motorbaldi .platform {
+    padding-top: 88px;
+    padding-bottom: 94px;
+  }
+  body.motorbaldi .manifesto-grid,
+  body.motorbaldi .services-heading,
+  body.motorbaldi .platform-shell {
+    grid-template-columns: 1fr !important;
+    gap: 34px !important;
+  }
+  body.motorbaldi .universe-cards {
+    grid-template-columns: 1fr !important;
+  }
+  body.motorbaldi .universe-card {
+    min-height: 220px !important;
+  }
+  body.motorbaldi .service-lab {
+    grid-template-columns: 1fr !important;
+    gap: 30px !important;
+  }
+  body.motorbaldi .service-list {
+    display: grid !important;
+    grid-template-columns: repeat(5, max-content) !important;
+    overflow-x: auto;
+    padding-bottom: 4px !important;
+    scrollbar-width: none;
+  }
+  body.motorbaldi .service-list::-webkit-scrollbar {
+    display: none;
+  }
+  body.motorbaldi .service-tab {
+    min-width: 148px !important;
+    padding: 15px 12px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+  }
+  body.motorbaldi .service-tab span {
+    display: none;
+  }
+  body.motorbaldi .service-tab.is-active {
+    padding-left: 15px !important;
+  }
+  body.motorbaldi .digital-twin {
+    min-height: 590px !important;
+  }
+  body.motorbaldi .device-card {
+    width: min(82%, 520px) !important;
+  }
+  body.motorbaldi .process,
+  body.motorbaldi .faq,
+  body.motorbaldi .contact {
+    padding-top: 88px;
+    padding-bottom: 96px;
+  }
+}
+@media (max-width: 600px) {
+  body.motorbaldi .site-header {
+    top: 10px;
+  }
+  body.motorbaldi .hero {
+    min-height: 820px;
+  }
+  body.motorbaldi .hero-shell {
+    min-height: 820px;
+    padding-top: 92px;
+  }
+  body.motorbaldi .hero-copy {
+    padding: 54px 0 18px;
+  }
+  body.motorbaldi .hero-title-rotator {
+    font-size: clamp(47px, 14vw, 66px) !important;
+    min-height: 3.55em;
+  }
+  body.motorbaldi .hero-rotator-controls {
+    margin-top: 13px;
+    gap: 12px;
+  }
+  body.motorbaldi .hero-lead {
+    font-size: 14px;
+    margin-top: 18px;
+  }
+  body.motorbaldi .hero-hud {
+    margin-bottom: 20px;
+    padding: 15px;
+  }
+  body.motorbaldi .hud-core strong {
+    font-size: 23px !important;
+  }
+  body.motorbaldi .hero-orbits {
+    display: none;
+  }
+  body.motorbaldi .hero-media img {
+    object-position: 58% 48%;
+  }
+  body.motorbaldi .manifesto h2,
+  body.motorbaldi .services-heading h2,
+  body.motorbaldi .mobility-intro h2,
+  body.motorbaldi .platform-copy h2 {
+    font-size: clamp(42px, 12.5vw, 60px) !important;
+  }
+  body.motorbaldi .scene-card-main {
+    display: block;
+    min-height: 0;
+  }
+  body.motorbaldi .scene-image {
+    min-height: 300px;
+  }
+  body.motorbaldi .scene-content {
+    min-height: 290px;
+    padding: 22px !important;
+  }
+  body.motorbaldi .vehicle-photo {
+    min-height: 390px !important;
+    border-radius: 18px !important;
+  }
+  body.motorbaldi .vehicle-panel {
+    min-height: 0 !important;
+    border-radius: 18px !important;
+    padding: 28px 22px !important;
+  }
+  body.motorbaldi .vehicle-photo-caption {
+    left: 18px;
+    right: 18px;
+    bottom: 18px;
+    grid-template-columns: 1fr;
+  }
+  body.motorbaldi .vehicle-photo-caption small {
+    justify-self: start;
+    text-align: left;
+    margin-top: 8px;
+  }
+  body.motorbaldi .digital-twin {
+    min-height: 560px !important;
+    margin-top: 20px;
+  }
+  body.motorbaldi .device-card {
+    width: 90% !important;
+  }
+  body.motorbaldi .float-card {
+    width: 142px;
+  }
+}
+
+/* Reduced motion: same visual quality, no movement. */
+.reduce-motion body.motorbaldi *,
+.reduce-motion body.motorbaldi *::before,
+.reduce-motion body.motorbaldi *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+.reduce-motion body.motorbaldi .hero-line {
+  display: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  transform: none !important;
+}
+.reduce-motion body.motorbaldi .hero-line.is-active {
+  display: block !important;
+}
+.reduce-motion body.motorbaldi .vehicle-photo img {
+  transform: none !important;
+}
+@media (max-width: 600px) {
+  body.motorbaldi .platform .float-card {
+    display: none !important;
+  }
+  body.motorbaldi .platform .device-card {
+    width: 94% !important;
+  }
+}

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://motorbaldi.com/sitemap.xml

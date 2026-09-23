@@ -1,0 +1,104 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "motorbaldi-api-dev",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "AUTH_BASE_URL": "http://localhost:8787",
+    "CORS_ORIGINS": "http://localhost:5173,http://localhost:5174",
+    "EMAIL_PROVIDER": "DEVELOPMENT_SINK",
+    "MALWARE_SCANNER_PROVIDER": "DETERMINISTIC_TEST",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "motorbaldi-core-dev",
+      "database_id": "REPLACE_WITH_LOCAL_D1_DATABASE_ID",
+      "migrations_dir": "../../migrations",
+    },
+  ],
+  "r2_buckets": [
+    { "binding": "PRIVATE_BUCKET", "bucket_name": "motorbaldi-private-dev" },
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "EVENTS_QUEUE", "queue": "motorbaldi-events-dev" },
+    ],
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "IDEMPOTENCY_COORDINATOR",
+        "class_name": "IdempotencyCoordinator",
+      },
+      { "name": "OUTBOX_COORDINATOR", "class_name": "OutboxCoordinator" },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["IdempotencyCoordinator", "OutboxCoordinator"],
+    },
+  ],
+  "env": {
+    "staging": {
+      "name": "motorbaldi-api-staging",
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "AUTH_BASE_URL": "https://REPLACE_WITH_API_WORKER_URL",
+        "CORS_ORIGINS": "https://REPLACE_WITH_PORTAL_URL,https://REPLACE_WITH_ADMIN_URL",
+        "EMAIL_PROVIDER": "UNCONFIGURED",
+        "MALWARE_SCANNER_PROVIDER": "UNCONFIGURED",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "motorbaldi-core-staging",
+          "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "PRIVATE_BUCKET",
+          "bucket_name": "motorbaldi-private-staging",
+        },
+      ],
+      "queues": {
+        "producers": [
+          { "binding": "EVENTS_QUEUE", "queue": "motorbaldi-events-staging" },
+        ],
+      },
+    },
+    "production": {
+      "name": "motorbaldi-api-prod",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "AUTH_BASE_URL": "https://REPLACE_WITH_API_WORKER_URL",
+        "CORS_ORIGINS": "https://REPLACE_WITH_PORTAL_URL,https://REPLACE_WITH_ADMIN_URL",
+        "EMAIL_PROVIDER": "UNCONFIGURED",
+        "MALWARE_SCANNER_PROVIDER": "UNCONFIGURED",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "motorbaldi-core-prod",
+          "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "PRIVATE_BUCKET",
+          "bucket_name": "motorbaldi-private-prod",
+        },
+      ],
+      "queues": {
+        "producers": [
+          { "binding": "EVENTS_QUEUE", "queue": "motorbaldi-events-prod" },
+        ],
+      },
+    },
+  },
+}

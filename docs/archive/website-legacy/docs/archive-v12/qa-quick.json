@@ -1,0 +1,14 @@
+{
+  "desktop": {
+    "ready": true,
+    "overflow": false,
+    "errors": [],
+    "service": "market",
+    "counter": "61"
+  },
+  "mobile": {
+    "ready": true,
+    "overflow": false,
+    "errors": []
+  }
+}
