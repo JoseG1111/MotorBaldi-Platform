@@ -105,11 +105,20 @@ export async function receiveInbound(
   requestId: string,
 ) {
   const id = newId();
-  await db
+  const result = await db
     .prepare(
       "INSERT OR IGNORE INTO integration_inbound_events(id, provider, provider_event_id, payload_json, request_id) VALUES (?, ?, ?, ?, ?)",
     )
     .bind(id, provider, eventId, JSON.stringify(payload), requestId)
     .run();
-  return id;
+  if ((result.meta.changes ?? 0) === 1)
+    return { id, disposition: "inserted" as const };
+  const existing = await db
+    .prepare(
+      "SELECT id FROM integration_inbound_events WHERE provider = ? AND provider_event_id = ?",
+    )
+    .bind(provider, eventId)
+    .first<{ id: string }>();
+  if (!existing) throw new Error("Inbound deduplication invariant failed");
+  return { id: existing.id, disposition: "duplicate" as const };
 }

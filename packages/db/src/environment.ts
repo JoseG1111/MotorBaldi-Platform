@@ -1,16 +1,25 @@
 import type { PlatformEnvironment } from "@motorbaldi/config";
+import { Problem } from "@motorbaldi/contracts";
+
+const verified = new WeakMap<D1Database, PlatformEnvironment>();
 
 export async function assertDatabaseEnvironment(
   db: D1Database,
   expected: PlatformEnvironment,
 ) {
+  if (verified.get(db) === expected) return;
   const row = await db
     .prepare(
       "SELECT environment FROM governance_environment_metadata WHERE singleton = 1",
     )
     .first<{ environment: string }>();
   if (!row || row.environment !== expected)
-    throw new Error("Database environment mismatch or uninitialized database");
+    throw new Problem(
+      503,
+      "DATABASE_ENVIRONMENT_MISMATCH",
+      "Database unavailable",
+    );
+  verified.set(db, expected);
 }
 
 export async function initializeDatabaseEnvironment(
@@ -24,4 +33,8 @@ export async function initializeDatabaseEnvironment(
     .bind(environment)
     .run();
   await assertDatabaseEnvironment(db, environment);
+}
+
+export function clearDatabaseEnvironmentVerificationForTest(db: D1Database) {
+  verified.delete(db);
 }

@@ -10,7 +10,11 @@
     "rootDir": ".",
     "outDir": "build",
     "sourceMap": true,
-    "types": ["@cloudflare/workers-types", "@types/node", "@cloudflare/vitest-pool-workers/types"],
+    "types": [
+      "@cloudflare/workers-types",
+      "@types/node",
+      "@cloudflare/vitest-pool-workers/types"
+    ],
     "baseUrl": ".",
     "paths": {
       "@motorbaldi/api": ["apps/api/src/index.ts"],
@@ -20,7 +24,9 @@
       "@motorbaldi/config": ["packages/config/src/index.ts"],
       "@motorbaldi/contracts": ["packages/contracts/src/index.ts"],
       "@motorbaldi/contracts/openapi": ["packages/contracts/src/openapi.ts"],
-      "@motorbaldi/contracts/validation": ["packages/contracts/src/validation.ts"],
+      "@motorbaldi/contracts/validation": [
+        "packages/contracts/src/validation.ts"
+      ],
       "@motorbaldi/db": ["packages/db/src/index.ts"],
       "@motorbaldi/db/audit": ["packages/db/src/audit.ts"],
       "@motorbaldi/db/environment": ["packages/db/src/environment.ts"],
@@ -36,5 +42,13 @@
       "@motorbaldi/testing": ["packages/testing/src/index.ts"]
     }
   },
-  "include": ["apps/**/*.ts", "packages/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts", "vitest.config.ts", "vitest.workers.config.ts"]
+  "include": [
+    "apps/**/*.ts",
+    "packages/**/*.ts",
+    "tests/**/*.ts",
+    "scripts/**/*.ts",
+    "*.d.ts",
+    "vitest.config.ts",
+    "vitest.workers.config.ts"
+  ]
 }

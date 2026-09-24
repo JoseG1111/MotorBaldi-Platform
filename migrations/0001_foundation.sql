@@ -4,7 +4,12 @@ CREATE TABLE governance_environment_metadata (
   singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
   environment TEXT NOT NULL CHECK (environment IN ('local','development','staging','production')),
   initialized_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-);
+) STRICT;
+
+CREATE TRIGGER governance_environment_metadata_no_update BEFORE UPDATE ON governance_environment_metadata
+BEGIN SELECT RAISE(ABORT, 'environment metadata is immutable'); END;
+CREATE TRIGGER governance_environment_metadata_no_delete BEFORE DELETE ON governance_environment_metadata
+BEGIN SELECT RAISE(ABORT, 'environment metadata is immutable'); END;
 
 CREATE TABLE governance_audit_events (
   id TEXT PRIMARY KEY,
@@ -16,9 +21,13 @@ CREATE TABLE governance_audit_events (
   request_id TEXT NOT NULL,
   reason TEXT CHECK (reason IS NULL OR length(reason) <= 1000),
   occurred_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-);
+) STRICT;
 CREATE INDEX governance_audit_resource_date ON governance_audit_events(resource_type, resource_id, occurred_at DESC);
 CREATE INDEX governance_audit_actor_date ON governance_audit_events(actor_id, occurred_at DESC);
+CREATE TRIGGER governance_audit_events_no_update BEFORE UPDATE ON governance_audit_events
+BEGIN SELECT RAISE(ABORT, 'audit events are append-only'); END;
+CREATE TRIGGER governance_audit_events_no_delete BEFORE DELETE ON governance_audit_events
+BEGIN SELECT RAISE(ABORT, 'audit events are append-only'); END;
 
 CREATE TABLE governance_security_events (
   id TEXT PRIMARY KEY,
@@ -26,8 +35,12 @@ CREATE TABLE governance_security_events (
   actor_id TEXT,
   request_id TEXT NOT NULL,
   occurred_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-);
+) STRICT;
 CREATE INDEX governance_security_code_date ON governance_security_events(code, occurred_at DESC);
+CREATE TRIGGER governance_security_events_no_update BEFORE UPDATE ON governance_security_events
+BEGIN SELECT RAISE(ABORT, 'security events are append-only'); END;
+CREATE TRIGGER governance_security_events_no_delete BEFORE DELETE ON governance_security_events
+BEGIN SELECT RAISE(ABORT, 'security events are append-only'); END;
 
 CREATE TABLE governance_feature_flags (
   id TEXT PRIMARY KEY,
@@ -41,7 +54,7 @@ CREATE TABLE governance_feature_flags (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(key, environment)
-);
+) STRICT;
 
 CREATE TABLE governance_idempotency_records (
   scope TEXT NOT NULL CHECK (length(scope) <= 256),
@@ -56,7 +69,7 @@ CREATE TABLE governance_idempotency_records (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   PRIMARY KEY(scope, key)
-);
+) STRICT;
 CREATE INDEX governance_idempotency_expires_at ON governance_idempotency_records(expires_at);
 
 CREATE TABLE integration_outbox_events (
@@ -81,7 +94,7 @@ CREATE TABLE integration_outbox_events (
     (status = 'PROCESSING' AND processing_token IS NOT NULL AND lease_until IS NOT NULL)
     OR (status <> 'PROCESSING' AND processing_token IS NULL AND lease_until IS NULL)
   )
-);
+) STRICT;
 CREATE INDEX integration_outbox_pending ON integration_outbox_events(status, available_at, created_at);
 CREATE INDEX integration_outbox_expired_leases ON integration_outbox_events(status, lease_until);
 
@@ -95,7 +108,7 @@ CREATE TABLE integration_inbound_events (
   processed_at TEXT,
   status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','PROCESSED','DEAD')),
   UNIQUE(provider, provider_event_id)
-);
+) STRICT;
 
 CREATE TABLE integration_dead_letters (
   id TEXT PRIMARY KEY,
@@ -107,7 +120,7 @@ CREATE TABLE integration_dead_letters (
   resolved_at TEXT,
   resolution TEXT,
   CHECK ((resolved_at IS NULL AND resolution IS NULL) OR (resolved_at IS NOT NULL AND resolution IS NOT NULL))
-);
+) STRICT;
 
 CREATE TABLE auth_users (
   id TEXT PRIMARY KEY,
@@ -118,7 +131,7 @@ CREATE TABLE auth_users (
   two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK (two_factor_enabled IN (0,1)),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-);
+) STRICT;
 
 CREATE TABLE auth_sessions (
   id TEXT PRIMARY KEY,
@@ -129,7 +142,7 @@ CREATE TABLE auth_sessions (
   user_agent TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-);
+) STRICT;
 CREATE INDEX auth_sessions_user ON auth_sessions(user_id);
 
 CREATE TABLE auth_credentials (
@@ -147,7 +160,7 @@ CREATE TABLE auth_credentials (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(provider_id, account_id)
-);
+) STRICT;
 CREATE INDEX auth_credentials_user ON auth_credentials(user_id);
 
 CREATE TABLE auth_verifications (
@@ -157,7 +170,7 @@ CREATE TABLE auth_verifications (
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-);
+) STRICT;
 CREATE INDEX auth_verifications_identifier ON auth_verifications(identifier);
 
 CREATE TABLE auth_two_factors (
@@ -168,7 +181,7 @@ CREATE TABLE auth_two_factors (
   verified INTEGER NOT NULL DEFAULT 1 CHECK (verified IN (0,1)),
   failed_verification_count INTEGER NOT NULL DEFAULT 0 CHECK (failed_verification_count >= 0),
   locked_until TEXT
-);
+) STRICT;
 
 CREATE TABLE storage_files (
   id TEXT PRIMARY KEY,
@@ -194,7 +207,7 @@ CREATE TABLE storage_files (
     (status = 'SCANNING' AND scan_token IS NOT NULL AND scan_started_at IS NOT NULL AND scan_lease_until IS NOT NULL)
     OR (status <> 'SCANNING' AND scan_token IS NULL AND scan_lease_until IS NULL)
   )
-);
+) STRICT;
 CREATE INDEX storage_files_uploader_date ON storage_files(uploaded_by_account_id, created_at DESC);
 CREATE INDEX storage_files_stale_scan ON storage_files(status, scan_lease_until);
 
@@ -205,5 +218,5 @@ CREATE TABLE storage_file_promotions (
   status TEXT NOT NULL DEFAULT 'RESERVED' CHECK(status IN ('RESERVED','REFERENCED','CLEANUP','DELETED')),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-);
+) STRICT;
 CREATE INDEX storage_file_promotions_cleanup ON storage_file_promotions(status, created_at);

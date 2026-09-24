@@ -19,6 +19,8 @@ motorbaldi-pagos-listo-para-subir.zip
 
 # Project exclude paths
 /dist/
+**/dist/
+**/.wrangler/
 /build/
 /.local/
 *.tsbuildinfo

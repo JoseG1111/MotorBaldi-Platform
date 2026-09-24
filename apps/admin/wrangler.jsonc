@@ -1,12 +1,32 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "motorbaldi-admin-dev",
+  "name": "motorbaldi-admin-local",
   "main": "src/index.ts",
-  "compatibility_date": "2026-08-22",
+  "compatibility_date": "2026-09-23",
   "observability": { "enabled": true, "head_sampling_rate": 1 },
-  "vars": {
-    "ENVIRONMENT": "development",
-    "AUTH_BASE_URL": "http://localhost:8787",
-    "CORS_ORIGINS": "http://localhost:5174",
+  "vars": { "ENVIRONMENT": "local" },
+  "services": [{ "binding": "API_SERVICE", "service": "motorbaldi-api-local" }],
+  "env": {
+    "development": {
+      "name": "motorbaldi-admin-development",
+      "vars": { "ENVIRONMENT": "development" },
+      "services": [
+        { "binding": "API_SERVICE", "service": "motorbaldi-api-development" },
+      ],
+    },
+    "staging": {
+      "name": "motorbaldi-admin-staging",
+      "vars": { "ENVIRONMENT": "staging" },
+      "services": [
+        { "binding": "API_SERVICE", "service": "motorbaldi-api-staging" },
+      ],
+    },
+    "production": {
+      "name": "motorbaldi-admin-production",
+      "vars": { "ENVIRONMENT": "production" },
+      "services": [
+        { "binding": "API_SERVICE", "service": "motorbaldi-api-production" },
+      ],
+    },
   },
 }

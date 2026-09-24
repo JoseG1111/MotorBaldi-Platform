@@ -42,15 +42,6 @@ export async function acknowledgeEvent(db: D1Database, event: Event) {
   return result.meta.changes === 1;
 }
 
-async function deadLetter(db: D1Database, event: Event, code: string) {
-  await db
-    .prepare(
-      "INSERT INTO integration_dead_letters(id, outbox_id, error_code, attempts, request_id) VALUES (?, ?, ?, ?, ?) ON CONFLICT(outbox_id) DO UPDATE SET attempts = excluded.attempts, error_code = excluded.error_code, resolved_at = NULL, resolution = NULL",
-    )
-    .bind(newId(), event.id, code, event.attempts, event.request_id)
-    .run();
-}
-
 export async function recoverExpiredLeases(db: D1Database, maxAttempts = 5) {
   const rows =
     (
@@ -65,13 +56,28 @@ export async function recoverExpiredLeases(db: D1Database, maxAttempts = 5) {
     const unknown = event.external_effect_policy === "RECONCILE";
     const dead = unknown || event.attempts >= maxAttempts;
     const code = unknown ? "UNKNOWN_EXTERNAL_OUTCOME" : "LEASE_EXPIRED";
-    await db
-      .prepare(
-        "UPDATE integration_outbox_events SET status = ?, processing_token = NULL, lease_until = NULL, available_at = ?, last_enqueued_at = NULL, last_error_code = ? WHERE id = ?",
-      )
-      .bind(dead ? "DEAD" : "PENDING", new Date().toISOString(), code, event.id)
-      .run();
-    if (dead) await deadLetter(db, event, code);
+    const now = new Date().toISOString();
+    if (dead) {
+      await db.batch([
+        db
+          .prepare(
+            "INSERT INTO integration_dead_letters(id, outbox_id, error_code, attempts, request_id) SELECT ?, id, ?, attempts, request_id FROM integration_outbox_events WHERE id = ? AND status = 'PROCESSING' AND processing_token = ? AND lease_until <= ? ON CONFLICT(outbox_id) DO UPDATE SET attempts = excluded.attempts, error_code = excluded.error_code, resolved_at = NULL, resolution = NULL",
+          )
+          .bind(newId(), code, event.id, event.processing_token, now),
+        db
+          .prepare(
+            "UPDATE integration_outbox_events SET status = 'DEAD', processing_token = NULL, lease_until = NULL, available_at = ?, last_enqueued_at = NULL, last_error_code = ? WHERE id = ? AND status = 'PROCESSING' AND processing_token = ? AND lease_until <= ?",
+          )
+          .bind(now, code, event.id, event.processing_token, now),
+      ]);
+    } else {
+      await db
+        .prepare(
+          "UPDATE integration_outbox_events SET status = 'PENDING', processing_token = NULL, lease_until = NULL, available_at = ?, last_enqueued_at = NULL, last_error_code = ? WHERE id = ? AND status = 'PROCESSING' AND processing_token = ? AND lease_until <= ?",
+        )
+        .bind(now, code, event.id, event.processing_token, now)
+        .run();
+    }
   }
   return rows.length;
 }
@@ -117,19 +123,27 @@ export async function processEvent(
       (options.backoffMs ?? 1000) * 2 ** Math.min(event.attempts - 1, 12),
     );
     const availableAt = new Date(Date.now() + delay).toISOString();
-    await db
-      .prepare(
-        "UPDATE integration_outbox_events SET status = ?, processing_token = NULL, lease_until = NULL, last_enqueued_at = NULL, last_error_code = ?, available_at = ? WHERE id = ? AND status = 'PROCESSING' AND processing_token = ?",
-      )
-      .bind(
-        dead ? "DEAD" : "PENDING",
-        code,
-        availableAt,
-        id,
-        event.processing_token,
-      )
-      .run();
-    if (dead) await deadLetter(db, event, code);
+    if (dead) {
+      await db.batch([
+        db
+          .prepare(
+            "INSERT INTO integration_dead_letters(id, outbox_id, error_code, attempts, request_id) SELECT ?, id, ?, attempts, request_id FROM integration_outbox_events WHERE id = ? AND status = 'PROCESSING' AND processing_token = ? ON CONFLICT(outbox_id) DO UPDATE SET attempts = excluded.attempts, error_code = excluded.error_code, resolved_at = NULL, resolution = NULL",
+          )
+          .bind(newId(), code, id, event.processing_token),
+        db
+          .prepare(
+            "UPDATE integration_outbox_events SET status = 'DEAD', processing_token = NULL, lease_until = NULL, last_enqueued_at = NULL, last_error_code = ?, available_at = ? WHERE id = ? AND status = 'PROCESSING' AND processing_token = ?",
+          )
+          .bind(code, availableAt, id, event.processing_token),
+      ]);
+    } else {
+      await db
+        .prepare(
+          "UPDATE integration_outbox_events SET status = 'PENDING', processing_token = NULL, lease_until = NULL, last_enqueued_at = NULL, last_error_code = ?, available_at = ? WHERE id = ? AND status = 'PROCESSING' AND processing_token = ?",
+        )
+        .bind(code, availableAt, id, event.processing_token)
+        .run();
+    }
     return dead ? "dead" : "retry";
   }
 }

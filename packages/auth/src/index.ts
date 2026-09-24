@@ -1,6 +1,6 @@
-import { betterAuth } from "better-auth";
+import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { openAPI, twoFactor } from "better-auth/plugins";
-import type { PlatformBindings, RuntimeConfig } from "@motorbaldi/config";
+import type { ApiBindings, ApiConfig } from "@motorbaldi/config";
 import type { Principal } from "@motorbaldi/contracts";
 import { newId } from "@motorbaldi/shared";
 import { securityEvent } from "@motorbaldi/db/audit";
@@ -17,11 +17,38 @@ export const allowedAuthPaths = new Set([
 ]);
 
 export function authentication(
-  env: PlatformBindings,
-  c: RuntimeConfig,
+  env: ApiBindings,
+  c: ApiConfig,
   requestId: string,
 ) {
-  const auth = betterAuth({
+  const options = authOptions(env, c, requestId);
+  const auth = betterAuth(options);
+
+  return {
+    auth,
+    async principal(headers: Headers): Promise<Principal | null> {
+      const session = await auth.api.getSession({ headers });
+      if (!session || !session.user.emailVerified) return null;
+      const user = await env.DB.prepare(
+        "SELECT two_factor_enabled FROM auth_users WHERE id = ?",
+      )
+        .bind(session.user.id)
+        .first<{ two_factor_enabled: number }>();
+      return {
+        accountId: session.user.id,
+        personId: null,
+        mfaEnabled: user?.two_factor_enabled === 1,
+      };
+    },
+  };
+}
+
+export function authOptions(
+  env: ApiBindings,
+  c: ApiConfig,
+  requestId: string,
+): BetterAuthOptions {
+  return {
     appName: "MotorBaldi",
     baseURL: c.authBaseUrl,
     basePath: "/api/v1/auth",
@@ -31,6 +58,15 @@ export function authentication(
     trustedOrigins: [...c.corsOrigins],
     user: {
       modelName: "auth_users",
+      additionalFields: {
+        twoFactorEnabled: {
+          type: "boolean",
+          required: false,
+          defaultValue: false,
+          input: false,
+          fieldName: "two_factor_enabled",
+        },
+      },
       fields: {
         emailVerified: "email_verified",
         createdAt: "created_at",
@@ -116,19 +152,6 @@ export function authentication(
             securityEvent(env.DB, "SESSION_REVOKED", requestId, session.userId),
         },
       },
-    },
-  });
-
-  return {
-    auth,
-    async principal(headers: Headers): Promise<Principal | null> {
-      const session = await auth.api.getSession({ headers });
-      if (!session || !session.user.emailVerified) return null;
-      return {
-        accountId: session.user.id,
-        personId: null,
-        mfaEnabled: false,
-      };
     },
   };
 }

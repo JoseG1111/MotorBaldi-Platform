@@ -46,13 +46,6 @@ if (root) {
   }
 }
 const bad = [];
-const allowlisted = [
-  /^scripts\/foundation\/security-fixtures\.mjs$/,
-  /^\.env\.example$/,
-  /^\.dev\.vars\.example$/,
-  /^docs\/archive\/website-legacy\/config\/config\/hubspot\.example\.php$/,
-  /^docs\/archive\/website-legacy\/config\/config\/legacy-hubspot\.env\.example$/,
-];
 const patterns = [
   [
     "github_token",
@@ -61,14 +54,19 @@ const patterns = [
   ["wompi_private", /prv_(?:test|prod)_[A-Za-z0-9_]{20,}/],
   ["hubspot_private", /pat-[a-z0-9]+-[A-Za-z0-9_-]{20,}/i],
   ["cloudflare_token", /\b(?:CFPAT|cfpat)_[A-Za-z0-9_-]{20,}\b/],
-  ["cloudflare_api_key", /\b[0-9a-f]{37}\b/i],
+  [
+    "cloudflare_api_key",
+    /(?:CLOUDFLARE_API_KEY|CF_API_KEY)\s*[=:]\s*["']?[0-9a-f]{37}\b/i,
+  ],
   ["aws_access_key", /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/],
-  ["private_key", /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/],
+  [
+    "private_key",
+    /-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[\s\S]{64,}-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/,
+  ],
   ["stripe_like", /\bsk_(?:live|test)_[A-Za-z0-9]{20,}\b/],
 ];
 for (const file of files) {
   if (!existsSync(file)) continue;
-  if (!root && allowlisted.some((pattern) => pattern.test(file))) continue;
   if (/(^|\/)\.env(\.|$)/.test(file) && !file.endsWith(".example"))
     bad.push(file);
   if (/\.(?:png|jpg|webp|ico|glb|zip|woff2?)$/.test(file)) continue;

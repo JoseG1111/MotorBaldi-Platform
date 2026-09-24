@@ -1,6 +1,6 @@
 import {
-  runtimeConfig,
-  type PlatformBindings,
+  backgroundWorkerConfig,
+  type BackgroundWorkerBindings,
   type QueueMessage,
 } from "@motorbaldi/config";
 import { assertDatabaseEnvironment } from "@motorbaldi/db/environment";
@@ -14,6 +14,11 @@ import {
   recordOperationalMetrics,
 } from "@motorbaldi/observability/metrics";
 import { logger } from "@motorbaldi/observability";
+import {
+  deterministicTestScanner,
+  files,
+  unavailableScanner,
+} from "@motorbaldi/storage";
 
 const registry = new Map();
 const handlers = new Map();
@@ -23,8 +28,11 @@ export default {
     return new Response(null, { status: 404 });
   },
 
-  async queue(batch: MessageBatch<QueueMessage>, env: PlatformBindings) {
-    const c = runtimeConfig(env);
+  async queue(
+    batch: MessageBatch<QueueMessage>,
+    env: BackgroundWorkerBindings,
+  ) {
+    const c = backgroundWorkerConfig(env);
     await assertDatabaseEnvironment(env.DB, c.environment);
     for (const message of batch.messages) {
       const result = await processEvent(
@@ -47,11 +55,20 @@ export default {
 
   async scheduled(
     _controller: ScheduledController,
-    env: PlatformBindings,
+    env: BackgroundWorkerBindings,
     ctx: ExecutionContext,
   ) {
-    const c = runtimeConfig(env);
+    const c = backgroundWorkerConfig(env);
     await assertDatabaseEnvironment(env.DB, c.environment);
+    const storage = files(env.DB, env.PRIVATE_BUCKET, {
+      scanner:
+        c.malwareScannerProvider === "DETERMINISTIC_TEST"
+          ? deterministicTestScanner
+          : unavailableScanner,
+    });
+    ctx.waitUntil(storage.recoverExpiredFileScans());
+    ctx.waitUntil(storage.cleanupStaleUploads());
+    ctx.waitUntil(storage.cleanupOrphanPromotions());
     ctx.waitUntil(recoverExpiredLeases(env.DB));
     ctx.waitUntil(cleanupExpiredIdempotencyRecords(env.DB));
     if (env.OUTBOX_COORDINATOR) {

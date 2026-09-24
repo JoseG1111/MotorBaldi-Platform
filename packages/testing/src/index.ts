@@ -1,4 +1,4 @@
-import type { PlatformBindings } from "@motorbaldi/config";
+import type { ApiBindings } from "@motorbaldi/config";
 
 export function testSecrets() {
   return {
@@ -9,9 +9,9 @@ export function testSecrets() {
   };
 }
 
-export function testVars(overrides: Partial<PlatformBindings> = {}) {
+export function testVars(overrides: Partial<ApiBindings> = {}) {
   return {
-    ENVIRONMENT: "development",
+    ENVIRONMENT: "local",
     AUTH_BASE_URL: "http://localhost:8787",
     CORS_ORIGINS: "http://localhost:5173,http://localhost:5174",
     EMAIL_PROVIDER: "DEVELOPMENT_SINK",

@@ -7,6 +7,7 @@
     "@motorbaldi/config": "workspace:*",
     "@motorbaldi/db": "workspace:*",
     "@motorbaldi/messaging": "workspace:*",
-    "@motorbaldi/observability": "workspace:*"
+    "@motorbaldi/observability": "workspace:*",
+    "@motorbaldi/storage": "workspace:*"
   }
 }

@@ -1,5 +1,5 @@
 import { authentication, allowedAuthPaths } from "@motorbaldi/auth";
-import { runtimeConfig, type PlatformBindings } from "@motorbaldi/config";
+import { apiConfig, type ApiBindings } from "@motorbaldi/config";
 import { Problem } from "@motorbaldi/contracts";
 import { assertDatabaseEnvironment } from "@motorbaldi/db/environment";
 import { buildIdempotencyScope } from "@motorbaldi/db/idempotency";
@@ -18,23 +18,38 @@ const json = (body: unknown, init: ResponseInit = {}) =>
       ...init.headers,
     },
   });
-
-function corsHeaders(
-  request: Request,
+const routeName = (pathname: string) =>
+  pathname.startsWith("/api/v1/auth/")
+    ? "/api/v1/auth/:action"
+    : new Set([
+          "/health",
+          "/health/dependencies",
+          "/api/v1/openapi.json",
+          "/api/v1/principal",
+          "/api/v1/foundation/idempotency-test",
+        ]).has(pathname)
+      ? pathname
+      : "unmatched";
+const corsHeaders = (
+  origin: string | null,
   origins: readonly string[],
-): Record<string, string> {
-  const origin = request.headers.get("origin");
-  if (!origin || !origins.includes(origin)) return {};
-  return {
-    "access-control-allow-origin": origin,
-    "access-control-allow-credentials": "true",
-    "access-control-allow-methods": "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
-    "access-control-allow-headers":
-      "Content-Type,Idempotency-Key,If-Match,Authorization,X-CSRF-Token",
-  };
-}
+): Record<string, string> =>
+  origin && origins.includes(origin)
+    ? {
+        "access-control-allow-origin": origin,
+        "access-control-allow-credentials": "true",
+        "access-control-allow-methods": "GET,HEAD,POST,OPTIONS",
+        "access-control-allow-headers":
+          "Content-Type,Idempotency-Key,Authorization,X-CSRF-Token",
+        vary: "Origin",
+      }
+    : {};
 
-function problem(error: unknown, requestId: string) {
+function problem(
+  error: unknown,
+  requestId: string,
+  cors: Record<string, string>,
+) {
   const status = error instanceof Problem ? error.status : 500;
   const code = error instanceof Problem ? error.code : "INTERNAL_ERROR";
   if (status >= 500)
@@ -51,156 +66,159 @@ function problem(error: unknown, requestId: string) {
         ? { details: error.details }
         : {}),
     },
-    { status, headers: { "content-type": "application/problem+json" } },
+    {
+      status,
+      headers: { ...cors, "content-type": "application/problem+json" },
+    },
   );
 }
 
 async function rateLimit(
-  env: PlatformBindings,
+  env: ApiBindings,
   request: Request,
   sensitive: boolean,
 ) {
   const limiter = sensitive ? env.AUTH_RATE_LIMITER : env.API_RATE_LIMITER;
-  if (!limiter) return;
-  const key = request.headers.get("cf-connecting-ip") ?? "local";
-  const result = await limiter.limit({ key });
-  if (!result.success)
+  if (!limiter) {
+    if (env.ENVIRONMENT === "staging" || env.ENVIRONMENT === "production")
+      throw new Problem(503, "RATE_LIMIT_CONFIGURATION", "Service unavailable");
+    return;
+  }
+  const network = request.headers.get("cf-connecting-ip") ?? "local";
+  if (
+    !(
+      await limiter.limit({
+        key: sensitive ? `auth:${network}` : `public:${network}`,
+      })
+    ).success
+  )
     throw new Problem(429, "RATE_LIMITED", "Too many requests");
 }
 
-async function handle(
+async function route(
   request: Request,
-  env: PlatformBindings,
+  env: ApiBindings,
   ctx: ExecutionContext,
+  requestId: string,
 ) {
-  const requestId = newId();
-  const started = Date.now();
-  const c = runtimeConfig(env);
-  const cors = corsHeaders(request, c.corsOrigins);
+  const c = apiConfig(env);
+  const url = new URL(request.url);
+  const cors = corsHeaders(request.headers.get("origin"), c.corsOrigins);
   if (request.method === "OPTIONS")
     return new Response(null, { status: 204, headers: cors });
+  await rateLimit(env, request, url.pathname.startsWith("/api/v1/auth/"));
+  const requireMethod = (method: string) => {
+    if (request.method !== method)
+      throw new Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed");
+  };
 
-  await rateLimit(
-    env,
-    request,
-    new URL(request.url).pathname.startsWith("/api/v1/auth"),
-  );
-  const url = new URL(request.url);
+  if (url.pathname === "/health") {
+    requireMethod("GET");
+    return json({ status: "ok" }, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/openapi.json") {
+    requireMethod("GET");
+    return json(openapi, { headers: cors });
+  }
+
+  await assertDatabaseEnvironment(env.DB, c.environment);
+  if (url.pathname === "/health/dependencies") {
+    requireMethod("GET");
+    const d1 = await env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
+    return json(
+      {
+        status: d1?.ok === 1 ? "ready" : "unavailable",
+        dependencies: { d1: "available", r2: "configured" },
+      },
+      { headers: cors },
+    );
+  }
   const auth = authentication(env, c, requestId);
+  if (url.pathname === "/api/v1/principal") {
+    requireMethod("GET");
+    const principal = await auth.principal(request.headers);
+    if (!principal)
+      throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
+    return json(principal, { headers: cors });
+  }
+  if (url.pathname.startsWith("/api/v1/auth/")) {
+    const path = url.pathname.slice("/api/v1/auth".length);
+    if (!allowedAuthPaths.has(path))
+      throw new Problem(404, "NOT_FOUND", "Not found");
+    const response = await auth.auth.handler(request);
+    if (path === "/sign-in/email" && !response.ok)
+      ctx.waitUntil(
+        env.DB.prepare(
+          "INSERT INTO governance_security_events(id, code, request_id) VALUES (?, 'LOGIN_FAILED', ?)",
+        )
+          .bind(newId(), requestId)
+          .run(),
+      );
+    return new Response(response.body, {
+      status: response.status,
+      headers: { ...Object.fromEntries(response.headers), ...cors },
+    });
+  }
+  if (url.pathname === "/api/v1/foundation/idempotency-test") {
+    requireMethod("POST");
+    if (c.environment !== "local")
+      throw new Problem(404, "NOT_FOUND", "Not found");
+    const body = (await request.json()) as Json;
+    const record = body as Record<string, Json>;
+    const scope = buildIdempotencyScope({
+      accountId:
+        typeof record.accountId === "string"
+          ? record.accountId
+          : "018f0000-0000-7000-8000-000000000001",
+      organizationId:
+        typeof record.organizationId === "string"
+          ? record.organizationId
+          : undefined,
+      operation:
+        typeof record.operation === "string"
+          ? record.operation
+          : "foundation.test",
+    });
+    const key = request.headers.get("idempotency-key") ?? "";
+    const response = await env.IDEMPOTENCY_COORDINATOR.getByName(
+      scope.scope + ":" + key,
+    ).fetch("https://idempotency/run", {
+      method: "POST",
+      body: JSON.stringify({ key, scope, request: body, requestId }),
+    });
+    return new Response(response.body, {
+      status: response.status,
+      headers: { ...cors, "content-type": "application/json" },
+    });
+  }
+  throw new Problem(404, "NOT_FOUND", "Not found");
+}
 
-  try {
-    if (url.pathname === "/health")
-      return json({ status: "ok" }, { headers: cors });
-    if (url.pathname === "/health/dependencies") {
-      await assertDatabaseEnvironment(env.DB, c.environment);
-      const d1 = await env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
-      const r2 = env.PRIVATE_BUCKET ? "configured" : "not_bound";
-      return json(
-        {
-          status: d1?.ok === 1 ? "ready" : "unavailable",
-          dependencies: { d1: "available", r2 },
-        },
-        { headers: cors },
-      );
+export default {
+  async fetch(request: Request, env: ApiBindings, ctx: ExecutionContext) {
+    const requestId = newId();
+    const started = Date.now();
+    let response: Response;
+    let cors: Record<string, string> = {};
+    try {
+      const c = apiConfig(env);
+      cors = corsHeaders(request.headers.get("origin"), c.corsOrigins);
+      response = await route(request, env, ctx, requestId);
+    } catch (error) {
+      response = problem(error, requestId, cors);
     }
-    if (url.pathname === "/api/v1/openapi.json")
-      return json(openapi, { headers: cors });
-    if (url.pathname === "/api/v1/principal") {
-      if (
-        !request.headers.get("cookie") &&
-        !request.headers.get("authorization")
-      ) {
-        throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
-      }
-      const principal = await auth.principal(request.headers);
-      if (!principal)
-        throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
-      return json(principal, { headers: cors });
-    }
-    if (url.pathname.startsWith("/api/v1/auth/")) {
-      const path = url.pathname.slice("/api/v1/auth".length);
-      if (!allowedAuthPaths.has(path))
-        throw new Problem(404, "NOT_FOUND", "Not found");
-      const response = await auth.auth.handler(request);
-      if (path === "/sign-in/email" && !response.ok) {
-        ctx.waitUntil(
-          env.DB.prepare(
-            "INSERT INTO governance_security_events(id, code, request_id) VALUES (?, 'LOGIN_FAILED', ?)",
-          )
-            .bind(newId(), requestId)
-            .run(),
-        );
-      }
-      return new Response(response.body, {
-        status: response.status,
-        headers: {
-          ...Object.fromEntries(response.headers),
-          ...cors,
-          "x-request-id": requestId,
-        },
-      });
-    }
-    if (
-      url.pathname === "/api/v1/foundation/idempotency-test" &&
-      request.method === "POST"
-    ) {
-      const key = request.headers.get("idempotency-key") ?? "";
-      const body = (await request.json()) as Json;
-      const scope = buildIdempotencyScope({
-        accountId: "018f0000-0000-7000-8000-000000000001",
-        operation: "foundation.test",
-      });
-      const coordinator = env.IDEMPOTENCY_COORDINATOR?.getByName(
-        scope.scope + ":" + key,
-      );
-      if (!coordinator)
-        throw new Problem(
-          503,
-          "COORDINATOR_UNAVAILABLE",
-          "Idempotency coordinator unavailable",
-        );
-      const response = await coordinator.fetch("https://idempotency/run", {
-        method: "POST",
-        body: JSON.stringify({
-          key,
-          scope,
-          request: body,
-          response: { ok: true, requestId },
-        }),
-      });
-      return new Response(response.body, {
-        status: response.status,
-        headers: { ...cors, "content-type": "application/json" },
-      });
-    }
-    throw new Problem(404, "NOT_FOUND", "Not found");
-  } finally {
+    response.headers.set("x-request-id", requestId);
+    response.headers.set("x-content-type-options", "nosniff");
+    response.headers.set("referrer-policy", "no-referrer");
     logger.info({
       event: "http_request",
       service: "motorbaldi-api",
       method: request.method,
-      operation: url.pathname,
-      status: 0,
+      operation: routeName(new URL(request.url).pathname),
+      status: response.status,
       durationMs: Date.now() - started,
       requestId,
     });
-  }
-}
-
-export default {
-  async fetch(request: Request, env: PlatformBindings, ctx: ExecutionContext) {
-    const requestId = newId();
-    try {
-      const response = await handle(request, env, ctx);
-      response.headers.set(
-        "x-request-id",
-        response.headers.get("x-request-id") ?? requestId,
-      );
-      response.headers.set("x-content-type-options", "nosniff");
-      response.headers.set("referrer-policy", "no-referrer");
-      return response;
-    } catch (error) {
-      return problem(error, requestId);
-    }
+    return response;
   },
-};
+} satisfies ExportedHandler<ApiBindings>;

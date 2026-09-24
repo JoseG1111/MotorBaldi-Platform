@@ -82,12 +82,16 @@ export function files(
       await bucket.put(row.object_key, bytes, {
         httpMetadata: { contentType: mime },
       });
-      await db
+      const recorded = await db
         .prepare(
           "UPDATE storage_files SET status = 'QUARANTINED', updated_at = ? WHERE id = ? AND status = 'PENDING_UPLOAD'",
         )
         .bind(new Date().toISOString(), id)
         .run();
+      if ((recorded.meta.changes ?? 0) !== 1) {
+        await bucket.delete(row.object_key);
+        throw new Problem(409, "FILE_STATE", "Upload state changed");
+      }
     },
 
     async scan(id: string, requestId: string) {
@@ -96,7 +100,7 @@ export function files(
       const leaseUntil = new Date(now.getTime() + 60000).toISOString();
       const claimed = await db
         .prepare(
-          "UPDATE storage_files SET status = 'SCANNING', scan_token = ?, scan_started_at = ?, scan_lease_until = ?, scan_attempts = scan_attempts + 1, last_error_code = NULL, updated_at = ?, version = version + 1 WHERE id = ? AND status IN ('PENDING_UPLOAD','QUARANTINED') RETURNING object_key, declared_mime, size_bytes",
+          "UPDATE storage_files SET status = 'SCANNING', scan_token = ?, scan_started_at = ?, scan_lease_until = ?, scan_attempts = scan_attempts + 1, last_error_code = NULL, updated_at = ?, version = version + 1 WHERE id = ? AND status = 'QUARANTINED' RETURNING object_key, declared_mime, size_bytes",
         )
         .bind(token, now.toISOString(), leaseUntil, now.toISOString(), id)
         .first<{
@@ -148,37 +152,46 @@ export function files(
         }
       }
 
-      await db.batch([
-        db
-          .prepare(
-            "UPDATE storage_files SET status = ?, active_key = CASE WHEN ? = 'ACTIVE' THEN ? ELSE active_key END, sha256 = CASE WHEN ? = 'ACTIVE' THEN ? ELSE sha256 END, scan_token = NULL, scan_lease_until = NULL, last_error_code = ?, updated_at = ?, version = version + 1 WHERE id = ? AND status = 'SCANNING' AND scan_token = ?",
-          )
-          .bind(
-            status,
-            status,
-            activeKey,
-            status,
-            hash,
-            errorCode,
-            new Date().toISOString(),
-            id,
-            token,
-          ),
-        auditStatement(db, {
-          actorId: null,
-          action: "file.scan_" + status.toLowerCase(),
-          resourceType: "file",
-          resourceId: id,
-          requestId,
-        }),
-      ]);
-      if (activeKey)
+      const finishedAt = new Date().toISOString();
+      const finalization = await db
+        .prepare(
+          "UPDATE storage_files SET status = ?, active_key = CASE WHEN ? = 'ACTIVE' THEN ? ELSE active_key END, sha256 = CASE WHEN ? = 'ACTIVE' THEN ? ELSE sha256 END, scan_token = NULL, scan_lease_until = NULL, last_error_code = ?, updated_at = ?, version = version + 1 WHERE id = ? AND status = 'SCANNING' AND scan_token = ? AND scan_lease_until > ?",
+        )
+        .bind(
+          status,
+          status,
+          activeKey,
+          status,
+          hash,
+          errorCode,
+          finishedAt,
+          id,
+          token,
+          finishedAt,
+        )
+        .run();
+      const owned = (finalization.meta.changes ?? 0) === 1;
+      if (activeKey) {
         await db
           .prepare(
-            "UPDATE storage_file_promotions SET status = 'REFERENCED', updated_at = ? WHERE object_key = ?",
+            "UPDATE storage_file_promotions SET status = ?, updated_at = ? WHERE object_key = ? AND status = 'RESERVED'",
           )
-          .bind(new Date().toISOString(), activeKey)
+          .bind(
+            owned && status === "ACTIVE" ? "REFERENCED" : "CLEANUP",
+            finishedAt,
+            activeKey,
+          )
           .run();
+      }
+      if (!owned)
+        throw new Problem(409, "SCAN_LEASE_LOST", "Scan ownership was lost");
+      await auditStatement(db, {
+        actorId: null,
+        action: "file.scan_" + status.toLowerCase(),
+        resourceType: "file",
+        resourceId: id,
+        requestId,
+      }).run();
       return status;
     },
 
@@ -213,6 +226,58 @@ export function files(
             "UPDATE storage_file_promotions SET status = 'DELETED', updated_at = ? WHERE object_key = ?",
           )
           .bind(new Date().toISOString(), row.object_key)
+          .run();
+      }
+      return rows.length;
+    },
+
+    async recoverExpiredFileScans(limit = 100, maxAttempts = 5) {
+      const now = new Date().toISOString();
+      const rows =
+        (
+          await db
+            .prepare(
+              "SELECT id, scan_attempts FROM storage_files WHERE status = 'SCANNING' AND scan_lease_until <= ? ORDER BY scan_lease_until LIMIT ?",
+            )
+            .bind(now, limit)
+            .all<{ id: string; scan_attempts: number }>()
+        ).results ?? [];
+      for (const row of rows) {
+        const terminal = row.scan_attempts >= maxAttempts;
+        await db
+          .prepare(
+            "UPDATE storage_files SET status = ?, scan_token = NULL, scan_lease_until = NULL, last_error_code = ?, updated_at = ?, version = version + 1 WHERE id = ? AND status = 'SCANNING' AND scan_lease_until <= ?",
+          )
+          .bind(
+            terminal ? "REJECTED" : "QUARANTINED",
+            terminal ? "SCAN_ATTEMPTS_EXHAUSTED" : "SCAN_LEASE_EXPIRED",
+            now,
+            row.id,
+            now,
+          )
+          .run();
+      }
+      return rows.length;
+    },
+
+    async cleanupStaleUploads(limit = 100, olderThanMs = 60 * 60 * 1000) {
+      const cutoff = new Date(Date.now() - olderThanMs).toISOString();
+      const rows =
+        (
+          await db
+            .prepare(
+              "SELECT id, object_key FROM storage_files WHERE status IN ('PENDING_UPLOAD','QUARANTINED','REJECTED') AND created_at <= ? ORDER BY created_at LIMIT ?",
+            )
+            .bind(cutoff, limit)
+            .all<{ id: string; object_key: string }>()
+        ).results ?? [];
+      for (const row of rows) {
+        await bucket.delete(row.object_key);
+        await db
+          .prepare(
+            "UPDATE storage_files SET status = 'DELETED', last_error_code = 'STALE_UPLOAD_CLEANUP', updated_at = ?, version = version + 1 WHERE id = ? AND status IN ('PENDING_UPLOAD','QUARANTINED','REJECTED')",
+          )
+          .bind(new Date().toISOString(), row.id)
           .run();
       }
       return rows.length;

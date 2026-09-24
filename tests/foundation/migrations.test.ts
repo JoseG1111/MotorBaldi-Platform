@@ -7,6 +7,9 @@ describe("D1 foundation migration", () => {
     expect(sql).toContain("CREATE TABLE governance_environment_metadata");
     expect(sql).toContain("CREATE TABLE integration_outbox_events");
     expect(sql).toContain("CREATE TABLE storage_files");
+    expect(sql).toContain(") STRICT;");
+    expect(sql).toContain("governance_environment_metadata_no_update");
+    expect(sql).toContain("governance_audit_events_no_delete");
     expect(sql).not.toMatch(
       /CREATE SCHEMA|GRANT|REVOKE|CREATE ROLE|TIMESTAMPTZ|jsonb|pg_advisory|FOR UPDATE/i,
     );

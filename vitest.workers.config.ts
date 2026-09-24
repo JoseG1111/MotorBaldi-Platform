@@ -9,7 +9,7 @@ export default defineConfig({
       miniflare: {
         compatibilityDate: "2026-08-22",
         bindings: {
-          ENVIRONMENT: "development",
+          ENVIRONMENT: "local",
           AUTH_BASE_URL: "https://api.test",
           CORS_ORIGINS: "https://api.test",
           AUTH_SECRET: "local-test-auth-secret-that-is-long-enough",

@@ -3,11 +3,10 @@ import { Problem } from "@motorbaldi/contracts";
 
 export const maxIdempotencyResponseBytes = 8192;
 
-const ttlByOperation: Readonly<Record<string, number>> = {
+export const idempotencyOperationRegistry = {
   "foundation.test": 3600,
-  "auth.session": 900,
-  "file.upload": 86400,
-};
+} as const;
+export type IdempotentOperation = keyof typeof idempotencyOperationRegistry;
 
 export interface IdempotencyScopeInput {
   accountId: string;
@@ -37,7 +36,14 @@ export function buildIdempotencyScope(
   ) {
     throw new Problem(400, "INVALID_IDEMPOTENCY_SCOPE", "Invalid scope");
   }
-  const ttlSeconds = ttlByOperation[input.operation] ?? 3600;
+  if (!(input.operation in idempotencyOperationRegistry))
+    throw new Problem(
+      400,
+      "UNKNOWN_IDEMPOTENCY_OPERATION",
+      "Unknown idempotent operation",
+    );
+  const operation = input.operation as IdempotentOperation;
+  const ttlSeconds = idempotencyOperationRegistry[operation];
   return {
     ...input,
     ttlSeconds,
@@ -88,7 +94,7 @@ export async function storeReplay<T extends Json>(
   key: string,
   request: Json,
   response: T,
-) {
+): Promise<void> {
   const encoded = JSON.stringify(response);
   if (
     new TextEncoder().encode(encoded).byteLength > maxIdempotencyResponseBytes
@@ -102,9 +108,15 @@ export async function storeReplay<T extends Json>(
   const expiresAt = new Date(
     Date.now() + safeScope.ttlSeconds * 1000,
   ).toISOString();
-  await db
+  const now = new Date().toISOString();
+  const result = await db
     .prepare(
-      "INSERT INTO governance_idempotency_records(scope, key, operation, account_id, organization_id, request_hash, response_json, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      `INSERT INTO governance_idempotency_records(scope, key, operation, account_id, organization_id, request_hash, response_json, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(scope, key) DO UPDATE SET operation = excluded.operation, account_id = excluded.account_id,
+       organization_id = excluded.organization_id, request_hash = excluded.request_hash, response_json = excluded.response_json,
+       status = 'COMPLETED', expires_at = excluded.expires_at, updated_at = ?
+       WHERE governance_idempotency_records.expires_at <= ?`,
     )
     .bind(
       safeScope.scope,
@@ -115,8 +127,12 @@ export async function storeReplay<T extends Json>(
       await fingerprint(request),
       encoded,
       expiresAt,
+      now,
+      now,
     )
     .run();
+  if ((result.meta.changes ?? 0) !== 1)
+    throw new Problem(409, "IDEMPOTENCY_CONFLICT", "Key is already in use");
 }
 
 export async function cleanupExpiredIdempotencyRecords(

@@ -18,10 +18,13 @@ Target runtime: Cloudflare Workers, D1, R2, Queues, Durable Objects, Workers Rat
 pnpm install
 cp .dev.vars.example .dev.vars
 pnpm d1:migrate:local
+pnpm d1:init:local
 pnpm dev:api
 ```
 
 Local development uses Wrangler local storage for D1, R2, Queues and Durable Objects. Postgres, Redis, MinIO and Docker are not required for CF-0 Foundation.
+
+The top level Wrangler configuration is the local runtime. Named `development`, `staging`, and `production` environments represent remote deployments. Remote migrations and environment initialization are manual only.
 
 ## Tests And Builds
 
@@ -34,9 +37,12 @@ pnpm openapi:check
 pnpm boundaries:check
 pnpm security:check
 pnpm build
+pnpm security:scan:dist
 ```
 
 `pnpm build` uses `wrangler deploy --dry-run` only. It must not create remote resources or deploy.
+
+`pnpm gate` runs the complete local CF-0.1 code gate.
 
 ## Manual Cloudflare Setup Status
 
