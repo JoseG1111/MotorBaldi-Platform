@@ -29,21 +29,33 @@ importers:
       '@motorbaldi/contracts':
         specifier: workspace:*
         version: link:packages/contracts
+      '@motorbaldi/crm':
+        specifier: workspace:*
+        version: link:packages/crm
       '@motorbaldi/db':
         specifier: workspace:*
         version: link:packages/db
+      '@motorbaldi/identity':
+        specifier: workspace:*
+        version: link:packages/identity
       '@motorbaldi/messaging':
         specifier: workspace:*
         version: link:packages/messaging
       '@motorbaldi/observability':
         specifier: workspace:*
         version: link:packages/observability
+      '@motorbaldi/organizations':
+        specifier: workspace:*
+        version: link:packages/organizations
       '@motorbaldi/payments':
         specifier: workspace:*
         version: link:packages/payments
       '@motorbaldi/portal':
         specifier: workspace:*
         version: link:apps/portal
+      '@motorbaldi/professional':
+        specifier: workspace:*
+        version: link:packages/professional
       '@motorbaldi/shared':
         specifier: workspace:*
         version: link:packages/shared
@@ -108,21 +120,36 @@ importers:
       '@motorbaldi/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@motorbaldi/authz':
+        specifier: workspace:*
+        version: link:../../packages/authz
       '@motorbaldi/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@motorbaldi/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@motorbaldi/crm':
+        specifier: workspace:*
+        version: link:../../packages/crm
       '@motorbaldi/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@motorbaldi/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       '@motorbaldi/messaging':
         specifier: workspace:*
         version: link:../../packages/messaging
       '@motorbaldi/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@motorbaldi/organizations':
+        specifier: workspace:*
+        version: link:../../packages/organizations
+      '@motorbaldi/professional':
+        specifier: workspace:*
+        version: link:../../packages/professional
       '@motorbaldi/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -141,15 +168,24 @@ importers:
       '@motorbaldi/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@motorbaldi/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       '@motorbaldi/messaging':
         specifier: workspace:*
         version: link:../../packages/messaging
       '@motorbaldi/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@motorbaldi/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@motorbaldi/storage':
         specifier: workspace:*
         version: link:../../packages/storage
+      zod:
+        specifier: ^4.3.0
+        version: 4.6.5
 
   packages/auth:
     dependencies:
@@ -162,6 +198,9 @@ importers:
       '@motorbaldi/db':
         specifier: workspace:*
         version: link:../db
+      '@motorbaldi/identity':
+        specifier: workspace:*
+        version: link:../identity
       '@motorbaldi/shared':
         specifier: workspace:*
         version: link:../shared
@@ -169,7 +208,17 @@ importers:
         specifier: 1.7.5
         version: 1.7.5(@opentelemetry/api@1.9.1)(drizzle-orm@0.45.3(@cloudflare/workers-types@5.20260923.1)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.0))(pg@8.23.0)(vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)))
 
-  packages/authz: {}
+  packages/authz:
+    dependencies:
+      '@motorbaldi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@motorbaldi/db':
+        specifier: workspace:*
+        version: link:../db
+      '@motorbaldi/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/config:
     dependencies:
@@ -179,6 +228,24 @@ importers:
 
   packages/contracts:
     dependencies:
+      zod:
+        specifier: ^4.3.0
+        version: 4.6.5
+
+  packages/crm:
+    dependencies:
+      '@motorbaldi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@motorbaldi/db':
+        specifier: workspace:*
+        version: link:../db
+      '@motorbaldi/identity':
+        specifier: workspace:*
+        version: link:../identity
+      '@motorbaldi/shared':
+        specifier: workspace:*
+        version: link:../shared
       zod:
         specifier: ^4.3.0
         version: 4.6.5
@@ -198,6 +265,24 @@ importers:
         specifier: ^4.3.0
         version: 4.6.5
 
+  packages/identity:
+    dependencies:
+      '@motorbaldi/authz':
+        specifier: workspace:*
+        version: link:../authz
+      '@motorbaldi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@motorbaldi/db':
+        specifier: workspace:*
+        version: link:../db
+      '@motorbaldi/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^4.3.0
+        version: 4.6.5
+
   packages/messaging:
     dependencies:
       '@motorbaldi/db':
@@ -209,7 +294,43 @@ importers:
 
   packages/observability: {}
 
+  packages/organizations:
+    dependencies:
+      '@motorbaldi/authz':
+        specifier: workspace:*
+        version: link:../authz
+      '@motorbaldi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@motorbaldi/db':
+        specifier: workspace:*
+        version: link:../db
+      '@motorbaldi/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^4.3.0
+        version: 4.6.5
+
   packages/payments: {}
+
+  packages/professional:
+    dependencies:
+      '@motorbaldi/authz':
+        specifier: workspace:*
+        version: link:../authz
+      '@motorbaldi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@motorbaldi/db':
+        specifier: workspace:*
+        version: link:../db
+      '@motorbaldi/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^4.3.0
+        version: 4.6.5
 
   packages/shared:
     dependencies:

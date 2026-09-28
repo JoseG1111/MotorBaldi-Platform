@@ -5,9 +5,12 @@
   "type": "module",
   "dependencies": {
     "@motorbaldi/config": "workspace:*",
+    "@motorbaldi/identity": "workspace:*",
     "@motorbaldi/db": "workspace:*",
     "@motorbaldi/messaging": "workspace:*",
     "@motorbaldi/observability": "workspace:*",
-    "@motorbaldi/storage": "workspace:*"
+    "@motorbaldi/storage": "workspace:*",
+    "@motorbaldi/shared": "workspace:*",
+    "zod": "^4.3.0"
   }
 }

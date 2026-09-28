@@ -16,7 +16,7 @@ No remote resource or ID has been created. Every `REPLACE_WITH_*` value is a del
 | Outbox DO         | declarative SQLite export       | declarative SQLite export       | declarative SQLite export      | `OUTBOX_COORDINATOR` on API; service binding on background Worker                      |
 | API rate limiter  | namespace policy 120/min        | namespace policy 120/min        | namespace policy 120/min       | `API_RATE_LIMITER` on API                                                              |
 | Auth rate limiter | namespace policy 10/min         | namespace policy 10/min         | namespace policy 10/min        | `AUTH_RATE_LIMITER` on API                                                             |
-| Turnstile         | manual site/secret              | manual site/secret              | manual site/secret             | Secret on API only; no public protected route in CF-0.1                                |
+| Turnstile         | manual site/secret              | manual site/secret              | manual site/secret             | Secret on API; public lead intake requires remote verification                         |
 
 ## Secrets
 
@@ -27,6 +27,8 @@ No remote resource or ID has been created. Every `REPLACE_WITH_*` value is a del
 | `TURNSTILE_SECRET_KEY` | when enabled | no         | no     | no    |
 
 Public API routes are `GET /health`, `GET /health/dependencies`, `GET /api/v1/openapi.json`, configured Better Auth routes, and authenticated `GET /api/v1/principal`. The Foundation idempotency fixture returns 404 outside local execution. Portal and Admin send same origin `/api/*` requests over `API_SERVICE`; no header can grant internal trust. Future custom domains should keep the apps and their API proxy same origin. Temporary workers.dev testing uses each Portal/Admin origin and its relative proxy, avoiding third party cookies.
+
+Phase 1 adds native D1 business tables without new Cloudflare product bindings. Public lead intake requires the existing Turnstile and API rate limiter bindings and the `PUBLIC_LEAD_INTAKE` governance flag. Organization creation and public signup use `ORGANIZATION_CREATION` and `PUBLIC_SIGNUP`. Remote signup remains disabled until an actual outbound email provider exists. The local `DEVELOPMENT_SINK` is for tests, not delivery. Password recovery and automatic invitation delivery share this prerequisite.
 
 Rate limit keys use a network derived signal for unauthenticated auth abuse. Future authenticated routes should use stable actor, tenant, and resource identifiers where available. Rate limiting is abuse control and never business or financial correctness.
 

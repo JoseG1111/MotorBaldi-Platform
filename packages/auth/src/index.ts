@@ -4,8 +4,14 @@ import type { ApiBindings, ApiConfig } from "@motorbaldi/config";
 import type { Principal } from "@motorbaldi/contracts";
 import { newId } from "@motorbaldi/shared";
 import { securityEvent } from "@motorbaldi/db/audit";
+import { ensureMotorBaldiAccount } from "@motorbaldi/identity";
 
 export const allowedAuthPaths = new Set([
+  "/sign-up/email",
+  "/verify-email",
+  "/send-verification-email",
+  "/request-password-reset",
+  "/reset-password",
   "/sign-in/email",
   "/get-session",
   "/sign-out",
@@ -14,14 +20,16 @@ export const allowedAuthPaths = new Set([
   "/revoke-other-sessions",
   "/two-factor/verify-totp",
   "/two-factor/verify-backup-code",
+  "/two-factor/enable",
 ]);
 
 export function authentication(
   env: ApiBindings,
   c: ApiConfig,
   requestId: string,
+  allowSignUp = false,
 ) {
-  const options = authOptions(env, c, requestId);
+  const options = authOptions(env, c, requestId, allowSignUp);
   const auth = betterAuth(options);
 
   return {
@@ -29,15 +37,27 @@ export function authentication(
     async principal(headers: Headers): Promise<Principal | null> {
       const session = await auth.api.getSession({ headers });
       if (!session || !session.user.emailVerified) return null;
-      const user = await env.DB.prepare(
-        "SELECT two_factor_enabled FROM auth_users WHERE id = ?",
+      const assurance = await env.DB.prepare(
+        "SELECT u.two_factor_enabled,EXISTS(SELECT 1 FROM auth_two_factors f WHERE f.user_id=u.id AND f.verified=1) AS verified_factor,s.created_at>=u.updated_at AS recent_session FROM auth_users u JOIN auth_sessions s ON s.user_id=u.id WHERE u.id=? AND s.id=?",
       )
-        .bind(session.user.id)
-        .first<{ two_factor_enabled: number }>();
+        .bind(session.user.id, session.session.id)
+        .first<{
+          two_factor_enabled: number;
+          verified_factor: number;
+          recent_session: number;
+        }>();
+      const account = await ensureMotorBaldiAccount(
+        env.DB,
+        session.user.id,
+        requestId,
+      );
       return {
         accountId: session.user.id,
-        personId: null,
-        mfaEnabled: user?.two_factor_enabled === 1,
+        personId: account.personId,
+        mfaEnabled:
+          assurance?.two_factor_enabled === 1 &&
+          assurance.verified_factor === 1 &&
+          assurance.recent_session === 1,
       };
     },
   };
@@ -47,6 +67,7 @@ export function authOptions(
   env: ApiBindings,
   c: ApiConfig,
   requestId: string,
+  allowSignUp = false,
 ): BetterAuthOptions {
   return {
     appName: "MotorBaldi",
@@ -111,15 +132,33 @@ export function authOptions(
     },
     emailAndPassword: {
       enabled: true,
-      disableSignUp: true,
+      disableSignUp: !allowSignUp,
       requireEmailVerification: true,
       minPasswordLength: 12,
-      sendResetPassword: async () => {
-        throw new Error("EMAIL_PROVIDER_UNCONFIGURED");
+      sendResetPassword: async ({ user, url }) => {
+        if (c.environment !== "local" || c.emailProvider !== "DEVELOPMENT_SINK")
+          throw new Error("EMAIL_PROVIDER_UNCONFIGURED");
+        await env.DB.prepare(
+          "INSERT INTO integration_local_email_sink(id,auth_user_id,kind,action_url) VALUES(?,?,'PASSWORD_RESET',?)",
+        )
+          .bind(newId(), user.id, url)
+          .run();
+      },
+    },
+    emailVerification: {
+      sendOnSignUp: true,
+      sendVerificationEmail: async ({ user, url }) => {
+        if (c.environment !== "local" || c.emailProvider !== "DEVELOPMENT_SINK")
+          throw new Error("EMAIL_PROVIDER_UNCONFIGURED");
+        await env.DB.prepare(
+          "INSERT INTO integration_local_email_sink(id,auth_user_id,kind,action_url) VALUES(?,?,'VERIFY_EMAIL',?)",
+        )
+          .bind(newId(), user.id, url)
+          .run();
       },
     },
     advanced: {
-      useSecureCookies: ["staging", "production"].includes(c.environment),
+      useSecureCookies: c.environment !== "local",
       database: { generateId: () => newId() },
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", path: "/" },
     },

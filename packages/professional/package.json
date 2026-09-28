@@ -1,5 +1,5 @@
 {
-  "name": "@motorbaldi/authz",
+  "name": "@motorbaldi/professional",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,8 +7,10 @@
     ".": "./src/index.js"
   },
   "dependencies": {
+    "@motorbaldi/authz": "workspace:*",
     "@motorbaldi/contracts": "workspace:*",
     "@motorbaldi/db": "workspace:*",
-    "@motorbaldi/shared": "workspace:*"
+    "@motorbaldi/shared": "workspace:*",
+    "zod": "^4.3.0"
   }
 }

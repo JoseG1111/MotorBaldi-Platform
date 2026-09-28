@@ -19,9 +19,78 @@ import {
   files,
   unavailableScanner,
 } from "@motorbaldi/storage";
+import { reconcileVerifiedAccounts } from "@motorbaldi/identity";
+import { newId } from "@motorbaldi/shared";
+import { z } from "zod";
 
-const registry = new Map();
-const handlers = new Map();
+const uuid = z.string().uuid();
+const eventContracts = [
+  [
+    "identity.account.created.v1",
+    "identity",
+    z.object({ accountId: uuid, personId: uuid }).strict(),
+  ],
+  [
+    "identity.person.merged.v1",
+    "identity",
+    z.object({ sourceId: uuid, destinationId: uuid }).strict(),
+  ],
+  [
+    "organization.created.v1",
+    "organization",
+    z.object({ organizationId: uuid }).strict(),
+  ],
+  [
+    "organization.invitation.created.v1",
+    "organization",
+    z.object({ organizationId: uuid, invitationId: uuid }).strict(),
+  ],
+  [
+    "organization.membership.requested.v1",
+    "organization",
+    z.object({ organizationId: uuid, requestId: uuid }).strict(),
+  ],
+  [
+    "organization.membership.approved.v1",
+    "organization",
+    z.object({ organizationId: uuid, requestId: uuid }).strict(),
+  ],
+  [
+    "organization.verification.submitted.v1",
+    "organization",
+    z.object({ organizationId: uuid, caseId: uuid }).strict(),
+  ],
+  [
+    "organization.verification.approved.v1",
+    "organization",
+    z.object({ organizationId: uuid, caseId: uuid }).strict(),
+  ],
+  [
+    "organization.verification.rejected.v1",
+    "organization",
+    z.object({ organizationId: uuid, caseId: uuid }).strict(),
+  ],
+  ["crm.lead.received.v1", "crm_lead", z.object({ leadId: uuid }).strict()],
+  [
+    "crm.lead.converted.v1",
+    "crm_lead",
+    z.object({ leadId: uuid, opportunityId: uuid }).strict(),
+  ],
+] as const;
+const registry = new Map(
+  eventContracts.map(([name, aggregateType, payload]) => [
+    `${name}:1`,
+    {
+      aggregateType,
+      version: 1,
+      payload,
+      externalEffect: "IDEMPOTENT" as const,
+    },
+  ]),
+);
+const handlers = new Map(
+  eventContracts.map(([name]) => [name, async () => {}]),
+);
 
 export default {
   async fetch() {
@@ -71,6 +140,7 @@ export default {
     ctx.waitUntil(storage.cleanupOrphanPromotions());
     ctx.waitUntil(recoverExpiredLeases(env.DB));
     ctx.waitUntil(cleanupExpiredIdempotencyRecords(env.DB));
+    ctx.waitUntil(reconcileVerifiedAccounts(env.DB, newId()));
     if (env.OUTBOX_COORDINATOR) {
       ctx.waitUntil(
         env.OUTBOX_COORDINATOR.getByName(c.environment).fetch(

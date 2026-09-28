@@ -1,5 +1,5 @@
 {
-  "name": "@motorbaldi/authz",
+  "name": "@motorbaldi/crm",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,6 +9,8 @@
   "dependencies": {
     "@motorbaldi/contracts": "workspace:*",
     "@motorbaldi/db": "workspace:*",
-    "@motorbaldi/shared": "workspace:*"
+    "@motorbaldi/shared": "workspace:*",
+    "@motorbaldi/identity": "workspace:*",
+    "zod": "^4.3.0"
   }
 }

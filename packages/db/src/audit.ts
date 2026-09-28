@@ -8,12 +8,13 @@ export interface AuditInput {
   requestId: string;
   reason?: string;
   organizationId?: string;
+  requirePreviousChange?: boolean;
 }
 
 export function auditStatement(db: D1Database, e: AuditInput) {
   return db
     .prepare(
-      "INSERT INTO governance_audit_events(id, actor_id, action, resource_type, resource_id, request_id, reason, organization_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      `INSERT INTO governance_audit_events(id, actor_id, action, resource_type, resource_id, request_id, reason, organization_id) SELECT ?, ?, ?, ?, ?, ?, ?, ? ${e.requirePreviousChange ? "WHERE changes()=1" : ""}`,
     )
     .bind(
       newId(),

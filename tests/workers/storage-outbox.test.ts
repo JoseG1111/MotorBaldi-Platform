@@ -15,6 +15,7 @@ import {
 import { HandlerFailure } from "@motorbaldi/messaging/handler";
 import { z } from "zod";
 import migration from "../../migrations/0001_foundation.sql?raw";
+import phase1Migration from "../../migrations/0002_phase1.sql?raw";
 
 const e = env as unknown as ApiBindings;
 const user = "018f0000-0000-7000-8000-000000000099";
@@ -27,6 +28,7 @@ const png = Uint8Array.from(
 
 beforeAll(async () => {
   await e.DB.exec(migration.replace(/\n/g, " "));
+  await e.DB.exec(phase1Migration.replace(/\n/g, " "));
   await e.DB.prepare(
     "INSERT INTO governance_environment_metadata(singleton,environment) VALUES(1,'local')",
   ).run();

@@ -6,6 +6,70 @@ import { buildIdempotencyScope } from "@motorbaldi/db/idempotency";
 import { errorTracker, logger } from "@motorbaldi/observability";
 import { newId, type Json } from "@motorbaldi/shared";
 import { openapi } from "./openapi.js";
+import { z, ZodError } from "zod";
+import {
+  turnstileVerifier,
+  deterministicAntiAbuseVerifier,
+} from "@motorbaldi/auth/anti-abuse";
+import { leadInput } from "@motorbaldi/crm";
+import {
+  organizationInput,
+  workspaces,
+  memberRoles,
+  locationScope,
+  locationInput,
+  addLocation,
+  setCapabilities,
+  startVerificationReview,
+  endMembership,
+  changeMembershipRoles,
+  revokeInvitation,
+  rejectMembershipRequest,
+  cancelMembershipRequest,
+  attachVerificationFile,
+  requestVerificationInformation,
+  suspendOrganization,
+  updateOrganization,
+  updateLocation,
+  addIdentifier,
+} from "@motorbaldi/organizations";
+import {
+  requireOrganizationPermission,
+  requirePlatformPermission,
+  assignPlatformRoles,
+  platformRoleCodes,
+} from "@motorbaldi/authz";
+import {
+  addContact,
+  recordConsent,
+  suspendAccount,
+} from "@motorbaldi/identity";
+import {
+  triageLead,
+  linkLeadPerson,
+  createPersonFromLead,
+  recordActivity,
+  activityInput,
+  createNote,
+  noteInput,
+  createTask,
+  taskInput,
+  updateTask,
+  assignLead,
+  moveOpportunityStage,
+  createTag,
+  assignOpportunity,
+  assignTask,
+  assignTag,
+} from "@motorbaldi/crm";
+import {
+  mechanicProfileInput,
+  credentialInput,
+  upsertMechanicProfile,
+  setSpecialties,
+  submitCredential,
+  decideCredential,
+} from "@motorbaldi/professional";
 
 export { IdempotencyCoordinator, OutboxCoordinator } from "./coordinators.js";
 
@@ -38,7 +102,8 @@ const corsHeaders = (
     ? {
         "access-control-allow-origin": origin,
         "access-control-allow-credentials": "true",
-        "access-control-allow-methods": "GET,HEAD,POST,OPTIONS",
+        "access-control-allow-methods":
+          "GET,HEAD,POST,PATCH,PUT,DELETE,OPTIONS",
         "access-control-allow-headers":
           "Content-Type,Idempotency-Key,Authorization,X-CSRF-Token",
         vary: "Origin",
@@ -50,8 +115,18 @@ function problem(
   requestId: string,
   cors: Record<string, string>,
 ) {
-  const status = error instanceof Problem ? error.status : 500;
-  const code = error instanceof Problem ? error.code : "INTERNAL_ERROR";
+  const status =
+    error instanceof Problem
+      ? error.status
+      : error instanceof ZodError
+        ? 400
+        : 500;
+  const code =
+    error instanceof Problem
+      ? error.code
+      : error instanceof ZodError
+        ? "VALIDATION_ERROR"
+        : "INTERNAL_ERROR";
   if (status >= 500)
     errorTracker.capture(code, requestId, error, "motorbaldi-api", "fetch");
   return json(
@@ -60,7 +135,11 @@ function problem(
       status,
       code,
       message:
-        error instanceof Problem ? error.message : "Internal server error",
+        error instanceof Problem
+          ? error.message
+          : error instanceof ZodError
+            ? "Invalid request"
+            : "Internal server error",
       requestId,
       ...(error instanceof Problem && error.details
         ? { details: error.details }
@@ -95,6 +174,83 @@ async function rateLimit(
     throw new Problem(429, "RATE_LIMITED", "Too many requests");
 }
 
+async function featureEnabled(env: ApiBindings, key: string) {
+  const row = await env.DB.prepare(
+    "SELECT enabled FROM governance_feature_flags WHERE key=? AND environment=?",
+  )
+    .bind(key, env.ENVIRONMENT)
+    .first<{ enabled: number }>();
+  return row?.enabled === 1;
+}
+
+async function boundedJson(
+  request: Request,
+  maxBytes = 16384,
+): Promise<unknown> {
+  const reader = request.body?.getReader();
+  if (!reader) throw new Problem(400, "INVALID_BODY", "Request body required");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel();
+      throw new Problem(413, "BODY_TOO_LARGE", "Request too large");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new Problem(400, "INVALID_JSON", "Invalid JSON");
+  }
+}
+
+async function idempotentCommand(
+  env: ApiBindings,
+  operation: string,
+  accountId: string,
+  body: Json,
+  requestId: string,
+  key: string,
+  organizationId?: string,
+) {
+  const scope = buildIdempotencyScope({ accountId, operation, organizationId });
+  const response = await env.IDEMPOTENCY_COORDINATOR.getByName(
+    scope.scope + ":" + key,
+  ).fetch("https://idempotency/run", {
+    method: "POST",
+    body: JSON.stringify({ key, scope, request: body, requestId }),
+  });
+  const result = await response.json<Record<string, Json>>();
+  if (!response.ok)
+    throw new Problem(
+      response.status,
+      String(result.code ?? "COMMAND_FAILED"),
+      String(result.message ?? "Command unavailable"),
+    );
+  return result;
+}
+
+function requiredKey(request: Request) {
+  const key = request.headers.get("idempotency-key") ?? "";
+  if (!/^[\x21-\x7e]{8,128}$/.test(key))
+    throw new Problem(
+      400,
+      "INVALID_IDEMPOTENCY_KEY",
+      "Invalid idempotency key",
+    );
+  return key;
+}
+
 async function route(
   request: Request,
   env: ApiBindings,
@@ -111,6 +267,14 @@ async function route(
     if (request.method !== method)
       throw new Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed");
   };
+  const listLimit = () =>
+    Math.min(
+      50,
+      Math.max(
+        1,
+        Number.parseInt(url.searchParams.get("limit") ?? "20", 10) || 20,
+      ),
+    );
 
   if (url.pathname === "/health") {
     requireMethod("GET");
@@ -133,7 +297,1624 @@ async function route(
       { headers: cors },
     );
   }
-  const auth = authentication(env, c, requestId);
+  if (url.pathname === "/api/v1/public/leads") {
+    requireMethod("POST");
+    if (!(await featureEnabled(env, "PUBLIC_LEAD_INTAKE")))
+      throw new Problem(404, "NOT_FOUND", "Not found");
+    const raw = await boundedJson(request);
+    if (!raw || typeof raw !== "object" || Array.isArray(raw))
+      throw new Problem(400, "INVALID_BODY", "Invalid request");
+    const { turnstileToken, ...lead } = raw as Record<string, unknown>;
+    if (c.environment !== "local") {
+      if (!c.turnstileSecretKey || typeof turnstileToken !== "string")
+        throw new Problem(
+          503,
+          "ANTI_ABUSE_UNAVAILABLE",
+          "Anti-abuse verification unavailable",
+        );
+      await turnstileVerifier({
+        secret: c.turnstileSecretKey,
+        expectedHostname: c.turnstileExpectedHostname,
+      }).verify({
+        token: turnstileToken,
+        action: "lead",
+        remoteIp: request.headers.get("cf-connecting-ip") ?? undefined,
+      });
+    } else if (c.turnstileBypassToken) {
+      await deterministicAntiAbuseVerifier(c.turnstileBypassToken).verify({
+        token: String(turnstileToken ?? ""),
+      });
+    }
+    const input = leadInput.parse(lead);
+    await idempotentCommand(
+      env,
+      "crm.lead.create",
+      "00000000-0000-7000-8000-000000000001",
+      input,
+      requestId,
+      requiredKey(request),
+    );
+    return json({ accepted: true }, { status: 202, headers: cors });
+  }
+  if (url.pathname === "/api/v1/directory/organizations") {
+    requireMethod("GET");
+    const rows = await env.DB.prepare(
+      "SELECT id,display_name,type,country_code FROM org_organizations WHERE status='ACTIVE' AND verification_status='VERIFIED' AND id>? ORDER BY id LIMIT 30",
+    )
+      .bind(url.searchParams.get("cursor") ?? "")
+      .all();
+    return json(
+      { items: rows.results, nextCursor: rows.results.at(-1)?.id ?? null },
+      { headers: cors },
+    );
+  }
+  const signupEnabled =
+    (await featureEnabled(env, "PUBLIC_SIGNUP")) &&
+    c.environment === "local" &&
+    c.emailProvider === "DEVELOPMENT_SINK";
+  const auth = authentication(env, c, requestId, signupEnabled);
+  const businessPrincipal = async () => {
+    const principal = await auth.principal(request.headers);
+    if (!principal?.personId)
+      throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
+    return principal as typeof principal & { personId: string };
+  };
+  if (
+    url.pathname === "/api/v1/me" ||
+    url.pathname === "/api/v1/me/workspaces"
+  ) {
+    requireMethod("GET");
+    const principal = await auth.principal(request.headers);
+    if (!principal?.personId)
+      throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
+    return json(
+      url.pathname.endsWith("/workspaces")
+        ? await workspaces(env.DB, principal.personId)
+        : principal,
+      { headers: cors },
+    );
+  }
+  if (url.pathname === "/api/v1/organizations") {
+    requireMethod("POST");
+    if (!(await featureEnabled(env, "ORGANIZATION_CREATION")))
+      throw new Problem(404, "NOT_FOUND", "Not found");
+    const principal = await auth.principal(request.headers);
+    if (!principal?.personId)
+      throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
+    const body = organizationInput.parse(await boundedJson(request));
+    const result = await idempotentCommand(
+      env,
+      "organization.create",
+      principal.accountId,
+      body,
+      requestId,
+      requiredKey(request),
+    );
+    return json(result, { status: 201, headers: cors });
+  }
+  const organizationMatch = url.pathname.match(
+    /^\/api\/v1\/organizations\/([0-9a-f-]{36})$/,
+  );
+  if (organizationMatch) {
+    const principal = await businessPrincipal();
+    const organizationId = organizationMatch[1]!;
+    if (request.method === "PATCH") {
+      const body = z
+        .object({
+          legalName: z.string().trim().min(1).max(240),
+          displayName: z.string().trim().min(1).max(240),
+          version: z.number().int().positive(),
+        })
+        .strict()
+        .parse(await boundedJson(request));
+      return json(
+        {
+          version: await updateOrganization(
+            env.DB,
+            principal,
+            organizationId,
+            body,
+            requestId,
+          ),
+        },
+        { headers: cors },
+      );
+    }
+    requireMethod("GET");
+    await requireOrganizationPermission(
+      env.DB,
+      principal,
+      organizationId,
+      "org.read",
+    );
+    const organization = await env.DB.prepare(
+      "SELECT id,type,legal_name,display_name,country_code,status,verification_status,version FROM org_organizations WHERE id=?",
+    )
+      .bind(organizationId)
+      .first();
+    if (!organization)
+      throw new Problem(
+        404,
+        "ORGANIZATION_NOT_FOUND",
+        "Organization unavailable",
+      );
+    return json(organization, { headers: cors });
+  }
+  const orgPermissions = url.pathname.match(
+    /^\/api\/v1\/organizations\/([0-9a-f-]{36})\/permissions$/,
+  );
+  if (orgPermissions) {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    const organizationId = orgPermissions[1]!;
+    await requireOrganizationPermission(
+      env.DB,
+      actor,
+      organizationId,
+      "org.read",
+    );
+    const rows = await env.DB.prepare(
+      "SELECT DISTINCT rp.permission_code AS code FROM org_memberships m JOIN org_membership_roles mr ON mr.membership_id=m.id JOIN authz_roles r ON r.id=mr.role_id AND r.scope='ORGANIZATION' JOIN authz_role_permissions rp ON rp.role_id=r.id WHERE m.person_id=? AND m.organization_id=? AND m.status='ACTIVE' ORDER BY rp.permission_code",
+    )
+      .bind(actor.personId, organizationId)
+      .all<{ code: string }>();
+    return json(
+      { permissions: rows.results.map((row) => row.code) },
+      { headers: cors },
+    );
+  }
+  const orgIdentifiers = url.pathname.match(
+    /^\/api\/v1\/organizations\/([0-9a-f-]{36})\/identifiers$/,
+  );
+  if (orgIdentifiers) {
+    const actor = await businessPrincipal(),
+      organizationId = orgIdentifiers[1]!;
+    await requireOrganizationPermission(
+      env.DB,
+      actor,
+      organizationId,
+      "org.update",
+    );
+    if (request.method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT id,country_code,identifier_type,verification_status,created_at FROM org_identifiers WHERE organization_id=? ORDER BY created_at DESC LIMIT 50",
+      )
+        .bind(organizationId)
+        .all();
+      return json(rows.results, { headers: cors });
+    }
+    requireMethod("POST");
+    const body = z
+      .object({
+        countryCode: z.string().regex(/^[A-Z]{2}$/),
+        identifierType: z.string().regex(/^[A-Z][A-Z0-9_]{1,63}$/),
+        value: z.string().trim().min(1).max(256),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    return json(
+      {
+        identifierId: await addIdentifier(
+          env.DB,
+          actor,
+          organizationId,
+          body,
+          requestId,
+        ),
+      },
+      { status: 201, headers: cors },
+    );
+  }
+  const locationPatch = url.pathname.match(
+    /^\/api\/v1\/organizations\/([0-9a-f-]{36})\/locations\/([0-9a-f-]{36})$/,
+  );
+  if (locationPatch) {
+    requireMethod("PATCH");
+    const actor = await businessPrincipal();
+    const body = z
+      .object({
+        name: z.string().trim().min(1).max(160),
+        addressLine1: z.string().trim().min(1).max(240),
+        city: z.string().trim().min(1).max(160),
+        version: z.number().int().positive(),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    return json(
+      {
+        version: await updateLocation(
+          env.DB,
+          actor,
+          locationPatch[1]!,
+          locationPatch[2]!,
+          body,
+          requestId,
+        ),
+      },
+      { headers: cors },
+    );
+  }
+  if (url.pathname === "/api/v1/me/profile") {
+    const actor = await businessPrincipal();
+    if (request.method === "GET") {
+      const row = await env.DB.prepare(
+        "SELECT id,status,given_name,middle_name,family_name,second_family_name,display_name,preferred_locale,country_code,version FROM iam_people WHERE id=?",
+      )
+        .bind(actor.personId)
+        .first();
+      return json(row, { headers: cors });
+    }
+    requireMethod("PATCH");
+    const body = z
+      .object({
+        givenName: z.string().trim().min(1).max(120),
+        familyName: z.string().trim().min(1).max(120),
+        displayName: z.string().trim().max(240).optional(),
+        version: z.number().int().positive(),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    const result = await env.DB.prepare(
+      "UPDATE iam_people SET given_name=?,family_name=?,display_name=?,version=version+1,updated_at=? WHERE id=? AND version=? AND status='ACTIVE'",
+    )
+      .bind(
+        body.givenName,
+        body.familyName,
+        body.displayName ?? null,
+        new Date().toISOString(),
+        actor.personId,
+        body.version,
+      )
+      .run();
+    if (result.meta.changes !== 1)
+      throw new Problem(409, "VERSION_CONFLICT", "Stale profile version");
+    return json({ version: body.version + 1 }, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/me/contact-methods") {
+    const actor = await businessPrincipal();
+    if (request.method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT id,type,raw_value,label,is_primary,verification_status FROM iam_contact_methods WHERE person_id=? ORDER BY is_primary DESC,created_at DESC LIMIT 100",
+      )
+        .bind(actor.personId)
+        .all();
+      return json(rows.results, { headers: cors });
+    }
+    requireMethod("POST");
+    const body = z
+      .object({
+        type: z.enum(["EMAIL", "PHONE"]),
+        value: z.string().min(1).max(320),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    return json(
+      {
+        id: await addContact(
+          env.DB,
+          actor.personId,
+          body.type,
+          body.value,
+          "SELF_SERVICE",
+        ),
+      },
+      { status: 201, headers: cors },
+    );
+  }
+  if (url.pathname === "/api/v1/me/consents") {
+    const actor = await businessPrincipal();
+    if (request.method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT id,purpose,policy_version,status,source,occurred_at FROM iam_consent_events WHERE person_id=? ORDER BY occurred_at DESC,id DESC LIMIT 100",
+      )
+        .bind(actor.personId)
+        .all();
+      return json(rows.results, { headers: cors });
+    }
+    requireMethod("POST");
+    const body = z
+      .object({
+        purpose: z.enum([
+          "TERMS",
+          "PRIVACY",
+          "MARKETING_EMAIL",
+          "MARKETING_SMS",
+          "MARKETING_WHATSAPP",
+        ]),
+        policyVersion: z.string().min(1).max(64),
+        status: z.enum(["GRANTED", "REVOKED"]),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    await recordConsent(
+      env.DB,
+      actor.personId,
+      body.purpose,
+      body.policyVersion,
+      body.status,
+      "SELF_SERVICE",
+      requestId,
+    );
+    return json({ recorded: true }, { status: 201, headers: cors });
+  }
+  if (url.pathname === "/api/v1/me/mechanic-profile") {
+    const actor = await businessPrincipal();
+    if (request.method === "GET") {
+      const row = await env.DB.prepare(
+        "SELECT person_id,professional_status,bio,years_experience,version FROM professional_mechanic_profiles WHERE person_id=?",
+      )
+        .bind(actor.personId)
+        .first();
+      return json(row, { headers: cors });
+    }
+    requireMethod("PUT");
+    const raw = z
+      .object({
+        bio: z.string().trim().max(2000).optional(),
+        yearsExperience: z.number().int().min(0).max(80).optional(),
+        version: z.number().int().positive().optional(),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    const { version, ...profile } = raw;
+    return json(
+      {
+        version: await upsertMechanicProfile(
+          env.DB,
+          actor.personId,
+          mechanicProfileInput.parse(profile),
+          version,
+        ),
+      },
+      { headers: cors },
+    );
+  }
+  if (url.pathname === "/api/v1/me/specialties") {
+    const actor = await businessPrincipal();
+    if (request.method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT code FROM professional_person_specialties WHERE person_id=? ORDER BY code",
+      )
+        .bind(actor.personId)
+        .all();
+      return json(rows.results, { headers: cors });
+    }
+    requireMethod("PUT");
+    const body = z
+      .object({ codes: z.array(z.string().regex(/^[A-Z_]+$/)).max(20) })
+      .strict()
+      .parse(await boundedJson(request));
+    await setSpecialties(env.DB, actor.personId, body.codes);
+    return json({ updated: true }, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/me/credentials") {
+    const actor = await businessPrincipal();
+    if (request.method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT id,credential_type,country_code,issuer,issued_at,expires_at,status,version FROM professional_credentials WHERE person_id=? ORDER BY created_at DESC LIMIT 50",
+      )
+        .bind(actor.personId)
+        .all();
+      return json(rows.results, { headers: cors });
+    }
+    requireMethod("POST");
+    const body = credentialInput.parse(await boundedJson(request));
+    return json(
+      {
+        credentialId: await submitCredential(
+          env.DB,
+          actor.personId,
+          body,
+          requestId,
+        ),
+      },
+      { status: 201, headers: cors },
+    );
+  }
+  if (url.pathname === "/api/v1/me/membership-requests") {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    const rows = await env.DB.prepare(
+      "SELECT r.id,r.organization_id,o.display_name,r.status,r.created_at,r.expires_at FROM org_membership_requests r JOIN org_organizations o ON o.id=r.organization_id WHERE r.person_id=? ORDER BY r.created_at DESC LIMIT 50",
+    )
+      .bind(actor.personId)
+      .all();
+    return json(rows.results, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/invitations/accept") {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    const body = z
+      .object({ token: z.string().regex(/^[0-9a-f]{64}$/) })
+      .strict()
+      .parse(await boundedJson(request));
+    const result = await idempotentCommand(
+      env,
+      "organization.invitation.accept",
+      actor.accountId,
+      body,
+      requestId,
+      requiredKey(request),
+    );
+    return json(result, { headers: cors });
+  }
+  const orgAction = url.pathname.match(
+    /^\/api\/v1\/organizations\/([0-9a-f-]{36})\/(locations|capabilities|members|invitations|membership-requests|verification\/submit)$/,
+  );
+  if (orgAction) {
+    const organizationId = orgAction[1]!,
+      action = orgAction[2]!;
+    const actor = await businessPrincipal();
+    if (action === "locations") {
+      if (request.method === "GET") {
+        const membershipId = await requireOrganizationPermission(
+          env.DB,
+          actor,
+          organizationId,
+          "org.location.read",
+        );
+        const rows = await env.DB.prepare(
+          "SELECT l.id,l.name,l.location_type,l.country_code,l.administrative_area,l.city,l.postal_code,l.address_line_1,l.address_line_2,l.latitude,l.longitude,l.status,l.version FROM org_locations l JOIN org_memberships m ON m.id=? WHERE l.organization_id=? AND l.id>? AND (m.location_scope_type='ALL_LOCATIONS' OR EXISTS (SELECT 1 FROM org_membership_locations ml WHERE ml.membership_id=m.id AND ml.organization_id=l.organization_id AND ml.location_id=l.id)) ORDER BY l.id LIMIT ?",
+        )
+          .bind(
+            membershipId,
+            organizationId,
+            url.searchParams.get("cursor") ?? "",
+            listLimit(),
+          )
+          .all();
+        return json(
+          { items: rows.results, nextCursor: rows.results.at(-1)?.id ?? null },
+          { headers: cors },
+        );
+      }
+      requireMethod("POST");
+      return json(
+        {
+          locationId: await addLocation(
+            env.DB,
+            actor,
+            organizationId,
+            locationInput.parse(await boundedJson(request)),
+            requestId,
+          ),
+        },
+        { status: 201, headers: cors },
+      );
+    }
+    if (action === "capabilities") {
+      if (request.method === "GET") {
+        await requireOrganizationPermission(
+          env.DB,
+          actor,
+          organizationId,
+          "org.read",
+        );
+        const rows = await env.DB.prepare(
+          "SELECT code FROM org_capabilities WHERE organization_id=? ORDER BY code",
+        )
+          .bind(organizationId)
+          .all();
+        return json(rows.results, { headers: cors });
+      }
+      requireMethod("PUT");
+      const body = z
+        .object({ codes: z.array(z.string().regex(/^[A-Z_]+$/)).max(20) })
+        .strict()
+        .parse(await boundedJson(request));
+      await setCapabilities(
+        env.DB,
+        actor,
+        organizationId,
+        body.codes,
+        requestId,
+      );
+      return json({ updated: true }, { headers: cors });
+    }
+    if (action === "members") {
+      requireMethod("GET");
+      await requireOrganizationPermission(
+        env.DB,
+        actor,
+        organizationId,
+        "org.member.read",
+      );
+      const rows = await env.DB.prepare(
+        "SELECT m.id,m.person_id,m.status,m.location_scope_type,p.display_name,p.given_name,p.family_name,group_concat(r.code) AS roles FROM org_memberships m JOIN iam_people p ON p.id=m.person_id LEFT JOIN org_membership_roles mr ON mr.membership_id=m.id LEFT JOIN authz_roles r ON r.id=mr.role_id WHERE m.organization_id=? AND m.id>? GROUP BY m.id ORDER BY m.id LIMIT ?",
+      )
+        .bind(organizationId, url.searchParams.get("cursor") ?? "", listLimit())
+        .all();
+      return json(
+        { items: rows.results, nextCursor: rows.results.at(-1)?.id ?? null },
+        { headers: cors },
+      );
+    }
+    if (action === "invitations") {
+      if (request.method === "GET") {
+        await requireOrganizationPermission(
+          env.DB,
+          actor,
+          organizationId,
+          "org.member.read",
+        );
+        const rows = await env.DB.prepare(
+          "SELECT id,target_email,proposed_roles_json,location_scope_type,status,created_at,expires_at FROM org_invitations WHERE organization_id=? AND id>? ORDER BY id LIMIT ?",
+        )
+          .bind(
+            organizationId,
+            url.searchParams.get("cursor") ?? "",
+            listLimit(),
+          )
+          .all();
+        return json(
+          { items: rows.results, nextCursor: rows.results.at(-1)?.id ?? null },
+          { headers: cors },
+        );
+      }
+      requireMethod("POST");
+      const body = z
+        .object({
+          targetEmail: z.string().email(),
+          roles: memberRoles,
+          scope: locationScope,
+        })
+        .strict()
+        .parse(await boundedJson(request));
+      const result = await idempotentCommand(
+        env,
+        "organization.invitation.create",
+        actor.accountId,
+        { organizationId, ...body },
+        requestId,
+        requiredKey(request),
+        organizationId,
+      );
+      return json(result, { status: 201, headers: cors });
+    }
+    if (action === "membership-requests") {
+      if (request.method === "GET") {
+        await requireOrganizationPermission(
+          env.DB,
+          actor,
+          organizationId,
+          "org.membership_request.review",
+        );
+        const rows = await env.DB.prepare(
+          "SELECT id,person_id,requested_roles_json,location_scope_type,status,created_at,expires_at FROM org_membership_requests WHERE organization_id=? AND id>? ORDER BY id LIMIT ?",
+        )
+          .bind(
+            organizationId,
+            url.searchParams.get("cursor") ?? "",
+            listLimit(),
+          )
+          .all();
+        return json(
+          { items: rows.results, nextCursor: rows.results.at(-1)?.id ?? null },
+          { headers: cors },
+        );
+      }
+      requireMethod("POST");
+      const body = z
+        .object({
+          roles: memberRoles,
+          scope: locationScope,
+          message: z.string().max(2000).optional(),
+        })
+        .strict()
+        .parse(await boundedJson(request));
+      const result = await idempotentCommand(
+        env,
+        "organization.membership-request.create",
+        actor.accountId,
+        { organizationId, ...body },
+        requestId,
+        requiredKey(request),
+        organizationId,
+      );
+      return json(result, { status: 201, headers: cors });
+    }
+    requireMethod("POST");
+    const result = await idempotentCommand(
+      env,
+      "organization.verification.submit",
+      actor.accountId,
+      { organizationId },
+      requestId,
+      requiredKey(request),
+      organizationId,
+    );
+    return json(result, { status: 202, headers: cors });
+  }
+  const approveRequest = url.pathname.match(
+    /^\/api\/v1\/organizations\/([0-9a-f-]{36})\/membership-requests\/([0-9a-f-]{36})\/approve$/,
+  );
+  if (approveRequest) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    const organizationId = approveRequest[1]!,
+      membershipRequestId = approveRequest[2]!;
+    const result = await idempotentCommand(
+      env,
+      "organization.membership-request.approve",
+      actor.accountId,
+      { organizationId, membershipRequestId },
+      requestId,
+      requiredKey(request),
+      organizationId,
+    );
+    return json(result, { headers: cors });
+  }
+  const memberAction = url.pathname.match(
+    /^\/api\/v1\/organizations\/([0-9a-f-]{36})\/members\/([0-9a-f-]{36})\/(end|roles)$/,
+  );
+  if (memberAction) {
+    const actor = await businessPrincipal(),
+      organizationId = memberAction[1]!,
+      membershipId = memberAction[2]!;
+    if (memberAction[3] === "end") {
+      requireMethod("POST");
+      await endMembership(
+        env.DB,
+        actor,
+        organizationId,
+        membershipId,
+        requestId,
+      );
+      return json({ ended: true }, { headers: cors });
+    }
+    requireMethod("PUT");
+    const body = z
+      .object({ roles: memberRoles })
+      .strict()
+      .parse(await boundedJson(request));
+    await changeMembershipRoles(
+      env.DB,
+      actor,
+      organizationId,
+      membershipId,
+      body.roles,
+      requestId,
+    );
+    return json({ updated: true }, { headers: cors });
+  }
+  const invitationRevoke = url.pathname.match(
+    /^\/api\/v1\/organizations\/([0-9a-f-]{36})\/invitations\/([0-9a-f-]{36})\/revoke$/,
+  );
+  if (invitationRevoke) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    await revokeInvitation(
+      env.DB,
+      actor,
+      invitationRevoke[1]!,
+      invitationRevoke[2]!,
+      requestId,
+    );
+    return json({ revoked: true }, { headers: cors });
+  }
+  const requestAction = url.pathname.match(
+    /^\/api\/v1\/organizations\/([0-9a-f-]{36})\/membership-requests\/([0-9a-f-]{36})\/(reject|cancel)$/,
+  );
+  if (requestAction) {
+    requireMethod("POST");
+    const actor = await businessPrincipal(),
+      organizationId = requestAction[1]!,
+      membershipRequestId = requestAction[2]!;
+    if (requestAction[3] === "cancel")
+      await cancelMembershipRequest(
+        env.DB,
+        actor,
+        organizationId,
+        membershipRequestId,
+      );
+    else {
+      const body = z
+        .object({ reason: z.string().trim().min(5).max(1000) })
+        .strict()
+        .parse(await boundedJson(request));
+      await rejectMembershipRequest(
+        env.DB,
+        actor,
+        organizationId,
+        membershipRequestId,
+        body.reason,
+        requestId,
+      );
+    }
+    return json({ updated: true }, { headers: cors });
+  }
+  const evidenceAttach = url.pathname.match(
+    /^\/api\/v1\/organizations\/([0-9a-f-]{36})\/verification\/([0-9a-f-]{36})\/files$/,
+  );
+  if (evidenceAttach) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    const body = z
+      .object({ fileId: z.string().uuid() })
+      .strict()
+      .parse(await boundedJson(request));
+    await attachVerificationFile(
+      env.DB,
+      actor,
+      evidenceAttach[1]!,
+      evidenceAttach[2]!,
+      body.fileId,
+      requestId,
+    );
+    return json({ attached: true }, { status: 201, headers: cors });
+  }
+  const evidenceRead = url.pathname.match(
+    /^\/api\/v1\/(admin\/)?organizations\/([0-9a-f-]{36})\/verification\/([0-9a-f-]{36})\/files\/([0-9a-f-]{36})$/,
+  );
+  if (evidenceRead) {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    const organizationId = evidenceRead[2]!,
+      caseId = evidenceRead[3]!,
+      fileId = evidenceRead[4]!;
+    if (evidenceRead[1])
+      await requirePlatformPermission(
+        env.DB,
+        actor,
+        "platform.organization.verify",
+      );
+    else
+      await requireOrganizationPermission(
+        env.DB,
+        actor,
+        organizationId,
+        "org.verification.submit",
+      );
+    const row = await env.DB.prepare(
+      "SELECT f.active_key,f.declared_mime FROM org_verification_files vf JOIN org_verification_cases c ON c.id=vf.case_id JOIN storage_files f ON f.id=vf.file_id WHERE vf.case_id=? AND vf.file_id=? AND c.organization_id=? AND f.status='ACTIVE'",
+    )
+      .bind(caseId, fileId, organizationId)
+      .first<{ active_key: string; declared_mime: string }>();
+    if (!row?.active_key)
+      throw new Problem(404, "FILE_NOT_FOUND", "Evidence unavailable");
+    const object = await env.PRIVATE_BUCKET.get(row.active_key);
+    if (!object)
+      throw new Problem(404, "FILE_NOT_FOUND", "Evidence unavailable");
+    return new Response(object.body, {
+      headers: {
+        ...cors,
+        "content-type": row.declared_mime,
+        "content-disposition": "attachment",
+        "cache-control": "no-store",
+      },
+    });
+  }
+  if (url.pathname === "/api/v1/admin/access") {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    const rows = await env.DB.prepare(
+      "SELECT DISTINCT rp.permission_code AS code FROM platform_person_roles pr JOIN authz_roles r ON r.id=pr.role_id AND r.scope='PLATFORM' JOIN authz_role_permissions rp ON rp.role_id=r.id WHERE pr.person_id=? ORDER BY rp.permission_code",
+    )
+      .bind(actor.personId)
+      .all<{ code: string }>();
+    if (!rows.results.length)
+      throw new Problem(403, "FORBIDDEN", "Access denied");
+    return json(
+      {
+        permissions: rows.results.map((row) => row.code),
+        mfaEnabled: actor.mfaEnabled,
+      },
+      { headers: cors },
+    );
+  }
+  const suspendAccountMatch = url.pathname.match(
+    /^\/api\/v1\/admin\/accounts\/([0-9a-f-]{36})\/suspend$/,
+  );
+  if (suspendAccountMatch) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.account.suspend", {
+      mfa: true,
+    });
+    const body = z
+      .object({ reason: z.string().trim().min(5).max(1000) })
+      .strict()
+      .parse(await boundedJson(request));
+    await suspendAccount(
+      env.DB,
+      suspendAccountMatch[1]!,
+      actor.accountId,
+      body.reason,
+      requestId,
+    );
+    return json({ suspended: true }, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/admin/people") {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.people.read");
+    const cursor = url.searchParams.get("cursor") ?? "";
+    const search = (url.searchParams.get("q") ?? "").trim().slice(0, 120);
+    const rows = await env.DB.prepare(
+      "SELECT p.id,p.status,p.given_name,p.family_name,p.display_name,p.country_code,a.status AS account_status FROM iam_people p LEFT JOIN iam_accounts a ON a.person_id=p.id WHERE p.id>? AND (?='' OR p.given_name LIKE ? OR p.family_name LIKE ?) ORDER BY p.id LIMIT ?",
+    )
+      .bind(cursor, search, `%${search}%`, `%${search}%`, listLimit())
+      .all();
+    return json(
+      { items: rows.results, nextCursor: rows.results.at(-1)?.id ?? null },
+      { headers: cors },
+    );
+  }
+  const adminPerson = url.pathname.match(
+    /^\/api\/v1\/admin\/people\/([0-9a-f-]{36})$/,
+  );
+  if (adminPerson) {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.people.read");
+    const personId = adminPerson[1]!;
+    const queries = [
+      env.DB.prepare(
+        "SELECT id,status,given_name,middle_name,family_name,second_family_name,display_name,preferred_locale,country_code,merged_into_person_id,version FROM iam_people WHERE id=?",
+      ).bind(personId),
+      env.DB.prepare(
+        "SELECT id,status FROM iam_accounts WHERE person_id=?",
+      ).bind(personId),
+      env.DB.prepare(
+        "SELECT id,type,raw_value,verification_status FROM iam_contact_methods WHERE person_id=? ORDER BY created_at DESC LIMIT 50",
+      ).bind(personId),
+      env.DB.prepare(
+        "SELECT id,purpose,policy_version,status,occurred_at FROM iam_consent_events WHERE person_id=? ORDER BY occurred_at DESC LIMIT 50",
+      ).bind(personId),
+      env.DB.prepare(
+        "SELECT m.id,m.organization_id,m.status,o.display_name FROM org_memberships m JOIN org_organizations o ON o.id=m.organization_id WHERE m.person_id=? ORDER BY m.created_at DESC LIMIT 50",
+      ).bind(personId),
+      env.DB.prepare(
+        "SELECT person_id,professional_status,bio,years_experience FROM professional_mechanic_profiles WHERE person_id=?",
+      ).bind(personId),
+      env.DB.prepare(
+        "SELECT id,credential_type,issuer,status,expires_at FROM professional_credentials WHERE person_id=? ORDER BY created_at DESC LIMIT 50",
+      ).bind(personId),
+      env.DB.prepare(
+        "SELECT id,status,source_id,received_at FROM crm_lead_intakes WHERE person_id=? ORDER BY received_at DESC LIMIT 50",
+      ).bind(personId),
+      env.DB.prepare(
+        "SELECT id,title,status FROM crm_opportunities WHERE person_id=? ORDER BY created_at DESC LIMIT 50",
+      ).bind(personId),
+      env.DB.prepare(
+        "SELECT id,type,summary,occurred_at FROM crm_activities WHERE person_id=? ORDER BY occurred_at DESC LIMIT 50",
+      ).bind(personId),
+      env.DB.prepare(
+        "SELECT id,description,status,due_at FROM crm_tasks WHERE person_id=? ORDER BY created_at DESC LIMIT 50",
+      ).bind(personId),
+      env.DB.prepare(
+        "SELECT id,source_person_id,destination_person_id,reason,status FROM iam_duplicate_candidates WHERE source_person_id=? OR destination_person_id=? LIMIT 50",
+      ).bind(personId, personId),
+    ];
+    const results = await env.DB.batch(queries);
+    if (!results[0]?.results?.length)
+      throw new Problem(404, "PERSON_NOT_FOUND", "Person unavailable");
+    return json(
+      {
+        person: results[0].results[0],
+        accounts: results[1]?.results,
+        contacts: results[2]?.results,
+        consents: results[3]?.results,
+        memberships: results[4]?.results,
+        professionalProfile: results[5]?.results[0] ?? null,
+        credentials: results[6]?.results,
+        leads: results[7]?.results,
+        opportunities: results[8]?.results,
+        activities: results[9]?.results,
+        tasks: results[10]?.results,
+        duplicateCandidates: results[11]?.results,
+      },
+      { headers: cors },
+    );
+  }
+  const platformRoles = url.pathname.match(
+    /^\/api\/v1\/admin\/people\/([0-9a-f-]{36})\/platform-roles$/,
+  );
+  if (platformRoles) {
+    const actor = await businessPrincipal();
+    const targetPersonId = platformRoles[1]!;
+    await requirePlatformPermission(env.DB, actor, "platform.roles.manage", {
+      mfa: request.method !== "GET",
+    });
+    if (request.method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT r.code FROM platform_person_roles pr JOIN authz_roles r ON r.id=pr.role_id WHERE pr.person_id=? ORDER BY r.code",
+      )
+        .bind(targetPersonId)
+        .all();
+      return json(rows.results, { headers: cors });
+    }
+    requireMethod("PUT");
+    const body = z
+      .object({
+        roles: z.array(z.enum(platformRoleCodes)).max(8),
+        reason: z.string().trim().min(5).max(1000),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    await assignPlatformRoles(
+      env.DB,
+      actor,
+      targetPersonId,
+      body.roles,
+      body.reason,
+      requestId,
+    );
+    return json({ updated: true }, { headers: cors });
+  }
+  const mergeMatch = url.pathname.match(
+    /^\/api\/v1\/admin\/people\/([0-9a-f-]{36})\/merge$/,
+  );
+  if (mergeMatch) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.people.merge", {
+      mfa: true,
+    });
+    const body = z
+      .object({
+        destinationId: z.string().uuid(),
+        reason: z.string().trim().min(5).max(1000),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    const result = await idempotentCommand(
+      env,
+      "identity.person.merge",
+      actor.accountId,
+      {
+        sourceId: mergeMatch[1]!,
+        destinationId: body.destinationId,
+        reason: body.reason,
+      },
+      requestId,
+      requiredKey(request),
+    );
+    return json(result, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/admin/organizations") {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(
+      env.DB,
+      actor,
+      "platform.organization.read",
+    );
+    const filter = url.searchParams.get("verificationStatus");
+    const status = filter
+      ? z
+          .enum([
+            "DRAFT",
+            "PENDING_VERIFICATION",
+            "UNDER_REVIEW",
+            "NEEDS_INFORMATION",
+            "VERIFIED",
+            "REJECTED",
+            "SUSPENDED",
+            "CLOSED",
+          ])
+          .parse(filter)
+      : null;
+    const rows = status
+      ? await env.DB.prepare(
+          "SELECT id,type,display_name,country_code,status,verification_status,version FROM org_organizations WHERE verification_status=? AND id>? ORDER BY id LIMIT ?",
+        )
+          .bind(status, url.searchParams.get("cursor") ?? "", listLimit())
+          .all()
+      : await env.DB.prepare(
+          "SELECT id,type,display_name,country_code,status,verification_status,version FROM org_organizations WHERE id>? ORDER BY id LIMIT ?",
+        )
+          .bind(url.searchParams.get("cursor") ?? "", listLimit())
+          .all();
+    return json(
+      { items: rows.results, nextCursor: rows.results.at(-1)?.id ?? null },
+      { headers: cors },
+    );
+  }
+  const adminOrg = url.pathname.match(
+    /^\/api\/v1\/admin\/organizations\/([0-9a-f-]{36})$/,
+  );
+  if (adminOrg) {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(
+      env.DB,
+      actor,
+      "platform.organization.read",
+    );
+    const organizationId = adminOrg[1]!;
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        "SELECT id,type,legal_name,display_name,country_code,status,verification_status,version FROM org_organizations WHERE id=?",
+      ).bind(organizationId),
+      env.DB.prepare(
+        "SELECT id,name,city,status FROM org_locations WHERE organization_id=? LIMIT 100",
+      ).bind(organizationId),
+      env.DB.prepare(
+        "SELECT code FROM org_capabilities WHERE organization_id=?",
+      ).bind(organizationId),
+      env.DB.prepare(
+        "SELECT m.id,m.person_id,m.status,p.display_name FROM org_memberships m JOIN iam_people p ON p.id=m.person_id WHERE m.organization_id=? LIMIT 100",
+      ).bind(organizationId),
+      env.DB.prepare(
+        "SELECT id,status,submitted_at,decision_at,decision_reason FROM org_verification_cases WHERE organization_id=? ORDER BY submitted_at DESC LIMIT 50",
+      ).bind(organizationId),
+      env.DB.prepare(
+        "SELECT id,target_email,status FROM org_invitations WHERE organization_id=? AND status='PENDING' LIMIT 50",
+      ).bind(organizationId),
+      env.DB.prepare(
+        "SELECT id,person_id,status FROM org_membership_requests WHERE organization_id=? AND status='PENDING' LIMIT 50",
+      ).bind(organizationId),
+      env.DB.prepare(
+        "SELECT id,title,status FROM crm_opportunities WHERE organization_id=? LIMIT 50",
+      ).bind(organizationId),
+      env.DB.prepare(
+        "SELECT id,type,summary,occurred_at FROM crm_activities WHERE organization_id=? ORDER BY occurred_at DESC LIMIT 50",
+      ).bind(organizationId),
+      env.DB.prepare(
+        "SELECT id,description,status FROM crm_tasks WHERE organization_id=? LIMIT 50",
+      ).bind(organizationId),
+    ]);
+    if (!results[0]?.results?.length)
+      throw new Problem(
+        404,
+        "ORGANIZATION_NOT_FOUND",
+        "Organization unavailable",
+      );
+    return json(
+      {
+        organization: results[0].results[0],
+        locations: results[1]?.results,
+        capabilities: results[2]?.results,
+        members: results[3]?.results,
+        verificationCases: results[4]?.results,
+        invitations: results[5]?.results,
+        membershipRequests: results[6]?.results,
+        opportunities: results[7]?.results,
+        activities: results[8]?.results,
+        tasks: results[9]?.results,
+      },
+      { headers: cors },
+    );
+  }
+  const verificationAction = url.pathname.match(
+    /^\/api\/v1\/admin\/organizations\/([0-9a-f-]{36})\/verification\/([0-9a-f-]{36})\/(start-review|approve|reject|request-information)$/,
+  );
+  if (verificationAction) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    const organizationId = verificationAction[1]!,
+      caseId = verificationAction[2]!;
+    if (verificationAction[3] === "start-review") {
+      await startVerificationReview(
+        env.DB,
+        actor,
+        organizationId,
+        caseId,
+        requestId,
+      );
+      return json({ reviewStarted: true }, { headers: cors });
+    }
+    await requirePlatformPermission(
+      env.DB,
+      actor,
+      "platform.organization.verify",
+      { mfa: true },
+    );
+    const body = z
+      .object({ reason: z.string().trim().min(5).max(1000) })
+      .strict()
+      .parse(await boundedJson(request));
+    if (verificationAction[3] === "request-information") {
+      await requestVerificationInformation(
+        env.DB,
+        actor,
+        organizationId,
+        caseId,
+        body.reason,
+        requestId,
+      );
+      return json({ informationRequested: true }, { headers: cors });
+    }
+    const result = await idempotentCommand(
+      env,
+      verificationAction[3] === "approve"
+        ? "organization.verification.approve"
+        : "organization.verification.reject",
+      actor.accountId,
+      { organizationId, caseId, reason: body.reason },
+      requestId,
+      requiredKey(request),
+      organizationId,
+    );
+    return json(result, { headers: cors });
+  }
+  const suspendMatch = url.pathname.match(
+    /^\/api\/v1\/admin\/organizations\/([0-9a-f-]{36})\/suspend$/,
+  );
+  if (suspendMatch) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    const body = z
+      .object({ reason: z.string().trim().min(5).max(1000) })
+      .strict()
+      .parse(await boundedJson(request));
+    await suspendOrganization(
+      env.DB,
+      actor,
+      suspendMatch[1]!,
+      body.reason,
+      requestId,
+    );
+    return json({ suspended: true }, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/admin/crm/leads") {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.crm.read");
+    const rows = await env.DB.prepare(
+      "SELECT id,status,source_id,given_name,family_name,email,phone,organization_name,received_at,person_id,assigned_to_person_id FROM crm_lead_intakes WHERE id>? ORDER BY id LIMIT ?",
+    )
+      .bind(url.searchParams.get("cursor") ?? "", listLimit())
+      .all();
+    return json(
+      { items: rows.results, nextCursor: rows.results.at(-1)?.id ?? null },
+      { headers: cors },
+    );
+  }
+  const crmAction = url.pathname.match(
+    /^\/api\/v1\/admin\/crm\/leads\/([0-9a-f-]{36})\/(triage|create-person|link-person|convert|assign)$/,
+  );
+  if (crmAction) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.crm.manage");
+    const leadId = crmAction[1]!,
+      action = crmAction[2]!;
+    if (action === "triage") {
+      const body = z
+        .object({ decision: z.enum(["TRIAGED", "REJECTED", "SPAM"]) })
+        .strict()
+        .parse(await boundedJson(request));
+      await triageLead(
+        env.DB,
+        leadId,
+        actor.personId,
+        body.decision,
+        requestId,
+      );
+      return json({ triaged: true }, { headers: cors });
+    }
+    if (action === "create-person") {
+      return json(
+        {
+          personId: await createPersonFromLead(
+            env.DB,
+            leadId,
+            actor.personId,
+            requestId,
+          ),
+        },
+        { status: 201, headers: cors },
+      );
+    }
+    if (action === "link-person") {
+      const body = z
+        .object({ personId: z.string().uuid() })
+        .strict()
+        .parse(await boundedJson(request));
+      await linkLeadPerson(
+        env.DB,
+        leadId,
+        body.personId,
+        actor.personId,
+        requestId,
+      );
+      return json({ linked: true }, { headers: cors });
+    }
+    if (action === "assign") {
+      const body = z
+        .object({ personId: z.string().uuid() })
+        .strict()
+        .parse(await boundedJson(request));
+      await assignLead(
+        env.DB,
+        actor.personId,
+        leadId,
+        body.personId,
+        requestId,
+      );
+      return json({ assigned: true }, { headers: cors });
+    }
+    const body = z
+      .object({
+        pipelineId: z.string().min(1).max(128),
+        stageId: z.string().min(1).max(128),
+        title: z.string().trim().min(1).max(240),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    const result = await idempotentCommand(
+      env,
+      "crm.lead.convert",
+      actor.accountId,
+      { leadId, ...body },
+      requestId,
+      requiredKey(request),
+    );
+    return json(result, { headers: cors });
+  }
+  const leadDetail = url.pathname.match(
+    /^\/api\/v1\/admin\/crm\/leads\/([0-9a-f-]{36})$/,
+  );
+  if (leadDetail) {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.crm.read");
+    const row = await env.DB.prepare(
+      "SELECT id,status,source_id,given_name,family_name,email,phone,organization_name,message,country_code,person_id,organization_id,utm_source,utm_medium,utm_campaign,utm_content,utm_term,referrer,received_at,triaged_at,converted_at,assigned_to_person_id,version FROM crm_lead_intakes WHERE id=?",
+    )
+      .bind(leadDetail[1]!)
+      .first();
+    if (!row) throw new Problem(404, "CRM_LEAD_NOT_FOUND", "Lead unavailable");
+    return json(row, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/admin/crm/opportunities") {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.crm.read");
+    const rows = await env.DB.prepare(
+      "SELECT id,pipeline_id,stage_id,person_id,organization_id,title,owner_person_id,status,version FROM crm_opportunities WHERE id>? ORDER BY id LIMIT ?",
+    )
+      .bind(url.searchParams.get("cursor") ?? "", listLimit())
+      .all();
+    return json(
+      { items: rows.results, nextCursor: rows.results.at(-1)?.id ?? null },
+      { headers: cors },
+    );
+  }
+  const opportunityDetail = url.pathname.match(
+    /^\/api\/v1\/admin\/crm\/opportunities\/([0-9a-f-]{36})$/,
+  );
+  if (opportunityDetail) {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.crm.read");
+    const row = await env.DB.prepare(
+      "SELECT id,pipeline_id,stage_id,person_id,organization_id,lead_intake_id,title,owner_person_id,status,created_at,closed_at,version FROM crm_opportunities WHERE id=?",
+    )
+      .bind(opportunityDetail[1]!)
+      .first();
+    if (!row)
+      throw new Problem(
+        404,
+        "OPPORTUNITY_NOT_FOUND",
+        "Opportunity unavailable",
+      );
+    return json(row, { headers: cors });
+  }
+  const opportunityStage = url.pathname.match(
+    /^\/api\/v1\/admin\/crm\/opportunities\/([0-9a-f-]{36})\/stage$/,
+  );
+  if (opportunityStage) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.crm.manage");
+    const body = z
+      .object({
+        stageId: z.string().min(1).max(128),
+        version: z.number().int().positive(),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    await moveOpportunityStage(
+      env.DB,
+      opportunityStage[1]!,
+      body.stageId,
+      body.version,
+      actor.personId,
+      requestId,
+    );
+    return json({ updated: true }, { headers: cors });
+  }
+  const opportunityAssign = url.pathname.match(
+    /^\/api\/v1\/admin\/crm\/opportunities\/([0-9a-f-]{36})\/assign$/,
+  );
+  if (opportunityAssign) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.crm.manage");
+    const body = z
+      .object({ personId: z.string().uuid() })
+      .strict()
+      .parse(await boundedJson(request));
+    await assignOpportunity(
+      env.DB,
+      actor.personId,
+      opportunityAssign[1]!,
+      body.personId,
+      requestId,
+    );
+    return json({ assigned: true }, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/admin/crm/activities") {
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(
+      env.DB,
+      actor,
+      request.method === "GET" ? "platform.crm.read" : "platform.crm.manage",
+    );
+    if (request.method === "GET") {
+      const personId = url.searchParams.get("personId"),
+        organizationId = url.searchParams.get("organizationId"),
+        opportunityId = url.searchParams.get("opportunityId");
+      if (!personId && !organizationId && !opportunityId)
+        throw new Problem(400, "FILTER_REQUIRED", "Filter required");
+      const rows = await env.DB.prepare(
+        "SELECT id,type,person_id,organization_id,opportunity_id,actor_person_id,occurred_at,recorded_at,summary FROM crm_activities WHERE (? IS NOT NULL AND person_id=?) OR (? IS NOT NULL AND organization_id=?) OR (? IS NOT NULL AND opportunity_id=?) ORDER BY occurred_at DESC,id DESC LIMIT ?",
+      )
+        .bind(
+          personId,
+          personId,
+          organizationId,
+          organizationId,
+          opportunityId,
+          opportunityId,
+          listLimit(),
+        )
+        .all();
+      return json(rows.results, { headers: cors });
+    }
+    requireMethod("POST");
+    return json(
+      {
+        activityId: await recordActivity(
+          env.DB,
+          actor.personId,
+          activityInput.parse(await boundedJson(request)),
+        ),
+      },
+      { status: 201, headers: cors },
+    );
+  }
+  if (url.pathname === "/api/v1/admin/crm/notes") {
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(
+      env.DB,
+      actor,
+      request.method === "GET" ? "platform.crm.read" : "platform.crm.manage",
+    );
+    if (request.method === "GET") {
+      const personId = url.searchParams.get("personId"),
+        organizationId = url.searchParams.get("organizationId"),
+        opportunityId = url.searchParams.get("opportunityId");
+      if (!personId && !organizationId && !opportunityId)
+        throw new Problem(400, "FILTER_REQUIRED", "Filter required");
+      const rows = await env.DB.prepare(
+        "SELECT id,author_person_id,body,created_at FROM crm_notes WHERE (? IS NOT NULL AND person_id=?) OR (? IS NOT NULL AND organization_id=?) OR (? IS NOT NULL AND opportunity_id=?) ORDER BY created_at DESC,id DESC LIMIT ?",
+      )
+        .bind(
+          personId,
+          personId,
+          organizationId,
+          organizationId,
+          opportunityId,
+          opportunityId,
+          listLimit(),
+        )
+        .all();
+      return json(rows.results, { headers: cors });
+    }
+    requireMethod("POST");
+    return json(
+      {
+        noteId: await createNote(
+          env.DB,
+          actor.personId,
+          noteInput.parse(await boundedJson(request)),
+        ),
+      },
+      { status: 201, headers: cors },
+    );
+  }
+  if (url.pathname === "/api/v1/admin/crm/tasks") {
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(
+      env.DB,
+      actor,
+      request.method === "GET" ? "platform.crm.read" : "platform.crm.manage",
+    );
+    if (request.method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT id,owner_person_id,due_at,priority,status,description,person_id,organization_id,opportunity_id,version FROM crm_tasks WHERE owner_person_id=? AND id>? ORDER BY id LIMIT ?",
+      )
+        .bind(
+          url.searchParams.get("ownerPersonId") ?? actor.personId,
+          url.searchParams.get("cursor") ?? "",
+          listLimit(),
+        )
+        .all();
+      return json(
+        { items: rows.results, nextCursor: rows.results.at(-1)?.id ?? null },
+        { headers: cors },
+      );
+    }
+    requireMethod("POST");
+    return json(
+      {
+        taskId: await createTask(
+          env.DB,
+          actor.personId,
+          taskInput.parse(await boundedJson(request)),
+          requestId,
+        ),
+      },
+      { status: 201, headers: cors },
+    );
+  }
+  const taskUpdate = url.pathname.match(
+    /^\/api\/v1\/admin\/crm\/tasks\/([0-9a-f-]{36})$/,
+  );
+  if (taskUpdate) {
+    requireMethod("PATCH");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.crm.manage");
+    const body = z
+      .object({
+        status: z.enum(["OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"]),
+        version: z.number().int().positive(),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    return json(
+      {
+        version: await updateTask(
+          env.DB,
+          actor.personId,
+          taskUpdate[1]!,
+          body,
+          requestId,
+        ),
+      },
+      { headers: cors },
+    );
+  }
+  const taskAssign = url.pathname.match(
+    /^\/api\/v1\/admin\/crm\/tasks\/([0-9a-f-]{36})\/assign$/,
+  );
+  if (taskAssign) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.crm.manage");
+    const body = z
+      .object({ personId: z.string().uuid() })
+      .strict()
+      .parse(await boundedJson(request));
+    await assignTask(
+      env.DB,
+      actor.personId,
+      taskAssign[1]!,
+      body.personId,
+      requestId,
+    );
+    return json({ assigned: true }, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/admin/crm/tags") {
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(
+      env.DB,
+      actor,
+      request.method === "GET" ? "platform.crm.read" : "platform.crm.manage",
+    );
+    if (request.method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT id,code,label FROM crm_tags ORDER BY code LIMIT 100",
+      ).all();
+      return json(rows.results, { headers: cors });
+    }
+    requireMethod("POST");
+    const body = z
+      .object({
+        code: z.string().regex(/^[A-Z][A-Z0-9_]{1,63}$/),
+        label: z.string().trim().min(1).max(80),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    return json(
+      { tagId: await createTag(env.DB, body.code, body.label) },
+      { status: 201, headers: cors },
+    );
+  }
+  const tagAssign = url.pathname.match(
+    /^\/api\/v1\/admin\/crm\/tags\/([0-9a-f-]{36})\/assign$/,
+  );
+  if (tagAssign) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.crm.manage");
+    const body = z
+      .object({
+        entityType: z.enum(["PERSON", "ORGANIZATION", "LEAD", "OPPORTUNITY"]),
+        entityId: z.string().uuid(),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    await assignTag(env.DB, tagAssign[1]!, body.entityType, body.entityId);
+    return json({ assigned: true }, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/admin/crm/pipelines") {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.crm.read");
+    const rows = await env.DB.prepare(
+      "SELECT p.id,p.code,p.name_key,s.id AS stage_id,s.code AS stage_code,s.name_key AS stage_name_key,s.position,s.is_terminal FROM crm_pipelines p JOIN crm_stages s ON s.pipeline_id=p.id WHERE p.status='ACTIVE' AND s.status='ACTIVE' ORDER BY p.code,s.position",
+    ).all();
+    return json(rows.results, { headers: cors });
+  }
+  const credentialReview = url.pathname.match(
+    /^\/api\/v1\/admin\/professionals\/([0-9a-f-]{36})\/credentials\/([0-9a-f-]{36})\/(verify|reject)$/,
+  );
+  const credentialEvidence = url.pathname.match(
+    /^\/api\/v1\/admin\/professionals\/([0-9a-f-]{36})\/credentials\/([0-9a-f-]{36})\/evidence$/,
+  );
+  if (credentialEvidence) {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(
+      env.DB,
+      actor,
+      "platform.professional.read",
+    );
+    const row = await env.DB.prepare(
+      "SELECT f.active_key,f.declared_mime FROM professional_credentials c JOIN storage_files f ON f.id=c.evidence_file_id WHERE c.person_id=? AND c.id=? AND f.status='ACTIVE'",
+    )
+      .bind(credentialEvidence[1]!, credentialEvidence[2]!)
+      .first<{ active_key: string; declared_mime: string }>();
+    if (!row?.active_key)
+      throw new Problem(404, "FILE_NOT_FOUND", "Evidence unavailable");
+    const object = await env.PRIVATE_BUCKET.get(row.active_key);
+    if (!object)
+      throw new Problem(404, "FILE_NOT_FOUND", "Evidence unavailable");
+    return new Response(object.body, {
+      headers: {
+        ...cors,
+        "content-type": row.declared_mime,
+        "content-disposition": "attachment",
+        "cache-control": "no-store",
+      },
+    });
+  }
+  if (credentialReview) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(
+      env.DB,
+      actor,
+      "platform.professional.verify",
+      { mfa: true },
+    );
+    const body = z
+      .object({ reason: z.string().trim().min(5).max(1000) })
+      .strict()
+      .parse(await boundedJson(request));
+    const credentialId = credentialReview[2]!;
+    const row = await env.DB.prepare(
+      "SELECT person_id FROM professional_credentials WHERE id=?",
+    )
+      .bind(credentialId)
+      .first<{ person_id: string }>();
+    if (row?.person_id !== credentialReview[1])
+      throw new Problem(404, "CREDENTIAL_NOT_FOUND", "Credential unavailable");
+    await decideCredential(
+      env.DB,
+      actor,
+      credentialId,
+      credentialReview[3] === "verify" ? "VERIFIED" : "REJECTED",
+      body.reason,
+      requestId,
+    );
+    return json({ reviewed: true }, { headers: cors });
+  }
   if (url.pathname === "/api/v1/principal") {
     requireMethod("GET");
     const principal = await auth.principal(request.headers);
@@ -144,6 +1925,54 @@ async function route(
   if (url.pathname.startsWith("/api/v1/auth/")) {
     const path = url.pathname.slice("/api/v1/auth".length);
     if (!allowedAuthPaths.has(path))
+      throw new Problem(404, "NOT_FOUND", "Not found");
+    if (path === "/sign-up/email") {
+      requireMethod("POST");
+      if (!signupEnabled) throw new Problem(404, "NOT_FOUND", "Not found");
+      const body = z
+        .object({
+          name: z.string().trim().min(2).max(240),
+          email: z.string().email(),
+          password: z.string().min(12).max(128),
+          termsAccepted: z.literal(true),
+          privacyAccepted: z.literal(true),
+          termsVersion: z.string().min(1).max(64),
+          privacyVersion: z.string().min(1).max(64),
+        })
+        .strict()
+        .parse(await boundedJson(request));
+      const forwarded = new Request(request.url, {
+        method: "POST",
+        headers: request.headers,
+        body: JSON.stringify({
+          name: body.name,
+          email: body.email,
+          password: body.password,
+        }),
+      });
+      const result = await auth.auth.handler(forwarded);
+      if (!result.ok)
+        return json({ accepted: true }, { status: 202, headers: cors });
+      const payload = (await result.clone().json()) as {
+        user?: { id?: string };
+      };
+      if (payload.user?.id)
+        await env.DB.prepare(
+          "INSERT INTO iam_signup_consents(auth_user_id,terms_version,privacy_version,request_id) VALUES(?,?,?,?) ON CONFLICT(auth_user_id) DO NOTHING",
+        )
+          .bind(
+            payload.user.id,
+            body.termsVersion,
+            body.privacyVersion,
+            requestId,
+          )
+          .run();
+      return json({ accepted: true }, { status: 202, headers: cors });
+    }
+    if (
+      path === "/request-password-reset" &&
+      (c.environment !== "local" || c.emailProvider !== "DEVELOPMENT_SINK")
+    )
       throw new Problem(404, "NOT_FOUND", "Not found");
     const response = await auth.auth.handler(request);
     if (path === "/sign-in/email" && !response.ok)

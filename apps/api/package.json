@@ -9,11 +9,16 @@
   },
   "dependencies": {
     "@motorbaldi/auth": "workspace:*",
+    "@motorbaldi/authz": "workspace:*",
     "@motorbaldi/config": "workspace:*",
     "@motorbaldi/contracts": "workspace:*",
     "@motorbaldi/db": "workspace:*",
     "@motorbaldi/messaging": "workspace:*",
     "@motorbaldi/observability": "workspace:*",
-    "@motorbaldi/shared": "workspace:*"
+    "@motorbaldi/shared": "workspace:*",
+    "@motorbaldi/identity": "workspace:*",
+    "@motorbaldi/organizations": "workspace:*",
+    "@motorbaldi/professional": "workspace:*",
+    "@motorbaldi/crm": "workspace:*"
   }
 }

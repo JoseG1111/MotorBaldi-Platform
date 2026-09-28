@@ -39,7 +39,11 @@
       "@motorbaldi/payments": ["packages/payments/src/index.ts"],
       "@motorbaldi/shared": ["packages/shared/src/index.ts"],
       "@motorbaldi/storage": ["packages/storage/src/index.ts"],
-      "@motorbaldi/testing": ["packages/testing/src/index.ts"]
+      "@motorbaldi/testing": ["packages/testing/src/index.ts"],
+      "@motorbaldi/identity": ["packages/identity/src/index.ts"],
+      "@motorbaldi/organizations": ["packages/organizations/src/index.ts"],
+      "@motorbaldi/professional": ["packages/professional/src/index.ts"],
+      "@motorbaldi/crm": ["packages/crm/src/index.ts"]
     }
   },
   "include": [

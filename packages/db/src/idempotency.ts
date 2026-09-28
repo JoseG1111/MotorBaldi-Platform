@@ -5,6 +5,18 @@ export const maxIdempotencyResponseBytes = 8192;
 
 export const idempotencyOperationRegistry = {
   "foundation.test": 3600,
+  "identity.account.ensure": 86400,
+  "identity.person.merge": 604800,
+  "organization.create": 86400,
+  "organization.invitation.create": 86400,
+  "organization.invitation.accept": 604800,
+  "organization.membership-request.create": 86400,
+  "organization.membership-request.approve": 604800,
+  "organization.verification.submit": 86400,
+  "organization.verification.approve": 604800,
+  "organization.verification.reject": 604800,
+  "crm.lead.create": 86400,
+  "crm.lead.convert": 604800,
 } as const;
 export type IdempotentOperation = keyof typeof idempotencyOperationRegistry;
 

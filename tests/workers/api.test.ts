@@ -4,7 +4,10 @@ import { hashPassword } from "better-auth/crypto";
 import { getMigrations } from "better-auth/db/migration";
 import { apiConfig, type ApiBindings } from "@motorbaldi/config";
 import { authOptions } from "@motorbaldi/auth";
+import { ensureMotorBaldiAccount } from "@motorbaldi/identity";
+import { createOrganization, addLocation } from "@motorbaldi/organizations";
 import migration from "../../migrations/0001_foundation.sql?raw";
+import phase1Migration from "../../migrations/0002_phase1.sql?raw";
 
 const testEnv = env as unknown as ApiBindings;
 const worker = (
@@ -23,8 +26,18 @@ const call = (path: string, init?: RequestInit) =>
 
 beforeAll(async () => {
   await testEnv.DB.exec(migration.replace(/\n/g, " "));
+  await testEnv.DB.exec(phase1Migration.replace(/\n/g, " "));
   await testEnv.DB.prepare(
     "INSERT INTO governance_environment_metadata(singleton, environment) VALUES (1, 'local')",
+  ).run();
+  await testEnv.DB.prepare(
+    "INSERT INTO governance_feature_flags(id,key,environment,enabled) VALUES('phase1-lead-flag','PUBLIC_LEAD_INTAKE','local',1)",
+  ).run();
+  await testEnv.DB.prepare(
+    "INSERT INTO governance_feature_flags(id,key,environment,enabled) VALUES('phase1-org-flag','ORGANIZATION_CREATION','local',1)",
+  ).run();
+  await testEnv.DB.prepare(
+    "INSERT INTO governance_feature_flags(id,key,environment,enabled) VALUES('phase1-signup-flag','PUBLIC_SIGNUP','local',1)",
   ).run();
   const password = await hashPassword("correct-password-123");
   await testEnv.DB.batch([
@@ -106,6 +119,220 @@ describe("real D1 migration", () => {
 });
 
 describe("API and Better Auth runtime", () => {
+  it("accepts local signup with explicit terms and a real verification sink", async () => {
+    const response = await call("/api/v1/auth/sign-up/email", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://api.test",
+      },
+      body: JSON.stringify({
+        name: "New Customer",
+        email: "new-customer@example.test",
+        password: "correct-password-123",
+        termsAccepted: true,
+        privacyAccepted: true,
+        termsVersion: "1",
+        privacyVersion: "1",
+      }),
+    });
+    expect(response.status).toBe(202);
+    expect(await response.json()).toEqual({ accepted: true });
+    const user = await testEnv.DB.prepare(
+      "SELECT id,email_verified FROM auth_users WHERE email='new-customer@example.test'",
+    ).first<{ id: string; email_verified: number }>();
+    expect(user?.email_verified).toBe(0);
+    const sink = await testEnv.DB.prepare(
+      "SELECT kind,action_url FROM integration_local_email_sink WHERE auth_user_id=?",
+    )
+      .bind(user?.id)
+      .first<{ kind: string; action_url: string }>();
+    expect(sink?.kind).toBe("VERIFY_EMAIL");
+    const verificationUrl = new URL(sink!.action_url);
+    expect(
+      (
+        await call(verificationUrl.pathname + verificationUrl.search, {
+          redirect: "manual",
+        })
+      ).status,
+    ).toBe(302);
+    const signedIn = await signIn("new-customer@example.test");
+    expect(signedIn.status).toBe(200);
+    const cookie = signedIn.headers
+      .getSetCookie()
+      .map((value) => value.split(";", 1)[0])
+      .join("; ");
+    const principal = await call("/api/v1/me", { headers: { cookie } });
+    expect(principal.status).toBe(200);
+    const personId = ((await principal.json()) as { personId: string })
+      .personId;
+    const consents = await testEnv.DB.prepare(
+      "SELECT purpose FROM iam_consent_events WHERE person_id=? ORDER BY purpose",
+    )
+      .bind(personId)
+      .all<{ purpose: string }>();
+    expect(consents.results.map((row) => row.purpose)).toEqual([
+      "PRIVACY",
+      "TERMS",
+    ]);
+  });
+  it("accepts public leads without exposing identity matches and replays safely", async () => {
+    const init = {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "public-lead-key",
+      },
+      body: JSON.stringify({
+        email: "verified@example.test",
+        givenName: "Interested",
+      }),
+    };
+    const first = await call("/api/v1/public/leads", init);
+    const second = await call("/api/v1/public/leads", init);
+    expect(first.status).toBe(202);
+    expect(await first.json()).toEqual({ accepted: true });
+    expect(second.status).toBe(202);
+    const row = await testEnv.DB.prepare(
+      "SELECT count(*) AS n FROM crm_lead_intakes WHERE email='verified@example.test'",
+    ).first<{ n: number }>();
+    expect(row?.n).toBe(1);
+  });
+  it("creates one organization through the existing idempotency coordinator", async () => {
+    const signedIn = await signIn();
+    const cookie = signedIn.headers
+      .getSetCookie()
+      .map((value) => value.split(";", 1)[0])
+      .join("; ");
+    const init = {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "org-create-key",
+        cookie,
+      },
+      body: JSON.stringify({
+        type: "WORKSHOP",
+        legalName: "Test Workshop",
+        displayName: "Test Workshop",
+        countryCode: "US",
+      }),
+    };
+    const results = await Promise.all([
+      call("/api/v1/organizations", init),
+      call("/api/v1/organizations", init),
+    ]);
+    expect(results.map((response) => response.status)).toEqual([201, 201]);
+    const a = (await results[0]!.json()) as { organizationId: string };
+    const b = (await results[1]!.json()) as { organizationId: string };
+    expect(a.organizationId).toBe(b.organizationId);
+    const workspaces = await call("/api/v1/me/workspaces", {
+      headers: { cookie },
+    });
+    expect(workspaces.status).toBe(200);
+    expect(
+      ((await workspaces.json()) as { id: string }[]).map((w) => w.id),
+    ).toContain(a.organizationId);
+    const members = await call(
+      `/api/v1/organizations/${a.organizationId}/members?limit=1`,
+      { headers: { cookie } },
+    );
+    expect(members.status).toBe(200);
+    expect(((await members.json()) as { items: unknown[] }).items).toHaveLength(
+      1,
+    );
+  });
+  it("lists only selected locations for a location-scoped member", async () => {
+    const owner = await ensureMotorBaldiAccount(
+      testEnv.DB,
+      "018f0000-0000-7000-8000-000000000001",
+      "location-scope-owner",
+    );
+    const created = await createOrganization(
+      testEnv.DB,
+      {
+        accountId: owner.accountId,
+        personId: owner.personId,
+        mfaEnabled: false,
+      },
+      {
+        type: "WORKSHOP",
+        legalName: "Scoped Workshop",
+        displayName: "Scoped Workshop",
+        countryCode: "US",
+      },
+      "location-scope-org",
+    );
+    const locations = [];
+    for (const name of ["Allowed", "Private"]) {
+      locations.push(
+        await addLocation(
+          testEnv.DB,
+          {
+            accountId: owner.accountId,
+            personId: owner.personId,
+            mfaEnabled: false,
+          },
+          created.organizationId,
+          {
+            name,
+            locationType: "BRANCH",
+            countryCode: "US",
+            administrativeArea: "State",
+            city: "City",
+            addressLine1: `${name} Street`,
+          },
+          `location-scope-${name}`,
+        ),
+      );
+    }
+    const memberAccountId = "018f0000-0000-7000-8000-000000000098";
+    const password = await hashPassword("scoped-password-123");
+    await testEnv.DB.batch([
+      testEnv.DB.prepare(
+        "INSERT INTO auth_users(id,name,email,email_verified) VALUES(?,?,?,1)",
+      ).bind(memberAccountId, "Scoped Member", "scoped-member@example.test"),
+      testEnv.DB.prepare(
+        "INSERT INTO auth_credentials(id,user_id,account_id,provider_id,password) VALUES(?,?,?,'credential',?)",
+      ).bind("cred-scoped", memberAccountId, memberAccountId, password),
+    ]);
+    const member = await ensureMotorBaldiAccount(
+      testEnv.DB,
+      memberAccountId,
+      "scope-member",
+    );
+    const membershipId = "018f0000-0000-7000-8000-000000000099";
+    await testEnv.DB.batch([
+      testEnv.DB.prepare(
+        "INSERT INTO org_memberships(id,organization_id,person_id,location_scope_type) VALUES(?,?,?,'SELECTED_LOCATIONS')",
+      ).bind(membershipId, created.organizationId, member.personId),
+      testEnv.DB.prepare(
+        "INSERT INTO org_membership_roles(membership_id,role_id) VALUES(?,'org-admin')",
+      ).bind(membershipId),
+      testEnv.DB.prepare(
+        "INSERT INTO org_membership_locations(membership_id,organization_id,location_id) VALUES(?,?,?)",
+      ).bind(membershipId, created.organizationId, locations[0]),
+    ]);
+    const signedIn = await signIn(
+      "scoped-member@example.test",
+      "scoped-password-123",
+    );
+    expect(signedIn.status).toBe(200);
+    const cookie = signedIn.headers
+      .getSetCookie()
+      .map((value) => value.split(";", 1)[0])
+      .join("; ");
+    const response = await call(
+      `/api/v1/organizations/${created.organizationId}/locations`,
+      { headers: { cookie } },
+    );
+    expect(response.status).toBe(200);
+    expect(
+      ((await response.json()) as { items: { id: string }[] }).items.map(
+        (item) => item.id,
+      ),
+    ).toEqual([locations[0]]);
+  });
   it("uses one request ID, correct methods, and CORS on errors", async () => {
     expect((await call("/health")).status).toBe(200);
     expect((await call("/health", { method: "POST" })).status).toBe(405);
@@ -121,7 +348,7 @@ describe("API and Better Auth runtime", () => {
     );
   });
 
-  it("signs in a verified user, creates/reads/revokes a session, and reports MFA", async () => {
+  it("does not treat a session created before MFA enrollment as privileged", async () => {
     const signedIn = await signIn();
     expect(signedIn.status).toBe(200);
     const cookie = signedIn.headers
@@ -134,14 +361,22 @@ describe("API and Better Auth runtime", () => {
     });
     expect(session.status).toBe(200);
     await testEnv.DB.prepare(
-      "UPDATE auth_users SET two_factor_enabled = 1 WHERE id = '018f0000-0000-7000-8000-000000000001'",
+      "UPDATE auth_users SET two_factor_enabled = 1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','+1 seconds') WHERE id = '018f0000-0000-7000-8000-000000000001'",
+    ).run();
+    await testEnv.DB.prepare(
+      "INSERT INTO auth_two_factors(id,user_id,secret,backup_codes,verified) VALUES('factor-verified','018f0000-0000-7000-8000-000000000001','synthetic-test-secret','[]',1)",
     ).run();
     const principal = await call("/api/v1/principal", { headers: { cookie } });
     expect(principal.status).toBe(200);
     expect(await principal.json()).toMatchObject({
       accountId: "018f0000-0000-7000-8000-000000000001",
-      mfaEnabled: true,
+      mfaEnabled: false,
     });
+    await testEnv.DB.prepare(
+      "UPDATE auth_sessions SET created_at=(SELECT updated_at FROM auth_users WHERE id=user_id) WHERE user_id='018f0000-0000-7000-8000-000000000001'",
+    ).run();
+    const subsequent = await call("/api/v1/principal", { headers: { cookie } });
+    expect(await subsequent.json()).toMatchObject({ mfaEnabled: true });
     expect(
       (
         await call("/api/v1/auth/sign-out", {
