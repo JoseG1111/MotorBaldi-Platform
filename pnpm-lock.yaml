@@ -147,6 +147,9 @@ importers:
       '@motorbaldi/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@motorbaldi/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   packages/auth:
     dependencies:
