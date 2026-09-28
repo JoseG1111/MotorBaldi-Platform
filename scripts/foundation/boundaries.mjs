@@ -1,36 +1,46 @@
-import { readFileSync, existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { execFileSync } from "node:child_process";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { dirname, join, sep } from "node:path";
 
 if (process.argv[2]) process.chdir(process.argv[2]);
 
-const files = execFileSync(
-  "rg",
-  ["--files", "apps", "packages", "-g", "*.ts"],
-  {
-    encoding: "utf8",
-  },
-)
-  .trim()
-  .split("\n")
-  .filter(Boolean);
-const packageFiles = execFileSync(
-  "find",
-  [
-    "apps",
-    "packages",
-    "-mindepth",
-    "2",
-    "-maxdepth",
-    "2",
-    "-name",
-    "package.json",
-  ],
-  { encoding: "utf8" },
-)
-  .trim()
-  .split("\n")
-  .filter(Boolean);
+const ignoredDirectories = new Set([
+  "node_modules",
+  "dist",
+  ".git",
+  ".wrangler",
+  "coverage",
+]);
+const sourceFile = /\.(?:ts|tsx|js|jsx|mts|cts|mjs|cjs)$/;
+const workspaceRoots = ["apps", "packages"];
+const relativePath = (...parts) =>
+  join(...parts)
+    .split(sep)
+    .join("/");
+const files = [];
+const packageFiles = [];
+
+function walk(directory) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (!ignoredDirectories.has(entry.name))
+        walk(relativePath(directory, entry.name));
+    } else if (entry.isFile() && sourceFile.test(entry.name)) {
+      files.push(relativePath(directory, entry.name));
+    }
+  }
+}
+
+for (const top of workspaceRoots) {
+  for (const entry of readdirSync(top, { withFileTypes: true })) {
+    if (!entry.isDirectory() || ignoredDirectories.has(entry.name)) continue;
+    const root = relativePath(top, entry.name);
+    const manifest = relativePath(root, "package.json");
+    if (existsSync(manifest)) packageFiles.push(manifest);
+    walk(root);
+  }
+}
+files.sort();
+packageFiles.sort();
 const workspaces = new Map();
 for (const file of packageFiles) {
   const pkg = JSON.parse(readFileSync(file, "utf8"));
