@@ -7,6 +7,7 @@ import {
 } from "@motorbaldi/db/idempotency";
 import { relayOutbox } from "@motorbaldi/messaging/queue";
 import { Problem } from "@motorbaldi/contracts";
+import { assertDatabaseEnvironment } from "@motorbaldi/db/environment";
 import type { Json } from "@motorbaldi/shared";
 
 export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
@@ -65,6 +66,7 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
       request: Json;
       requestId: string;
     };
+    await assertDatabaseEnvironment(this.env.DB, this.env.ENVIRONMENT);
     const replay = await readReplay<Json>(
       this.env.DB,
       input.scope,
@@ -112,12 +114,22 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
 
 export class OutboxCoordinator extends DurableObject<ApiBindings> {
   async relay() {
+    await assertDatabaseEnvironment(this.env.DB, this.env.ENVIRONMENT);
     if (!this.env.EVENTS_QUEUE)
       throw new Problem(503, "QUEUE_UNAVAILABLE", "Events queue unavailable");
     return relayOutbox(this.env.DB, this.env.EVENTS_QUEUE);
   }
 
   async fetch() {
-    return Response.json({ relayed: await this.relay() });
+    try {
+      return Response.json({ relayed: await this.relay() });
+    } catch (error) {
+      if (error instanceof Problem)
+        return Response.json(
+          { code: error.code, message: error.message },
+          { status: error.status },
+        );
+      throw error;
+    }
   }
 }

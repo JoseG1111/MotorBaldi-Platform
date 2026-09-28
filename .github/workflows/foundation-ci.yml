@@ -34,11 +34,6 @@ jobs:
       - run: pnpm openapi:check
       - run: pnpm security:check
       - run: pnpm audit --audit-level high
-      - run: pnpm build:portal
-      - run: pnpm build:admin
-      - run: pnpm build:api
-      - run: pnpm build:worker
-      - run: pnpm build:environments
-      - run: pnpm security:scan:dist
+      - run: pnpm test:artifacts
       - name: Git history secret scan (Gitleaks v8.28.0)
         run: docker run --rm -v "$PWD:/repo" -w /repo zricethezav/gitleaks@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854 detect --config .gitleaks.toml --redact --no-banner

@@ -29,11 +29,12 @@
     "test:workers": "vitest run --config vitest.workers.config.ts",
     "openapi:check": "tsx scripts/foundation/openapi.ts",
     "security:check": "node scripts/foundation/security.mjs && node scripts/foundation/security-fixtures.mjs",
-    "security:scan:dist": "node scripts/foundation/security.mjs dist && node scripts/foundation/security.mjs apps/portal/dist && node scripts/foundation/security.mjs apps/admin/dist && node scripts/foundation/security.mjs apps/api/dist && node scripts/foundation/security.mjs apps/worker/dist",
+    "security:scan:dist": "node scripts/foundation/security.mjs dist",
     "security:scan:history": "gitleaks detect --config .gitleaks.toml --redact --no-banner",
-    "boundaries:check": "node scripts/foundation/boundaries.mjs",
+    "boundaries:check": "node scripts/foundation/boundaries.mjs && node scripts/foundation/boundary-fixtures.mjs",
+    "test:artifacts": "node scripts/foundation/artifact-fixtures.mjs",
     "wrangler:types": "wrangler types --config apps/api/wrangler.jsonc worker-configuration.d.ts",
-    "gate": "pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm test:unit && pnpm test:workers && pnpm openapi:check && pnpm security:check && pnpm audit --audit-level high && pnpm build && pnpm build:environments && pnpm security:scan:dist"
+    "gate": "pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm test:unit && pnpm test:workers && pnpm openapi:check && pnpm security:check && pnpm audit --audit-level high && pnpm test:artifacts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",

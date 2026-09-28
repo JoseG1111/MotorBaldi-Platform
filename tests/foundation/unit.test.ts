@@ -8,6 +8,7 @@ import {
 } from "@motorbaldi/auth/anti-abuse";
 import {
   apiConfig,
+  backgroundWorkerConfig,
   type AdminBindings,
   type ApiBindings,
   type PortalBindings,
@@ -68,7 +69,83 @@ describe("foundation contracts", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("forbids remote Turnstile bypass and missing rate limiters", () => {
+  it("treats development as remote and keeps explicit local configuration", () => {
+    const env = {
+      ENVIRONMENT: "development",
+      AUTH_BASE_URL: "https://api.test",
+      CORS_ORIGINS: "https://portal.test",
+      AUTH_SECRET: "x".repeat(32),
+      AUTH_SECRETS: JSON.stringify([{ version: 1, value: "y".repeat(32) }]),
+      API_RATE_LIMITER: {},
+      AUTH_RATE_LIMITER: {},
+    } as unknown as ApiBindings;
+    expect(apiConfig(env).environment).toBe("development");
+    const changed = (patch: Record<string, unknown>) =>
+      ({ ...env, ...patch }) as ApiBindings;
+    expect(() =>
+      apiConfig(changed({ AUTH_BASE_URL: "http://api.test" })),
+    ).toThrow(/HTTPS/);
+    expect(() =>
+      apiConfig(changed({ CORS_ORIGINS: "http://portal.test" })),
+    ).toThrow(/HTTPS/);
+    expect(() => apiConfig(changed({ AUTH_SECRETS: undefined }))).toThrow(
+      /AUTH_SECRETS/,
+    );
+    expect(() =>
+      apiConfig(changed({ AUTH_SECRETS: '[{"version":1,"value":"short"}]' })),
+    ).toThrow(/AUTH_SECRETS/);
+    expect(() => apiConfig(changed({ API_RATE_LIMITER: undefined }))).toThrow(
+      /rate limit/,
+    );
+    expect(() => apiConfig(changed({ AUTH_RATE_LIMITER: undefined }))).toThrow(
+      /rate limit/,
+    );
+    expect(() =>
+      apiConfig(changed({ TURNSTILE_BYPASS_TOKEN: "forbidden" })),
+    ).toThrow(/bypass/);
+    expect(
+      apiConfig(
+        changed({
+          ENVIRONMENT: "local",
+          AUTH_BASE_URL: "http://localhost:8787",
+          CORS_ORIGINS: "http://localhost:3000",
+          AUTH_SECRETS: undefined,
+          API_RATE_LIMITER: undefined,
+          AUTH_RATE_LIMITER: undefined,
+          TURNSTILE_BYPASS_TOKEN: "local-only",
+        }),
+      ).turnstileBypassToken,
+    ).toBe("local-only");
+  });
+
+  it("rejects deterministic malware scanning remotely", () => {
+    for (const environment of [
+      "development",
+      "staging",
+      "production",
+    ] as const) {
+      expect(() =>
+        backgroundWorkerConfig({
+          ENVIRONMENT: environment,
+          MALWARE_SCANNER_PROVIDER: "DETERMINISTIC_TEST",
+        } as never),
+      ).toThrow(/Remote scanner/);
+      expect(
+        backgroundWorkerConfig({
+          ENVIRONMENT: environment,
+          MALWARE_SCANNER_PROVIDER: "UNCONFIGURED",
+        } as never).malwareScannerProvider,
+      ).toBe("UNCONFIGURED");
+    }
+    expect(
+      backgroundWorkerConfig({
+        ENVIRONMENT: "local",
+        MALWARE_SCANNER_PROVIDER: "DETERMINISTIC_TEST",
+      } as never).malwareScannerProvider,
+    ).toBe("DETERMINISTIC_TEST");
+  });
+
+  it("forbids production Turnstile bypass and missing rate limiters", () => {
     const env = {
       ENVIRONMENT: "production",
       AUTH_BASE_URL: "https://api.test",

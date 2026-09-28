@@ -58,8 +58,7 @@ export interface BackgroundWorkerConfig {
 }
 
 const environment = z.enum(["local", "development", "staging", "production"]);
-const remote = (value: PlatformEnvironment) =>
-  value === "staging" || value === "production";
+const remote = (value: PlatformEnvironment) => value !== "local";
 const secretEntry = z
   .object({
     version: z.number().int().nonnegative(),

@@ -3,6 +3,10 @@ import { readFileSync, existsSync } from "node:fs";
 const root = process.argv[2];
 let files;
 if (root) {
+  if (!existsSync(root))
+    throw new Error(
+      `Expected generated artifact directory is missing: ${root}`,
+    );
   files = execFileSync(
     "find",
     [root, "-type", "f", "-not", "-path", "*/node_modules/*"],

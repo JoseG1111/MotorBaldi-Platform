@@ -2,6 +2,8 @@ import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { execFileSync } from "node:child_process";
 
+if (process.argv[2]) process.chdir(process.argv[2]);
+
 const files = execFileSync(
   "rg",
   ["--files", "apps", "packages", "-g", "*.ts"],
@@ -34,6 +36,11 @@ for (const file of packageFiles) {
   const pkg = JSON.parse(readFileSync(file, "utf8"));
   workspaces.set(dirname(file), pkg);
 }
+const rootsByName = new Map(
+  [...workspaces].map(([root, pkg]) => [pkg.name, root]),
+);
+const isPackage = (root) => root.startsWith("packages/");
+const isApp = (root) => root.startsWith("apps/");
 function ownerOf(file) {
   return [...workspaces.keys()]
     .sort((a, b) => b.length - a.length)
@@ -49,28 +56,49 @@ function exported(pkg, specifier) {
 }
 const edges = new Map([...workspaces.keys()].map((root) => [root, new Set()]));
 const violations = [];
+function checkDirection(source, target, location) {
+  if (isPackage(source) && isApp(target))
+    violations.push(
+      `${location}: packages cannot depend on apps (${source} -> ${target})`,
+    );
+}
+for (const [root, pkg] of workspaces) {
+  const declared = {
+    ...pkg.dependencies,
+    ...pkg.devDependencies,
+    ...pkg.peerDependencies,
+  };
+  for (const name of Object.keys(declared)) {
+    const target = rootsByName.get(name);
+    if (target) {
+      checkDirection(root, target, join(root, "package.json"));
+      if (target !== root) edges.get(root)?.add(target);
+    }
+  }
+}
 for (const file of files) {
   const root = ownerOf(file);
   if (!root) continue;
   const pkg = workspaces.get(root);
   const data = readFileSync(file, "utf8");
   const imports = [
-    ...data.matchAll(/from\s+["']([^"']+)["']|import\(["']([^"']+)["']\)/g),
-  ].map((m) => m[1] ?? m[2]);
+    ...data.matchAll(
+      /from\s+["']([^"']+)["']|import\(["']([^"']+)["']\)|import\s+["']([^"']+)["']/g,
+    ),
+  ].map((m) => m[1] ?? m[2] ?? m[3]);
   for (const specifier of imports) {
     if (specifier.includes("packages/") || specifier.includes("apps/"))
       violations.push(`${file}: deep relative workspace import ${specifier}`);
     if (!specifier.startsWith("@motorbaldi/")) continue;
     const dependencyName =
       specifier.match(/^(@motorbaldi\/[^/]+)(?:\/.*)?$/)?.[1] ?? "";
-    const depRoot = [...workspaces.entries()].find(
-      ([, candidate]) => candidate.name === dependencyName,
-    )?.[0];
+    const depRoot = rootsByName.get(dependencyName);
     if (!depRoot) {
       violations.push(`${file}: unknown workspace import ${specifier}`);
       continue;
     }
     if (depRoot !== root) {
+      checkDirection(root, depRoot, file);
       const declared = {
         ...pkg.dependencies,
         ...pkg.devDependencies,

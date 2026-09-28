@@ -42,7 +42,7 @@ pnpm security:scan:dist
 
 `pnpm build` uses `wrangler deploy --dry-run` only. It must not create remote resources or deploy.
 
-`pnpm gate` runs the complete local CF-0.1 code gate.
+`pnpm gate` runs the local CF-0.1 code gate, including dependency audit, all local and named-environment dry-run bundles, and a recursive scan of root `dist/`. Foundation CI runs compatible code checks and additionally scans Git history with Gitleaks. The local gate does not include Git-history scanning.
 
 ## Manual Cloudflare Setup Status
 
