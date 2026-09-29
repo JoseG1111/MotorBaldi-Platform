@@ -10,7 +10,7 @@ CF-0.1 performs no remote provisioning or deployment. An operator must complete 
 6. Create Turnstile sites if an approved route begins using the verifier. Add `TURNSTILE_SECRET_KEY` to the API only. Never configure `TURNSTILE_BYPASS_TOKEN` remotely.
 7. Add API secrets `AUTH_SECRET` and a versioned `AUTH_SECRETS` keyring. Do not add them to background, Portal, or Admin Workers.
 8. Record the final Worker URLs and configure exact HTTPS trusted origins. Keep browser app calls relative through the service binding proxy.
-9. Apply D1 migrations, including `0002_phase1.sql`, manually, then initialize and verify D1 identity:
+9. Apply D1 migrations, including `0002_phase1.sql` and `0003_phase1_closeout.sql`, manually, then initialize and verify D1 identity:
 
 ```bash
 pnpm exec wrangler d1 migrations apply motorbaldi-core-dev --remote --env development --config apps/api/wrangler.jsonc

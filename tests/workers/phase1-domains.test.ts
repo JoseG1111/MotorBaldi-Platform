@@ -4,7 +4,6 @@ import type { ApiBindings } from "@motorbaldi/config";
 import {
   ensureMotorBaldiAccount,
   mergePeople,
-  addContact,
   suspendAccount,
 } from "@motorbaldi/identity";
 import { requireOrganizationPermission } from "@motorbaldi/authz";
@@ -37,6 +36,7 @@ import {
 } from "@motorbaldi/professional";
 import foundation from "../../migrations/0001_foundation.sql?raw";
 import phase1 from "../../migrations/0002_phase1.sql?raw";
+import closeout from "../../migrations/0003_phase1_closeout.sql?raw";
 
 const db = (env as unknown as ApiBindings).DB;
 const ids = [
@@ -52,6 +52,7 @@ const principals = [] as {
 beforeAll(async () => {
   await db.exec(foundation.replace(/\n/g, " "));
   await db.exec(phase1.replace(/\n/g, " "));
+  await db.exec(closeout.replace(/\n/g, " "));
   await db
     .prepare(
       "INSERT INTO governance_environment_metadata(singleton,environment) VALUES(1,'local')",
@@ -396,7 +397,7 @@ describe("Phase 1 domain integration", () => {
       db,
       principals[2]!,
       orgB,
-      ["VIEWER"],
+      ["MECHANIC"],
       { type: "SELECTED_LOCATIONS", locationIds: [selected] },
       undefined,
       "selected-request",
@@ -645,13 +646,6 @@ describe("Phase 1 domain integration", () => {
       leadId,
       principals[2]!.personId,
       "duplicate-triage",
-    );
-    await addContact(
-      db,
-      source,
-      "EMAIL",
-      "duplicate@example.test",
-      "CRM_REVIEW",
     );
     const sourceMembership = "018f0000-0000-7000-8000-000000000401";
     await db

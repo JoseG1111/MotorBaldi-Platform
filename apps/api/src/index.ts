@@ -43,6 +43,7 @@ import {
   addContact,
   recordConsent,
   suspendAccount,
+  resolveDuplicateCandidate,
 } from "@motorbaldi/identity";
 import {
   triageLead,
@@ -109,6 +110,22 @@ const corsHeaders = (
         vary: "Origin",
       }
     : {};
+
+function requireTrustedMutationOrigin(
+  request: Request,
+  pathname: string,
+  trustedOrigins: readonly string[],
+) {
+  if (
+    ["POST", "PUT", "PATCH", "DELETE"].includes(request.method) &&
+    pathname.startsWith("/api/v1/") &&
+    !pathname.startsWith("/api/v1/auth/") &&
+    pathname !== "/api/v1/public/leads" &&
+    pathname !== "/api/v1/foundation/idempotency-test" &&
+    !trustedOrigins.includes(request.headers.get("origin") ?? "")
+  )
+    throw new Problem(403, "ORIGIN_FORBIDDEN", "Untrusted request origin");
+}
 
 function problem(
   error: unknown,
@@ -187,6 +204,18 @@ async function boundedJson(
   request: Request,
   maxBytes = 16384,
 ): Promise<unknown> {
+  if (
+    request.headers
+      .get("content-type")
+      ?.split(";", 1)[0]
+      ?.trim()
+      .toLowerCase() !== "application/json"
+  )
+    throw new Problem(
+      415,
+      "UNSUPPORTED_MEDIA_TYPE",
+      "JSON content type required",
+    );
   const reader = request.body?.getReader();
   if (!reader) throw new Problem(400, "INVALID_BODY", "Request body required");
   const chunks: Uint8Array[] = [];
@@ -262,6 +291,7 @@ async function route(
   const cors = corsHeaders(request.headers.get("origin"), c.corsOrigins);
   if (request.method === "OPTIONS")
     return new Response(null, { status: 204, headers: cors });
+  requireTrustedMutationOrigin(request, url.pathname, c.corsOrigins);
   await rateLimit(env, request, url.pathname.startsWith("/api/v1/auth/"));
   const requireMethod = (method: string) => {
     if (request.method !== method)
@@ -625,6 +655,14 @@ async function route(
         status: z.enum(["GRANTED", "REVOKED"]),
       })
       .strict()
+      .refine(
+        (value) =>
+          !(
+            ["TERMS", "PRIVACY"].includes(value.purpose) &&
+            value.status === "REVOKED"
+          ),
+        "Legal policy acceptance cannot be revoked here",
+      )
       .parse(await boundedJson(request));
     await recordConsent(
       env.DB,
@@ -1245,6 +1283,29 @@ async function route(
   const mergeMatch = url.pathname.match(
     /^\/api\/v1\/admin\/people\/([0-9a-f-]{36})\/merge$/,
   );
+  const duplicateResolution = url.pathname.match(
+    /^\/api\/v1\/admin\/duplicate-candidates\/([0-9a-f-]{36})\/resolve$/,
+  );
+  if (duplicateResolution) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    const body = z
+      .object({
+        decision: z.enum(["NOT_DUPLICATE", "DISMISSED"]),
+        reason: z.string().trim().min(5).max(1000),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    await resolveDuplicateCandidate(
+      env.DB,
+      actor,
+      duplicateResolution[1]!,
+      body.decision,
+      body.reason,
+      requestId,
+    );
+    return json({ resolved: true }, { headers: cors });
+  }
   if (mergeMatch) {
     requireMethod("POST");
     const actor = await businessPrincipal();

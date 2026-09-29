@@ -402,6 +402,11 @@ Object.assign(openapi.paths, {
   "/api/v1/admin/people/{personId}/merge": {
     post: idempotent("Merge people with MFA and reason", [personId]),
   },
+  "/api/v1/admin/duplicate-candidates/{candidateId}/resolve": {
+    post: command("Resolve an open identity duplicate candidate with reason", [
+      { name: "candidateId", in: "path", required: true, schema: id },
+    ]),
+  },
   "/api/v1/admin/organizations": {
     get: get("List organizations with bounded pagination"),
   },

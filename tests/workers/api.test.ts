@@ -8,14 +8,26 @@ import { ensureMotorBaldiAccount } from "@motorbaldi/identity";
 import { createOrganization, addLocation } from "@motorbaldi/organizations";
 import migration from "../../migrations/0001_foundation.sql?raw";
 import phase1Migration from "../../migrations/0002_phase1.sql?raw";
+import closeoutMigration from "../../migrations/0003_phase1_closeout.sql?raw";
 
 const testEnv = env as unknown as ApiBindings;
 const worker = (
   workerExports as unknown as { default: ExportedHandler<ApiBindings> }
 ).default;
-const call = (path: string, init?: RequestInit) =>
-  worker.fetch!(
-    new Request("https://api.test" + path, init) as never,
+const call = (path: string, init?: RequestInit, addDefaultOrigin = true) => {
+  const headers = new Headers(init?.headers);
+  if (
+    addDefaultOrigin &&
+    init?.method &&
+    ["POST", "PUT", "PATCH", "DELETE"].includes(init.method) &&
+    path.startsWith("/api/v1/") &&
+    !path.startsWith("/api/v1/auth/") &&
+    path !== "/api/v1/public/leads" &&
+    !headers.has("origin")
+  )
+    headers.set("origin", "https://portal.test");
+  return worker.fetch!(
+    new Request("https://api.test" + path, { ...init, headers }) as never,
     testEnv,
     {
       waitUntil() {},
@@ -23,10 +35,12 @@ const call = (path: string, init?: RequestInit) =>
       props: {},
     } as unknown as ExecutionContext,
   );
+};
 
 beforeAll(async () => {
   await testEnv.DB.exec(migration.replace(/\n/g, " "));
   await testEnv.DB.exec(phase1Migration.replace(/\n/g, " "));
+  await testEnv.DB.exec(closeoutMigration.replace(/\n/g, " "));
   await testEnv.DB.prepare(
     "INSERT INTO governance_environment_metadata(singleton, environment) VALUES (1, 'local')",
   ).run();
@@ -56,13 +70,18 @@ beforeAll(async () => {
   ]);
 });
 
+let signInRequest = 0;
 async function signIn(
   email = "verified@example.test",
   password = "correct-password-123",
 ) {
   return call("/api/v1/auth/sign-in/email", {
     method: "POST",
-    headers: { "content-type": "application/json", origin: "https://api.test" },
+    headers: {
+      "content-type": "application/json",
+      origin: "https://api.test",
+      "cf-connecting-ip": `192.0.2.${++signInRequest}`,
+    },
     body: JSON.stringify({ email, password }),
   });
 }
@@ -241,6 +260,111 @@ describe("API and Better Auth runtime", () => {
     expect(((await members.json()) as { items: unknown[] }).items).toHaveLength(
       1,
     );
+  });
+  it("requires trusted mutation origins and JSON media types", async () => {
+    const signedIn = await signIn();
+    expect(signedIn.status).toBe(200);
+    const cookie = signedIn.headers
+      .getSetCookie()
+      .map((value) => value.split(";", 1)[0])
+      .join("; ");
+    const body = JSON.stringify({
+      type: "WORKSHOP",
+      legalName: "Origin Workshop",
+      displayName: "Origin Workshop",
+      countryCode: "US",
+    });
+    const create = (
+      origin: string | null,
+      key: string,
+      contentType = "application/json",
+    ) =>
+      call(
+        "/api/v1/organizations",
+        {
+          method: "POST",
+          headers: {
+            cookie,
+            "idempotency-key": key,
+            "content-type": contentType,
+            ...(origin === null ? {} : { origin }),
+          },
+          body,
+        },
+        origin !== null,
+      );
+    expect(
+      (await create("https://portal.test", "origin-portal-key")).status,
+    ).toBe(201);
+    expect(
+      (await create("https://admin.test", "origin-admin-key")).status,
+    ).toBe(201);
+    expect((await create("https://evil.test", "origin-evil-key")).status).toBe(
+      403,
+    );
+    expect((await create(null, "origin-missing-key")).status).toBe(403);
+    expect(
+      (await create("https://portal.test", "origin-plain-key", "text/plain"))
+        .status,
+    ).toBe(415);
+    const count = await testEnv.DB.prepare(
+      "SELECT count(*) AS n FROM org_organizations WHERE legal_name='Origin Workshop'",
+    ).first<{ n: number }>();
+    expect(count?.n).toBe(2);
+  });
+  it("blocks self-revocation of legal policy acceptance", async () => {
+    const signedIn = await signIn();
+    const cookie = signedIn.headers
+      .getSetCookie()
+      .map((value) => value.split(";", 1)[0])
+      .join("; ");
+    for (const purpose of ["TERMS", "PRIVACY"]) {
+      const response = await call("/api/v1/me/consents", {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          purpose,
+          policyVersion: "v1",
+          status: "REVOKED",
+        }),
+      });
+      expect(response.status).toBe(400);
+    }
+    const marketing = await call("/api/v1/me/consents", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        purpose: "MARKETING_EMAIL",
+        policyVersion: "v1",
+        status: "REVOKED",
+      }),
+    });
+    expect(marketing.status).toBe(201);
+  });
+  it("rejects privileged self-request roles through the API", async () => {
+    const signedIn = await signIn();
+    const cookie = signedIn.headers
+      .getSetCookie()
+      .map((value) => value.split(";", 1)[0])
+      .join("; ");
+    for (const role of ["ADMIN", "FINANCE"]) {
+      const response = await call(
+        "/api/v1/organizations/018f0000-0000-7000-8000-000000000010/membership-requests",
+        {
+          method: "POST",
+          headers: {
+            cookie,
+            "content-type": "application/json",
+            "idempotency-key": `self-${role.toLowerCase()}-key`,
+          },
+          body: JSON.stringify({
+            roles: [role],
+            scope: { type: "ALL_LOCATIONS", locationIds: [] },
+          }),
+        },
+      );
+      expect(response.status).toBe(403);
+    }
   });
   it("lists only selected locations for a location-scoped member", async () => {
     const owner = await ensureMotorBaldiAccount(

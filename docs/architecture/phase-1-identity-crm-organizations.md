@@ -53,4 +53,6 @@ Data classification: public organization display fields may be PUBLIC after veri
 
 ## Operating limits
 
+Phase 1.1 closeout keeps `0001_foundation.sql` and `0002_phase1.sql` immutable. Migration `0003_phase1_closeout.sql` grants ADMIN non-owner role management and adds bounded expiration indexes. Authenticated business mutations require an exact trusted browser Origin. Self-requested membership roles are limited to MECHANIC and INSPECTOR. Scheduled maintenance expires pending invitations and requests and elapsed professional credentials. Identity reconciliation records duplicate candidates from email evidence for staff review without merging people.
+
 Remote public signup remains disabled until a production email sender and approved Turnstile workflow are configured. Local tests use the email sink; no remote delivery is claimed. Password recovery and automated invitation delivery also require a future email provider. Remote resources and IDs are manually configured by an operator. No vehicles, service operations, billing, or partner operations exist in Phase 1.

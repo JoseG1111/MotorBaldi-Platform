@@ -3,12 +3,14 @@ import { env } from "cloudflare:workers";
 import type { ApiBindings } from "@motorbaldi/config";
 import migration from "../../migrations/0001_foundation.sql?raw";
 import phase1Migration from "../../migrations/0002_phase1.sql?raw";
+import closeoutMigration from "../../migrations/0003_phase1_closeout.sql?raw";
 
 const bindings = env as unknown as ApiBindings;
 
 beforeAll(async () => {
   await bindings.DB.exec(migration.replace(/\n/g, " "));
   await bindings.DB.exec(phase1Migration.replace(/\n/g, " "));
+  await bindings.DB.exec(closeoutMigration.replace(/\n/g, " "));
   await bindings.DB.prepare(
     "INSERT INTO governance_environment_metadata(singleton, environment) VALUES (1, 'production')",
   ).run();

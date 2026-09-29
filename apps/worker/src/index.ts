@@ -20,6 +20,11 @@ import {
   unavailableScanner,
 } from "@motorbaldi/storage";
 import { reconcileVerifiedAccounts } from "@motorbaldi/identity";
+import {
+  expireInvitations,
+  expireMembershipRequests,
+} from "@motorbaldi/organizations";
+import { expireCredentials } from "@motorbaldi/professional";
 import { newId } from "@motorbaldi/shared";
 import { z } from "zod";
 
@@ -141,6 +146,9 @@ export default {
     ctx.waitUntil(recoverExpiredLeases(env.DB));
     ctx.waitUntil(cleanupExpiredIdempotencyRecords(env.DB));
     ctx.waitUntil(reconcileVerifiedAccounts(env.DB, newId()));
+    ctx.waitUntil(expireInvitations(env.DB));
+    ctx.waitUntil(expireMembershipRequests(env.DB));
+    ctx.waitUntil(expireCredentials(env.DB));
     if (env.OUTBOX_COORDINATOR) {
       ctx.waitUntil(
         env.OUTBOX_COORDINATOR.getByName(c.environment).fetch(

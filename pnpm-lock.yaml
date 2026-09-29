@@ -177,6 +177,12 @@ importers:
       '@motorbaldi/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@motorbaldi/organizations':
+        specifier: workspace:*
+        version: link:../../packages/organizations
+      '@motorbaldi/professional':
+        specifier: workspace:*
+        version: link:../../packages/professional
       '@motorbaldi/shared':
         specifier: workspace:*
         version: link:../../packages/shared

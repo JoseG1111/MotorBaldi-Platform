@@ -6,6 +6,7 @@ import {
 } from "@motorbaldi/authz";
 import {
   auditStatement,
+  guardedBatch,
   outboxStatement,
   type EventRegistry,
 } from "@motorbaldi/db";
@@ -385,6 +386,12 @@ export async function createInvitation(
     "org.member.invite",
   );
   const parsedRoles = memberRoles.parse(roles);
+  await requireOrganizationPermission(
+    db,
+    actor,
+    organizationId,
+    "org.member.role.manage",
+  );
   if (parsedRoles.includes("OWNER"))
     await requireOrganizationPermission(
       db,
@@ -554,8 +561,12 @@ export async function createMembershipRequest(
   requestId: string,
 ) {
   const parsedRoles = memberRoles.parse(roles);
-  if (parsedRoles.includes("OWNER"))
-    throw new Problem(403, "FORBIDDEN", "Access denied");
+  if (parsedRoles.some((role) => role !== "MECHANIC" && role !== "INSPECTOR"))
+    throw new Problem(
+      403,
+      "SELF_REQUEST_ROLE_FORBIDDEN",
+      "Requested role unavailable",
+    );
   const parsedScope = await validateScope(db, organizationId, scope);
   const org = await db
     .prepare("SELECT status FROM org_organizations WHERE id=?")
@@ -613,6 +624,12 @@ export async function approveMembershipRequest(
     actor,
     organizationId,
     "org.membership_request.review",
+  );
+  await requireOrganizationPermission(
+    db,
+    actor,
+    organizationId,
+    "org.member.role.manage",
   );
   const row = await db
     .prepare(
@@ -712,33 +729,42 @@ export async function submitVerification(
     "org.verification.submit",
   );
   const caseId = newId();
-  const result = await db.batch([
-    db
-      .prepare(
-        "UPDATE org_organizations SET verification_status='PENDING_VERIFICATION',updated_at=?,version=version+1 WHERE id=? AND verification_status IN ('DRAFT','NEEDS_INFORMATION','REJECTED') AND status='ACTIVE'",
-      )
-      .bind(utcNow(), organizationId),
-    db
-      .prepare(
-        "INSERT INTO org_verification_cases(id,organization_id,status) VALUES(?,?,CASE WHEN (SELECT verification_status FROM org_organizations WHERE id=?)='PENDING_VERIFICATION' THEN 'PENDING_VERIFICATION' ELSE NULL END)",
-      )
-      .bind(caseId, organizationId, organizationId),
-    auditStatement(db, {
-      actorId: actor.accountId,
-      action: "organization.verification.submitted",
-      resourceType: "organization",
-      resourceId: organizationId,
-      organizationId,
-      requestId,
-    }),
-    event(
-      db,
-      organizationId,
-      "organization.verification.submitted.v1",
-      { organizationId, caseId },
-      requestId,
-    ),
-  ]);
+  const result = await guardedBatch(
+    db,
+    [
+      db
+        .prepare(
+          "UPDATE org_organizations SET verification_status='PENDING_VERIFICATION',updated_at=?,version=version+1 WHERE id=? AND verification_status IN ('DRAFT','NEEDS_INFORMATION','REJECTED') AND status='ACTIVE'",
+        )
+        .bind(utcNow(), organizationId),
+      db
+        .prepare(
+          "INSERT INTO org_verification_cases(id,organization_id,status) VALUES(?,?,CASE WHEN changes()=1 THEN 'PENDING_VERIFICATION' ELSE NULL END)",
+        )
+        .bind(caseId, organizationId),
+      auditStatement(db, {
+        actorId: actor.accountId,
+        action: "organization.verification.submitted",
+        resourceType: "organization",
+        resourceId: organizationId,
+        organizationId,
+        requestId,
+      }),
+      event(
+        db,
+        organizationId,
+        "organization.verification.submitted.v1",
+        { organizationId, caseId },
+        requestId,
+      ),
+    ],
+    {
+      table: "org_verification_cases",
+      column: "status",
+      code: "ORGANIZATION_VERIFICATION_INVALID_STATE",
+      message: "Invalid verification transition",
+    },
+  );
   if ((result[0]?.meta.changes ?? 0) !== 1)
     throw new Problem(
       409,
@@ -773,57 +799,68 @@ export async function decideVerification(
       "ORGANIZATION_VERIFICATION_INVALID_STATE",
       "Invalid verification transition",
     );
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE org_verification_cases SET status=?,reviewed_by_person_id=?,decision_at=?,decision_reason=?,updated_at=? WHERE id=? AND organization_id=? AND status='UNDER_REVIEW'",
-      )
-      .bind(
-        decision,
-        actor.personId,
-        utcNow(),
-        reason,
-        utcNow(),
-        caseId,
+  await guardedBatch(
+    db,
+    [
+      db
+        .prepare(
+          "UPDATE org_verification_cases SET status=?,reviewed_by_person_id=?,decision_at=?,decision_reason=?,updated_at=? WHERE id=? AND organization_id=? AND status='UNDER_REVIEW'",
+        )
+        .bind(
+          decision,
+          actor.personId,
+          utcNow(),
+          reason,
+          utcNow(),
+          caseId,
+          organizationId,
+        ),
+      db
+        .prepare(
+          "UPDATE org_organizations SET verification_status=?,updated_at=?,version=version+1 WHERE id=? AND verification_status='UNDER_REVIEW'",
+        )
+        .bind(decision, utcNow(), organizationId),
+      db
+        .prepare(
+          "INSERT INTO org_verification_case_events(id,case_id,from_status,to_status,actor_person_id,reason) VALUES(?,?,'UNDER_REVIEW',CASE WHEN changes()=1 AND (SELECT status FROM org_verification_cases WHERE id=?)=? AND (SELECT verification_status FROM org_organizations WHERE id=?)=? THEN ? ELSE NULL END,?,?)",
+        )
+        .bind(
+          newId(),
+          caseId,
+          caseId,
+          decision,
+          organizationId,
+          decision,
+          decision,
+          actor.personId,
+          reason,
+        ),
+      auditStatement(db, {
+        actorId: actor.accountId,
+        action: `organization.verification.${decision.toLowerCase()}`,
+        resourceType: "organization",
+        resourceId: organizationId,
         organizationId,
-      ),
-    db
-      .prepare(
-        "UPDATE org_organizations SET verification_status=?,updated_at=?,version=version+1 WHERE id=? AND verification_status='UNDER_REVIEW'",
-      )
-      .bind(decision, utcNow(), organizationId),
-    db
-      .prepare(
-        "INSERT INTO org_verification_case_events(id,case_id,from_status,to_status,actor_person_id,reason) VALUES(?,?,'UNDER_REVIEW',CASE WHEN (SELECT status FROM org_verification_cases WHERE id=?)=? THEN ? ELSE NULL END,?,?)",
-      )
-      .bind(
-        newId(),
-        caseId,
-        caseId,
-        decision,
-        decision,
-        actor.personId,
         reason,
+        requestId,
+      }),
+      event(
+        db,
+        organizationId,
+        decision === "VERIFIED"
+          ? "organization.verification.approved.v1"
+          : "organization.verification.rejected.v1",
+        { organizationId, caseId },
+        requestId,
       ),
-    auditStatement(db, {
-      actorId: actor.accountId,
-      action: `organization.verification.${decision.toLowerCase()}`,
-      resourceType: "organization",
-      resourceId: organizationId,
-      organizationId,
-      reason,
-      requestId,
-    }),
-    event(
-      db,
-      organizationId,
-      decision === "VERIFIED"
-        ? "organization.verification.approved.v1"
-        : "organization.verification.rejected.v1",
-      { organizationId, caseId },
-      requestId,
-    ),
-  ]);
+    ],
+    {
+      table: "org_verification_case_events",
+      column: "to_status",
+      code: "ORGANIZATION_VERIFICATION_INVALID_STATE",
+      message: "Invalid verification transition",
+    },
+  );
 }
 export async function startVerificationReview(
   db: D1Database,
@@ -833,31 +870,40 @@ export async function startVerificationReview(
   requestId: string,
 ) {
   await requirePlatformPermission(db, actor, "platform.organization.verify");
-  const result = await db.batch([
-    db
-      .prepare(
-        "UPDATE org_verification_cases SET status='UNDER_REVIEW',review_started_at=?,updated_at=? WHERE id=? AND organization_id=? AND status='PENDING_VERIFICATION'",
-      )
-      .bind(utcNow(), utcNow(), caseId, organizationId),
-    db
-      .prepare(
-        "INSERT INTO org_verification_case_events(id,case_id,from_status,to_status,actor_person_id) VALUES(?,?,'PENDING_VERIFICATION',CASE WHEN (SELECT status FROM org_verification_cases WHERE id=?)='UNDER_REVIEW' THEN 'UNDER_REVIEW' ELSE NULL END,?)",
-      )
-      .bind(newId(), caseId, caseId, actor.personId),
-    db
-      .prepare(
-        "UPDATE org_organizations SET verification_status='UNDER_REVIEW',version=version+1,updated_at=? WHERE id=? AND verification_status='PENDING_VERIFICATION'",
-      )
-      .bind(utcNow(), organizationId),
-    auditStatement(db, {
-      actorId: actor.accountId,
-      action: "organization.verification.review.started",
-      resourceType: "organization",
-      resourceId: organizationId,
-      organizationId,
-      requestId,
-    }),
-  ]);
+  const result = await guardedBatch(
+    db,
+    [
+      db
+        .prepare(
+          "UPDATE org_verification_cases SET status='UNDER_REVIEW',review_started_at=?,updated_at=? WHERE id=? AND organization_id=? AND status='PENDING_VERIFICATION'",
+        )
+        .bind(utcNow(), utcNow(), caseId, organizationId),
+      db
+        .prepare(
+          "UPDATE org_organizations SET verification_status='UNDER_REVIEW',version=version+1,updated_at=? WHERE id=? AND verification_status='PENDING_VERIFICATION'",
+        )
+        .bind(utcNow(), organizationId),
+      db
+        .prepare(
+          "INSERT INTO org_verification_case_events(id,case_id,from_status,to_status,actor_person_id) VALUES(?,?,'PENDING_VERIFICATION',CASE WHEN changes()=1 AND (SELECT status FROM org_verification_cases WHERE id=?)='UNDER_REVIEW' AND (SELECT verification_status FROM org_organizations WHERE id=?)='UNDER_REVIEW' THEN 'UNDER_REVIEW' ELSE NULL END,?)",
+        )
+        .bind(newId(), caseId, caseId, organizationId, actor.personId),
+      auditStatement(db, {
+        actorId: actor.accountId,
+        action: "organization.verification.review.started",
+        resourceType: "organization",
+        resourceId: organizationId,
+        organizationId,
+        requestId,
+      }),
+    ],
+    {
+      table: "org_verification_case_events",
+      column: "to_status",
+      code: "ORGANIZATION_VERIFICATION_INVALID_STATE",
+      message: "Invalid verification transition",
+    },
+  );
   if ((result[0]?.meta.changes ?? 0) !== 1)
     throw new Problem(
       409,
@@ -1144,32 +1190,41 @@ export async function requestVerificationInformation(
   await requirePlatformPermission(db, actor, "platform.organization.verify");
   if (!reason.trim())
     throw new Problem(400, "REASON_REQUIRED", "Reason required");
-  await db.batch([
-    db
-      .prepare(
-        "UPDATE org_verification_cases SET status='NEEDS_INFORMATION',updated_at=?,decision_reason=? WHERE id=? AND organization_id=? AND status='UNDER_REVIEW'",
-      )
-      .bind(utcNow(), reason, caseId, organizationId),
-    db
-      .prepare(
-        "INSERT INTO org_verification_case_events(id,case_id,from_status,to_status,actor_person_id,reason) VALUES(?,?,'UNDER_REVIEW',CASE WHEN (SELECT status FROM org_verification_cases WHERE id=?)='NEEDS_INFORMATION' THEN 'NEEDS_INFORMATION' ELSE NULL END,?,?)",
-      )
-      .bind(newId(), caseId, caseId, actor.personId, reason),
-    db
-      .prepare(
-        "UPDATE org_organizations SET verification_status='NEEDS_INFORMATION',version=version+1,updated_at=? WHERE id=? AND verification_status='UNDER_REVIEW'",
-      )
-      .bind(utcNow(), organizationId),
-    auditStatement(db, {
-      actorId: actor.accountId,
-      action: "organization.verification.information.requested",
-      resourceType: "organization",
-      resourceId: organizationId,
-      organizationId,
-      reason,
-      requestId,
-    }),
-  ]);
+  await guardedBatch(
+    db,
+    [
+      db
+        .prepare(
+          "UPDATE org_verification_cases SET status='NEEDS_INFORMATION',updated_at=?,decision_reason=? WHERE id=? AND organization_id=? AND status='UNDER_REVIEW'",
+        )
+        .bind(utcNow(), reason, caseId, organizationId),
+      db
+        .prepare(
+          "UPDATE org_organizations SET verification_status='NEEDS_INFORMATION',version=version+1,updated_at=? WHERE id=? AND verification_status='UNDER_REVIEW'",
+        )
+        .bind(utcNow(), organizationId),
+      db
+        .prepare(
+          "INSERT INTO org_verification_case_events(id,case_id,from_status,to_status,actor_person_id,reason) VALUES(?,?,'UNDER_REVIEW',CASE WHEN changes()=1 AND (SELECT status FROM org_verification_cases WHERE id=?)='NEEDS_INFORMATION' AND (SELECT verification_status FROM org_organizations WHERE id=?)='NEEDS_INFORMATION' THEN 'NEEDS_INFORMATION' ELSE NULL END,?,?)",
+        )
+        .bind(newId(), caseId, caseId, organizationId, actor.personId, reason),
+      auditStatement(db, {
+        actorId: actor.accountId,
+        action: "organization.verification.information.requested",
+        resourceType: "organization",
+        resourceId: organizationId,
+        organizationId,
+        reason,
+        requestId,
+      }),
+    ],
+    {
+      table: "org_verification_case_events",
+      column: "to_status",
+      code: "ORGANIZATION_VERIFICATION_INVALID_STATE",
+      message: "Invalid verification transition",
+    },
+  );
 }
 export async function suspendOrganization(
   db: D1Database,
@@ -1342,4 +1397,32 @@ export async function addIdentifier(
     }),
   ]);
   return id;
+}
+
+export async function expireInvitations(
+  db: D1Database,
+  now = utcNow(),
+  limit = 100,
+) {
+  const result = await db
+    .prepare(
+      "UPDATE org_invitations SET status='EXPIRED' WHERE id IN (SELECT id FROM org_invitations WHERE status='PENDING' AND expires_at<=? ORDER BY expires_at,id LIMIT ?) AND status='PENDING' AND expires_at<=?",
+    )
+    .bind(now, Math.min(1000, Math.max(1, limit)), now)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
+export async function expireMembershipRequests(
+  db: D1Database,
+  now = utcNow(),
+  limit = 100,
+) {
+  const result = await db
+    .prepare(
+      "UPDATE org_membership_requests SET status='EXPIRED' WHERE id IN (SELECT id FROM org_membership_requests WHERE status='PENDING' AND expires_at<=? ORDER BY expires_at,id LIMIT ?) AND status='PENDING' AND expires_at<=?",
+    )
+    .bind(now, Math.min(1000, Math.max(1, limit)), now)
+    .run();
+  return result.meta.changes ?? 0;
 }

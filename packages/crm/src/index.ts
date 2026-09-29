@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Problem } from "@motorbaldi/contracts";
 import {
   auditStatement,
+  guardedBatch,
   outboxStatement,
   type EventRegistry,
 } from "@motorbaldi/db";
@@ -9,6 +10,16 @@ import { normalizeEmail, type PersonInput } from "@motorbaldi/identity";
 import { newId, utcNow } from "@motorbaldi/shared";
 
 const id = z.string().uuid();
+async function requireActiveCrmAssignee(db: D1Database, personId: string) {
+  const row = await db
+    .prepare(
+      "SELECT 1 FROM iam_people p JOIN iam_accounts a ON a.person_id=p.id AND a.status='ACTIVE' JOIN platform_person_roles pr ON pr.person_id=p.id JOIN authz_roles r ON r.id=pr.role_id AND r.scope='PLATFORM' JOIN authz_role_permissions rp ON rp.role_id=r.id WHERE p.id=? AND p.status='ACTIVE' AND rp.permission_code='platform.crm.manage' LIMIT 1",
+    )
+    .bind(personId)
+    .first();
+  if (!row)
+    throw new Problem(400, "INVALID_CRM_ASSIGNEE", "Active CRM staff required");
+}
 const optionalText = (max: number) => z.string().trim().max(max).optional();
 export const leadInput = z
   .object({
@@ -113,25 +124,34 @@ export async function triageLead(
   action: "TRIAGED" | "REJECTED" | "SPAM",
   requestId: string,
 ) {
-  const result = await db.batch([
-    db
-      .prepare(
-        "UPDATE crm_lead_intakes SET status=?,triaged_at=?,assigned_to_person_id=?,version=version+1 WHERE id=? AND status='RECEIVED'",
-      )
-      .bind(action, utcNow(), actorPersonId, leadId),
-    db
-      .prepare(
-        "INSERT INTO crm_lead_triage_events(lead_id,decision,actor_person_id) VALUES(?,CASE WHEN (SELECT status FROM crm_lead_intakes WHERE id=?)=? THEN ? ELSE NULL END,?)",
-      )
-      .bind(leadId, leadId, action, action, actorPersonId),
-    auditStatement(db, {
-      actorId: actorPersonId,
-      action: "crm.lead.triaged",
-      resourceType: "crm_lead",
-      resourceId: leadId,
-      requestId,
-    }),
-  ]);
+  const result = await guardedBatch(
+    db,
+    [
+      db
+        .prepare(
+          "UPDATE crm_lead_intakes SET status=?,triaged_at=?,assigned_to_person_id=?,version=version+1 WHERE id=? AND status='RECEIVED'",
+        )
+        .bind(action, utcNow(), actorPersonId, leadId),
+      db
+        .prepare(
+          "INSERT INTO crm_lead_triage_events(lead_id,decision,actor_person_id) VALUES(?,CASE WHEN changes()=1 THEN ? ELSE NULL END,?)",
+        )
+        .bind(leadId, action, actorPersonId),
+      auditStatement(db, {
+        actorId: actorPersonId,
+        action: "crm.lead.triaged",
+        resourceType: "crm_lead",
+        resourceId: leadId,
+        requestId,
+      }),
+    ],
+    {
+      table: "crm_lead_triage_events",
+      column: "decision",
+      code: "CRM_LEAD_INVALID_STATE",
+      message: "Lead unavailable",
+    },
+  );
   if (result[0]?.meta.changes !== 1)
     throw new Problem(409, "CRM_LEAD_INVALID_STATE", "Lead unavailable");
 }
@@ -174,12 +194,13 @@ export async function createPersonFromLead(
 ) {
   const lead = await db
     .prepare(
-      "SELECT given_name,family_name,status,person_id FROM crm_lead_intakes WHERE id=?",
+      "SELECT given_name,family_name,email,status,person_id FROM crm_lead_intakes WHERE id=?",
     )
     .bind(leadId)
     .first<{
       given_name: string | null;
       family_name: string | null;
+      email: string | null;
       status: string;
       person_id: string | null;
     }>();
@@ -191,12 +212,30 @@ export async function createPersonFromLead(
     preferredLocale: "es",
   };
   const personId = newId();
-  await db.batch([
+  let contactEmail: string | null = null;
+  if (lead.email) {
+    try {
+      contactEmail = normalizeEmail(lead.email);
+    } catch {
+      /* Invalid lead email remains only on intake. */
+    }
+  }
+  const statements = [
     db
       .prepare(
         "INSERT INTO iam_people(id,given_name,family_name,preferred_locale) VALUES(?,?,?,?)",
       )
       .bind(personId, input.givenName, input.familyName, input.preferredLocale),
+  ];
+  if (contactEmail)
+    statements.push(
+      db
+        .prepare(
+          "INSERT INTO iam_contact_methods(id,person_id,type,raw_value,normalized_value,verification_status,source) VALUES(?,?,'EMAIL',?,?,'UNVERIFIED','CRM_LEAD')",
+        )
+        .bind(newId(), personId, lead.email, contactEmail),
+    );
+  statements.push(
     db
       .prepare(
         "UPDATE crm_lead_intakes SET person_id=?,status='TRIAGED',triaged_at=?,assigned_to_person_id=?,version=version+1 WHERE id=? AND person_id IS NULL AND status IN ('RECEIVED','TRIAGED')",
@@ -207,7 +246,13 @@ export async function createPersonFromLead(
         "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,request_id) VALUES(?,?,'identity.person.created','iam_person',CASE WHEN (SELECT person_id FROM crm_lead_intakes WHERE id=?)=? THEN ? ELSE NULL END,?)",
       )
       .bind(newId(), actorPersonId, leadId, personId, personId, requestId),
-  ]);
+  );
+  await guardedBatch(db, statements, {
+    table: "governance_audit_events",
+    column: "resource_id",
+    code: "CRM_LEAD_INVALID_STATE",
+    message: "Lead unavailable",
+  });
   return personId;
 }
 export async function convertLead(
@@ -296,34 +341,70 @@ export async function moveOpportunityStage(
   actorPersonId: string,
   requestId: string,
 ) {
-  const result = await db.batch([
-    db
-      .prepare(
-        "UPDATE crm_opportunities SET stage_id=?,updated_at=?,version=version+1 WHERE id=? AND version=? AND EXISTS(SELECT 1 FROM crm_stages s WHERE s.id=? AND s.pipeline_id=crm_opportunities.pipeline_id AND s.status='ACTIVE')",
-      )
-      .bind(stageId, utcNow(), opportunityId, expectedVersion, stageId),
-    db
-      .prepare(
-        "INSERT INTO crm_opportunity_stage_events(opportunity_id,from_version,stage_id,actor_person_id) VALUES(?,?,CASE WHEN (SELECT version FROM crm_opportunities WHERE id=?)=? AND (SELECT stage_id FROM crm_opportunities WHERE id=?)=? THEN ? ELSE NULL END,?)",
-      )
-      .bind(
-        opportunityId,
-        expectedVersion,
-        opportunityId,
-        expectedVersion + 1,
-        opportunityId,
-        stageId,
-        stageId,
-        actorPersonId,
-      ),
-    auditStatement(db, {
-      actorId: actorPersonId,
-      action: "crm.opportunity.stage.changed",
-      resourceType: "crm_opportunity",
-      resourceId: opportunityId,
-      requestId,
-    }),
-  ]);
+  const current = await db
+    .prepare(
+      "SELECT pipeline_id,status,version FROM crm_opportunities WHERE id=?",
+    )
+    .bind(opportunityId)
+    .first<{ pipeline_id: string; status: string; version: number }>();
+  if (!current || current.status !== "OPEN")
+    throw new Problem(
+      409,
+      "OPPORTUNITY_INVALID_STATE",
+      "Opportunity is closed or unavailable",
+    );
+  if (current.version !== expectedVersion)
+    throw new Problem(409, "VERSION_CONFLICT", "Stale opportunity version");
+  const stage = await db
+    .prepare(
+      "SELECT terminal_outcome FROM crm_stages WHERE id=? AND pipeline_id=? AND status='ACTIVE'",
+    )
+    .bind(stageId, current.pipeline_id)
+    .first<{ terminal_outcome: "WON" | "LOST" | null }>();
+  if (!stage)
+    throw new Problem(
+      409,
+      "INVALID_OPPORTUNITY_STAGE",
+      "Stage unavailable for pipeline",
+    );
+  const now = utcNow();
+  const result = await guardedBatch(
+    db,
+    [
+      db
+        .prepare(
+          "UPDATE crm_opportunities SET stage_id=?,status=COALESCE((SELECT terminal_outcome FROM crm_stages WHERE id=?),'OPEN'),closed_at=CASE WHEN (SELECT is_terminal FROM crm_stages WHERE id=?)=1 THEN ? ELSE NULL END,updated_at=?,version=version+1 WHERE id=? AND version=? AND status='OPEN' AND EXISTS(SELECT 1 FROM crm_stages s WHERE s.id=? AND s.pipeline_id=crm_opportunities.pipeline_id AND s.status='ACTIVE')",
+        )
+        .bind(
+          stageId,
+          stageId,
+          stageId,
+          now,
+          now,
+          opportunityId,
+          expectedVersion,
+          stageId,
+        ),
+      db
+        .prepare(
+          "INSERT INTO crm_opportunity_stage_events(opportunity_id,from_version,stage_id,actor_person_id) VALUES(?,?,CASE WHEN changes()=1 THEN ? ELSE NULL END,?)",
+        )
+        .bind(opportunityId, expectedVersion, stageId, actorPersonId),
+      auditStatement(db, {
+        actorId: actorPersonId,
+        action: "crm.opportunity.stage.changed",
+        resourceType: "crm_opportunity",
+        resourceId: opportunityId,
+        requestId,
+      }),
+    ],
+    {
+      table: "crm_opportunity_stage_events",
+      column: "stage_id",
+      code: "VERSION_CONFLICT",
+      message: "Opportunity stage unavailable",
+    },
+  );
   if (result[0]?.meta.changes !== 1)
     throw new Problem(409, "VERSION_CONFLICT", "Stale opportunity version");
 }
@@ -419,14 +500,7 @@ export async function createTask(
   requestId: string,
 ) {
   const c = taskInput.parse(input);
-  const staff = await db
-    .prepare(
-      "SELECT 1 FROM platform_person_roles pr JOIN authz_role_permissions rp ON rp.role_id=pr.role_id WHERE pr.person_id=? AND rp.permission_code='platform.crm.manage' LIMIT 1",
-    )
-    .bind(c.ownerPersonId)
-    .first();
-  if (!staff)
-    throw new Problem(400, "INVALID_CRM_ASSIGNEE", "CRM staff required");
+  await requireActiveCrmAssignee(db, c.ownerPersonId);
   const taskId = newId();
   await db.batch([
     db
@@ -497,14 +571,7 @@ export async function assignLead(
   targetPersonId: string,
   requestId: string,
 ) {
-  const staff = await db
-    .prepare(
-      "SELECT 1 FROM platform_person_roles pr JOIN authz_role_permissions rp ON rp.role_id=pr.role_id WHERE pr.person_id=? AND rp.permission_code='platform.crm.manage' LIMIT 1",
-    )
-    .bind(targetPersonId)
-    .first();
-  if (!staff)
-    throw new Problem(400, "INVALID_CRM_ASSIGNEE", "CRM staff required");
+  await requireActiveCrmAssignee(db, targetPersonId);
   const current = await db
     .prepare("SELECT assigned_to_person_id FROM crm_lead_intakes WHERE id=?")
     .bind(leadId)
@@ -560,14 +627,7 @@ export async function assignOpportunity(
   targetPersonId: string,
   requestId: string,
 ) {
-  const staff = await db
-    .prepare(
-      "SELECT 1 FROM platform_person_roles pr JOIN authz_role_permissions rp ON rp.role_id=pr.role_id WHERE pr.person_id=? AND rp.permission_code='platform.crm.manage' LIMIT 1",
-    )
-    .bind(targetPersonId)
-    .first();
-  if (!staff)
-    throw new Problem(400, "INVALID_CRM_ASSIGNEE", "CRM staff required");
+  await requireActiveCrmAssignee(db, targetPersonId);
   const current = await db
     .prepare("SELECT owner_person_id FROM crm_opportunities WHERE id=?")
     .bind(opportunityId)
@@ -607,14 +667,7 @@ export async function assignTask(
   targetPersonId: string,
   requestId: string,
 ) {
-  const staff = await db
-    .prepare(
-      "SELECT 1 FROM platform_person_roles pr JOIN authz_role_permissions rp ON rp.role_id=pr.role_id WHERE pr.person_id=? AND rp.permission_code='platform.crm.manage' LIMIT 1",
-    )
-    .bind(targetPersonId)
-    .first();
-  if (!staff)
-    throw new Problem(400, "INVALID_CRM_ASSIGNEE", "CRM staff required");
+  await requireActiveCrmAssignee(db, targetPersonId);
   const current = await db
     .prepare("SELECT owner_person_id FROM crm_tasks WHERE id=?")
     .bind(taskId)

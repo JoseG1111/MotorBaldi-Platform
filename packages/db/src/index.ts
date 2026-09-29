@@ -13,6 +13,7 @@ export async function changed(statement: D1PreparedStatement): Promise<number> {
 }
 
 export * from "./audit.js";
+export * from "./guarded-batch.js";
 export * from "./environment.js";
 export * from "./idempotency.js";
 export * from "./outbox.js";

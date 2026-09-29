@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Problem, type Principal } from "@motorbaldi/contracts";
-import { auditStatement } from "@motorbaldi/db";
+import { auditStatement, guardedBatch } from "@motorbaldi/db";
 import { newId, utcNow } from "@motorbaldi/shared";
 import { requirePlatformPermission } from "@motorbaldi/authz";
 
@@ -144,37 +144,60 @@ export async function decideCredential(
   });
   if (!reason.trim())
     throw new Problem(400, "REASON_REQUIRED", "Reason required");
-  const result = await db.batch([
-    db
-      .prepare(
-        "UPDATE professional_credentials SET status=?,reviewed_by_person_id=?,reviewed_at=?,reason=?,updated_at=?,version=version+1 WHERE id=? AND status='PENDING'",
-      )
-      .bind(decision, actor.personId, utcNow(), reason, utcNow(), credentialId),
-    db
-      .prepare(
-        "INSERT INTO professional_credential_decisions(credential_id,decision,actor_person_id,reason) VALUES(?,CASE WHEN (SELECT status FROM professional_credentials WHERE id=?)=? THEN ? ELSE NULL END,?,?)",
-      )
-      .bind(
-        credentialId,
-        credentialId,
-        decision,
-        decision,
-        actor.personId,
+  const result = await guardedBatch(
+    db,
+    [
+      db
+        .prepare(
+          "UPDATE professional_credentials SET status=?,reviewed_by_person_id=?,reviewed_at=?,reason=?,updated_at=?,version=version+1 WHERE id=? AND status='PENDING'",
+        )
+        .bind(
+          decision,
+          actor.personId,
+          utcNow(),
+          reason,
+          utcNow(),
+          credentialId,
+        ),
+      db
+        .prepare(
+          "INSERT INTO professional_credential_decisions(credential_id,decision,actor_person_id,reason) VALUES(?,CASE WHEN changes()=1 THEN ? ELSE NULL END,?,?)",
+        )
+        .bind(credentialId, decision, actor.personId, reason),
+      auditStatement(db, {
+        actorId: actor.accountId,
+        action: "professional.credential.reviewed",
+        resourceType: "professional_credential",
+        resourceId: credentialId,
         reason,
-      ),
-    auditStatement(db, {
-      actorId: actor.accountId,
-      action: "professional.credential.reviewed",
-      resourceType: "professional_credential",
-      resourceId: credentialId,
-      reason,
-      requestId,
-    }),
-  ]);
+        requestId,
+      }),
+    ],
+    {
+      table: "professional_credential_decisions",
+      column: "decision",
+      code: "CREDENTIAL_INVALID_STATE",
+      message: "Credential unavailable",
+    },
+  );
   if (result[0]?.meta.changes !== 1)
     throw new Problem(
       409,
       "CREDENTIAL_INVALID_STATE",
       "Credential unavailable",
     );
+}
+
+export async function expireCredentials(
+  db: D1Database,
+  now = utcNow(),
+  limit = 100,
+) {
+  const result = await db
+    .prepare(
+      "UPDATE professional_credentials SET status='EXPIRED',updated_at=?,version=version+1 WHERE id IN (SELECT id FROM professional_credentials WHERE status IN ('PENDING','VERIFIED') AND expires_at IS NOT NULL AND expires_at<=? ORDER BY expires_at,id LIMIT ?) AND status IN ('PENDING','VERIFIED') AND expires_at IS NOT NULL AND expires_at<=?",
+    )
+    .bind(now, now, Math.min(1000, Math.max(1, limit)), now)
+    .run();
+  return result.meta.changes ?? 0;
 }

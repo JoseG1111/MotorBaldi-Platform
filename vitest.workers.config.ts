@@ -11,7 +11,7 @@ export default defineConfig({
         bindings: {
           ENVIRONMENT: "local",
           AUTH_BASE_URL: "https://api.test",
-          CORS_ORIGINS: "https://api.test",
+          CORS_ORIGINS: "https://api.test,https://portal.test,https://admin.test",
           AUTH_SECRET: "local-test-auth-secret-that-is-long-enough",
           AUTH_SECRETS: '[{"version":1,"value":"local-test-auth-rotation-secret-long-enough"}]',
           EMAIL_PROVIDER: "DEVELOPMENT_SINK",

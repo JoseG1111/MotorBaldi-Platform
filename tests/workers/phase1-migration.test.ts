@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import type { ApiBindings } from "@motorbaldi/config";
 import foundation from "../../migrations/0001_foundation.sql?raw";
 import phase1 from "../../migrations/0002_phase1.sql?raw";
+import closeout from "../../migrations/0003_phase1_closeout.sql?raw";
 
 const db = (env as unknown as ApiBindings).DB;
 describe("Phase 1 D1 migration upgrade", () => {
@@ -29,6 +30,7 @@ describe("Phase 1 D1 migration upgrade", () => {
       )
       .run();
     await db.exec(phase1.replace(/\n/g, " "));
+    await db.exec(closeout.replace(/\n/g, " "));
     const audit = await db
       .prepare(
         "SELECT COUNT(*) AS n FROM governance_audit_events WHERE id='existing-audit'",
@@ -59,6 +61,19 @@ describe("Phase 1 D1 migration upgrade", () => {
           .first<{ n: number }>()
       )?.n,
     ).toBe(3);
+    expect(
+      await db
+        .prepare(
+          "SELECT 1 FROM authz_role_permissions WHERE role_id='org-admin' AND permission_code='org.member.role.manage'",
+        )
+        .first(),
+    ).toBeTruthy();
+    const indexes = await db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('org_invitations_expiry','org_membership_requests_expiry','professional_credentials_expiry')",
+      )
+      .all();
+    expect(indexes.results).toHaveLength(3);
     await expect(
       db
         .prepare(
