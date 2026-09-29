@@ -508,6 +508,22 @@ export async function acceptInvitation(
   const statements = [
     db
       .prepare(
+        "UPDATE org_invitations SET status='ACCEPTED',accepted_by_person_id=?,accepted_at=? WHERE id=? AND status='PENDING' AND expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now') AND target_email=(SELECT lower(trim(email)) FROM auth_users WHERE id=? AND email_verified=1) AND EXISTS(SELECT 1 FROM org_organizations WHERE id=org_invitations.organization_id AND status='ACTIVE')",
+      )
+      .bind(actor.personId, utcNow(), invitation.id, actor.accountId),
+    db
+      .prepare(
+        "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,organization_id,request_id) VALUES(?,?,'organization.invitation.accepted','organization_invitation',CASE WHEN changes()=1 THEN ? ELSE NULL END,?,?)",
+      )
+      .bind(
+        newId(),
+        actor.accountId,
+        invitation.id,
+        invitation.organization_id,
+        requestId,
+      ),
+    db
+      .prepare(
         "INSERT INTO org_memberships(id,organization_id,person_id,location_scope_type) VALUES(?,?,?,?)",
       )
       .bind(
@@ -530,23 +546,16 @@ export async function acceptInvitation(
         )
         .bind(membershipId, invitation.organization_id, locationId),
     ),
-    db
-      .prepare(
-        "UPDATE org_invitations SET status='ACCEPTED',accepted_by_person_id=?,accepted_at=? WHERE id=? AND status='PENDING' AND expires_at>?",
-      )
-      .bind(actor.personId, utcNow(), invitation.id, utcNow()),
-    auditStatement(db, {
-      actorId: actor.accountId,
-      action: "organization.invitation.accepted",
-      resourceType: "organization_invitation",
-      resourceId: invitation.id,
-      organizationId: invitation.organization_id,
-      requestId,
-    }),
   ];
   try {
-    await db.batch(statements);
-  } catch {
+    await guardedBatch(db, statements, {
+      table: "governance_audit_events",
+      column: "resource_id",
+      code: "INVITATION_INVALID",
+      message: "Invitation unavailable",
+    });
+  } catch (error) {
+    if (error instanceof Problem) throw error;
     throw new Problem(409, "INVITATION_INVALID", "Invitation unavailable");
   }
   return { invitationId: invitation.id, accepted: true };
@@ -667,48 +676,55 @@ export async function approveMembershipRequest(
   });
   const membershipId = newId();
   try {
-    await db.batch([
-      db
-        .prepare(
-          "INSERT INTO org_memberships(id,organization_id,person_id,location_scope_type) VALUES(?,?,?,?)",
-        )
-        .bind(membershipId, organizationId, row.person_id, scope.type),
-      ...roles.map((role) =>
+    await guardedBatch(
+      db,
+      [
         db
           .prepare(
-            "INSERT INTO org_membership_roles(membership_id,role_id) SELECT ?,id FROM authz_roles WHERE scope='ORGANIZATION' AND code=?",
+            "UPDATE org_membership_requests SET status='APPROVED',reviewed_by_person_id=?,reviewed_at=? WHERE id=? AND organization_id=? AND status='PENDING' AND expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')",
           )
-          .bind(membershipId, role),
-      ),
-      ...scope.locationIds.map((locationId) =>
+          .bind(actor.personId, utcNow(), row.id, organizationId),
         db
           .prepare(
-            "INSERT INTO org_membership_locations(membership_id,organization_id,location_id) VALUES(?,?,?)",
+            "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,organization_id,request_id) VALUES(?,?,'organization.membership.request.approved','organization_membership_request',CASE WHEN changes()=1 THEN ? ELSE NULL END,?,?)",
           )
-          .bind(membershipId, organizationId, locationId),
-      ),
-      db
-        .prepare(
-          "UPDATE org_membership_requests SET status='APPROVED',reviewed_by_person_id=?,reviewed_at=? WHERE id=? AND status='PENDING' AND expires_at>?",
-        )
-        .bind(actor.personId, utcNow(), row.id, utcNow()),
-      auditStatement(db, {
-        actorId: actor.accountId,
-        action: "organization.membership.request.approved",
-        resourceType: "organization_membership_request",
-        resourceId: row.id,
-        organizationId,
-        requestId,
-      }),
-      event(
-        db,
-        organizationId,
-        "organization.membership.approved.v1",
-        { organizationId, requestId: row.id },
-        requestId,
-      ),
-    ]);
-  } catch {
+          .bind(newId(), actor.accountId, row.id, organizationId, requestId),
+        db
+          .prepare(
+            "INSERT INTO org_memberships(id,organization_id,person_id,location_scope_type) VALUES(?,?,?,?)",
+          )
+          .bind(membershipId, organizationId, row.person_id, scope.type),
+        ...roles.map((role) =>
+          db
+            .prepare(
+              "INSERT INTO org_membership_roles(membership_id,role_id) SELECT ?,id FROM authz_roles WHERE scope='ORGANIZATION' AND code=?",
+            )
+            .bind(membershipId, role),
+        ),
+        ...scope.locationIds.map((locationId) =>
+          db
+            .prepare(
+              "INSERT INTO org_membership_locations(membership_id,organization_id,location_id) VALUES(?,?,?)",
+            )
+            .bind(membershipId, organizationId, locationId),
+        ),
+        event(
+          db,
+          organizationId,
+          "organization.membership.approved.v1",
+          { organizationId, requestId: row.id },
+          requestId,
+        ),
+      ],
+      {
+        table: "governance_audit_events",
+        column: "resource_id",
+        code: "MEMBERSHIP_REQUEST_INVALID_STATE",
+        message: "Request unavailable",
+      },
+    );
+  } catch (error) {
+    if (error instanceof Problem) throw error;
     throw new Problem(
       409,
       "MEMBERSHIP_REQUEST_INVALID_STATE",
@@ -941,26 +957,38 @@ export async function endMembership(
       "org.owner.manage",
     );
   try {
-    await db.batch([
-      db
-        .prepare(
-          "UPDATE org_memberships SET status='ENDED',valid_to=?,updated_at=?,version=version+1 WHERE id=? AND organization_id=? AND status='ACTIVE'",
-        )
-        .bind(utcNow(), utcNow(), membershipId, organizationId),
-      auditStatement(db, {
-        actorId: actor.accountId,
-        action: "organization.membership.ended",
-        resourceType: "organization_membership",
-        resourceId: membershipId,
-        organizationId,
-        requestId,
-      }),
-      db
-        .prepare(
-          "INSERT INTO governance_security_events(id,code,actor_id,request_id) VALUES(?,'ORGANIZATION_MEMBERSHIP_ENDED',?,?)",
-        )
-        .bind(newId(), actor.accountId, requestId),
-    ]);
+    await guardedBatch(
+      db,
+      [
+        db
+          .prepare(
+            "UPDATE org_memberships SET status='ENDED',valid_to=?,updated_at=?,version=version+1 WHERE id=? AND organization_id=? AND status='ACTIVE'",
+          )
+          .bind(utcNow(), utcNow(), membershipId, organizationId),
+        db
+          .prepare(
+            "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,organization_id,request_id) VALUES(?,?,'organization.membership.ended','organization_membership',CASE WHEN changes()=1 THEN ? ELSE NULL END,?,?)",
+          )
+          .bind(
+            newId(),
+            actor.accountId,
+            membershipId,
+            organizationId,
+            requestId,
+          ),
+        db
+          .prepare(
+            "INSERT INTO governance_security_events(id,code,actor_id,request_id) VALUES(?,'ORGANIZATION_MEMBERSHIP_ENDED',?,?)",
+          )
+          .bind(newId(), actor.accountId, requestId),
+      ],
+      {
+        table: "governance_audit_events",
+        column: "resource_id",
+        code: "MEMBERSHIP_NOT_ACTIVE",
+        message: "Membership unavailable",
+      },
+    );
   } catch (error) {
     if (String(error).includes("LAST_OWNER_REQUIRED"))
       throw new Problem(409, "LAST_OWNER_REQUIRED", "Last owner required");
@@ -1055,21 +1083,33 @@ export async function revokeInvitation(
     organizationId,
     "org.member.invite",
   );
-  const result = await db.batch([
-    db
-      .prepare(
-        "UPDATE org_invitations SET status='REVOKED',revoked_at=? WHERE id=? AND organization_id=? AND status='PENDING'",
-      )
-      .bind(utcNow(), invitationId, organizationId),
-    auditStatement(db, {
-      actorId: actor.accountId,
-      action: "organization.invitation.revoked",
-      resourceType: "organization_invitation",
-      resourceId: invitationId,
-      organizationId,
-      requestId,
-    }),
-  ]);
+  const result = await guardedBatch(
+    db,
+    [
+      db
+        .prepare(
+          "UPDATE org_invitations SET status='REVOKED',revoked_at=? WHERE id=? AND organization_id=? AND status='PENDING'",
+        )
+        .bind(utcNow(), invitationId, organizationId),
+      db
+        .prepare(
+          "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,organization_id,request_id) VALUES(?,?,'organization.invitation.revoked','organization_invitation',CASE WHEN changes()=1 THEN ? ELSE NULL END,?,?)",
+        )
+        .bind(
+          newId(),
+          actor.accountId,
+          invitationId,
+          organizationId,
+          requestId,
+        ),
+    ],
+    {
+      table: "governance_audit_events",
+      column: "resource_id",
+      code: "INVITATION_INVALID",
+      message: "Invitation unavailable",
+    },
+  );
   if (result[0]?.meta.changes !== 1)
     throw new Problem(409, "INVITATION_INVALID", "Invitation unavailable");
 }
@@ -1089,28 +1129,40 @@ export async function rejectMembershipRequest(
   );
   if (!reason.trim())
     throw new Problem(400, "REASON_REQUIRED", "Reason required");
-  const result = await db.batch([
-    db
-      .prepare(
-        "UPDATE org_membership_requests SET status='REJECTED',reviewed_by_person_id=?,reviewed_at=?,decision_reason=? WHERE id=? AND organization_id=? AND status='PENDING'",
-      )
-      .bind(
-        actor.personId,
-        utcNow(),
-        reason,
-        membershipRequestId,
-        organizationId,
-      ),
-    auditStatement(db, {
-      actorId: actor.accountId,
-      action: "organization.membership.request.rejected",
-      resourceType: "organization_membership_request",
-      resourceId: membershipRequestId,
-      organizationId,
-      reason,
-      requestId,
-    }),
-  ]);
+  const result = await guardedBatch(
+    db,
+    [
+      db
+        .prepare(
+          "UPDATE org_membership_requests SET status='REJECTED',reviewed_by_person_id=?,reviewed_at=?,decision_reason=? WHERE id=? AND organization_id=? AND status='PENDING'",
+        )
+        .bind(
+          actor.personId,
+          utcNow(),
+          reason,
+          membershipRequestId,
+          organizationId,
+        ),
+      db
+        .prepare(
+          "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,organization_id,reason,request_id) VALUES(?,?,'organization.membership.request.rejected','organization_membership_request',CASE WHEN changes()=1 THEN ? ELSE NULL END,?,?,?)",
+        )
+        .bind(
+          newId(),
+          actor.accountId,
+          membershipRequestId,
+          organizationId,
+          reason,
+          requestId,
+        ),
+    ],
+    {
+      table: "governance_audit_events",
+      column: "resource_id",
+      code: "MEMBERSHIP_REQUEST_INVALID_STATE",
+      message: "Request unavailable",
+    },
+  );
   if (result[0]?.meta.changes !== 1)
     throw new Problem(
       409,
@@ -1240,28 +1292,39 @@ export async function suspendOrganization(
   });
   if (!reason.trim())
     throw new Problem(400, "REASON_REQUIRED", "Reason required");
-  const result = await db.batch([
-    db
-      .prepare(
-        "UPDATE org_organizations SET status='SUSPENDED',verification_status='SUSPENDED',updated_at=?,version=version+1 WHERE id=? AND status='ACTIVE'",
-      )
-      .bind(utcNow(), organizationId),
-    auditStatement(db, {
-      actorId: actor.accountId,
-      action: "organization.suspended",
-      requirePreviousChange: true,
-      resourceType: "organization",
-      resourceId: organizationId,
-      organizationId,
-      reason,
-      requestId,
-    }),
-    db
-      .prepare(
-        "INSERT INTO governance_security_events(id,code,actor_id,request_id) VALUES(?,'ORGANIZATION_SUSPENDED',?,?)",
-      )
-      .bind(newId(), actor.accountId, requestId),
-  ]);
+  const result = await guardedBatch(
+    db,
+    [
+      db
+        .prepare(
+          "UPDATE org_organizations SET status='SUSPENDED',verification_status='SUSPENDED',updated_at=?,version=version+1 WHERE id=? AND status='ACTIVE'",
+        )
+        .bind(utcNow(), organizationId),
+      db
+        .prepare(
+          "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,organization_id,reason,request_id) VALUES(?,?,'organization.suspended','organization',CASE WHEN changes()=1 THEN ? ELSE NULL END,?,?,?)",
+        )
+        .bind(
+          newId(),
+          actor.accountId,
+          organizationId,
+          organizationId,
+          reason,
+          requestId,
+        ),
+      db
+        .prepare(
+          "INSERT INTO governance_security_events(id,code,actor_id,request_id) VALUES(?,'ORGANIZATION_SUSPENDED',?,?)",
+        )
+        .bind(newId(), actor.accountId, requestId),
+    ],
+    {
+      table: "governance_audit_events",
+      column: "resource_id",
+      code: "ORGANIZATION_INVALID_STATE",
+      message: "Organization unavailable",
+    },
+  );
   if (result[0]?.meta.changes !== 1)
     throw new Problem(
       409,

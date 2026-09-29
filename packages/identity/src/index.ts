@@ -436,6 +436,16 @@ export async function mergePeople(
   const statements = [
     db
       .prepare(
+        "UPDATE iam_people SET status='MERGED',merged_into_person_id=?,updated_at=?,version=version+1 WHERE id=? AND status<>'MERGED' AND EXISTS(SELECT 1 FROM iam_people WHERE id=? AND status<>'MERGED')",
+      )
+      .bind(destinationId, utcNow(), sourceId, destinationId),
+    db
+      .prepare(
+        "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,reason,request_id) VALUES(?,?,'identity.person.merged','iam_person',CASE WHEN changes()=1 THEN ? ELSE NULL END,?,?)",
+      )
+      .bind(newId(), actor.accountId, sourceId, reason, requestId),
+    db
+      .prepare(
         "UPDATE iam_accounts SET person_id=?,updated_at=?,version=version+1 WHERE person_id=?",
       )
       .bind(destinationId, utcNow(), sourceId),
@@ -497,11 +507,6 @@ export async function mergePeople(
       .bind(destinationId, sourceId),
     db
       .prepare(
-        "UPDATE iam_people SET status='MERGED',merged_into_person_id=?,updated_at=?,version=version+1 WHERE id=? AND status<>'MERGED'",
-      )
-      .bind(destinationId, utcNow(), sourceId),
-    db
-      .prepare(
         "UPDATE iam_duplicate_candidates SET status='MERGED',reviewed_by_person_id=?,reviewed_at=?,resolution=? WHERE ((source_person_id=? AND destination_person_id=?) OR (source_person_id=? AND destination_person_id=?)) AND status='OPEN'",
       )
       .bind(
@@ -513,14 +518,6 @@ export async function mergePeople(
         destinationId,
         sourceId,
       ),
-    auditStatement(db, {
-      actorId: actor.accountId,
-      action: "identity.person.merged",
-      resourceType: "iam_person",
-      resourceId: sourceId,
-      reason,
-      requestId,
-    }),
     db
       .prepare(
         "INSERT INTO integration_outbox_events(id,aggregate_type,aggregate_id,event_type,event_version,payload_json,request_id,external_effect_policy) VALUES(?,'identity',?,'identity.person.merged.v1',1,?,?,'IDEMPOTENT')",
@@ -532,7 +529,25 @@ export async function mergePeople(
         requestId,
       ),
   ];
-  await db.batch(statements);
+  try {
+    await guardedBatch(db, statements, {
+      table: "governance_audit_events",
+      column: "resource_id",
+      code: "INVALID_PERSON_MERGE",
+      message: "Merge unavailable",
+    });
+  } catch (error) {
+    if (error instanceof Problem && error.code === "INVALID_PERSON_MERGE") {
+      const winner = await db
+        .prepare(
+          "SELECT merged_into_person_id FROM iam_people WHERE id=? AND status='MERGED'",
+        )
+        .bind(sourceId)
+        .first<{ merged_into_person_id: string }>();
+      if (winner?.merged_into_person_id === destinationId) return;
+    }
+    throw error;
+  }
 }
 
 export async function suspendAccount(

@@ -149,7 +149,7 @@ export async function decideCredential(
     [
       db
         .prepare(
-          "UPDATE professional_credentials SET status=?,reviewed_by_person_id=?,reviewed_at=?,reason=?,updated_at=?,version=version+1 WHERE id=? AND status='PENDING'",
+          "UPDATE professional_credentials SET status=?,reviewed_by_person_id=?,reviewed_at=?,reason=?,updated_at=?,version=version+1 WHERE id=? AND status='PENDING' AND (?='REJECTED' OR expires_at IS NULL OR expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
         )
         .bind(
           decision,
@@ -158,6 +158,7 @@ export async function decideCredential(
           reason,
           utcNow(),
           credentialId,
+          decision,
         ),
       db
         .prepare(

@@ -293,53 +293,79 @@ export async function convertLead(
   if (!lead || !["RECEIVED", "TRIAGED"].includes(lead.status) || !title.trim())
     throw new Problem(409, "CRM_LEAD_INVALID_STATE", "Lead unavailable");
   const opportunityId = newId();
-  await db.batch([
-    db
-      .prepare(
-        "INSERT INTO crm_opportunities(id,pipeline_id,stage_id,person_id,organization_id,lead_intake_id,title,owner_person_id) VALUES(?,?,?,?,?,?,?,?)",
-      )
-      .bind(
-        opportunityId,
-        pipelineId,
-        stageId,
-        lead.person_id,
-        lead.organization_id,
-        leadId,
-        title.trim(),
-        actor.personId,
-      ),
-    db
-      .prepare(
-        "INSERT INTO crm_activities(id,type,person_id,organization_id,opportunity_id,actor_person_id,occurred_at,summary) VALUES(?,'SYSTEM_EVENT',?,?,?,?,?,'Lead converted')",
-      )
-      .bind(
-        newId(),
-        lead.person_id,
-        lead.organization_id,
-        opportunityId,
-        actor.personId,
-        utcNow(),
-      ),
-    db
-      .prepare(
-        "UPDATE crm_lead_intakes SET status='CONVERTED',converted_at=?,version=version+1 WHERE id=? AND status IN ('RECEIVED','TRIAGED')",
-      )
-      .bind(utcNow(), leadId),
-    auditStatement(db, {
-      actorId: actor.personId,
-      action: "crm.lead.converted",
-      resourceType: "crm_lead",
-      resourceId: leadId,
-      requestId,
-    }),
-    event(
+  try {
+    await guardedBatch(
       db,
-      leadId,
-      "crm.lead.converted.v1",
-      { leadId, opportunityId },
-      requestId,
-    ),
-  ]);
+      [
+        db
+          .prepare(
+            "UPDATE crm_lead_intakes SET status='CONVERTED',converted_at=?,version=version+1 WHERE id=? AND status IN ('RECEIVED','TRIAGED')",
+          )
+          .bind(utcNow(), leadId),
+        db
+          .prepare(
+            "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,request_id) VALUES(?,?,'crm.lead.converted','crm_lead',CASE WHEN changes()=1 THEN ? ELSE NULL END,?)",
+          )
+          .bind(newId(), actor.personId, leadId, requestId),
+        db
+          .prepare(
+            "INSERT INTO crm_opportunities(id,pipeline_id,stage_id,person_id,organization_id,lead_intake_id,title,owner_person_id) VALUES(?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            opportunityId,
+            pipelineId,
+            stageId,
+            lead.person_id,
+            lead.organization_id,
+            leadId,
+            title.trim(),
+            actor.personId,
+          ),
+        db
+          .prepare(
+            "INSERT INTO crm_activities(id,type,person_id,organization_id,opportunity_id,actor_person_id,occurred_at,summary) VALUES(?,'SYSTEM_EVENT',?,?,?,?,?,'Lead converted')",
+          )
+          .bind(
+            newId(),
+            lead.person_id,
+            lead.organization_id,
+            opportunityId,
+            actor.personId,
+            utcNow(),
+          ),
+        event(
+          db,
+          leadId,
+          "crm.lead.converted.v1",
+          { leadId, opportunityId },
+          requestId,
+        ),
+      ],
+      {
+        table: "governance_audit_events",
+        column: "resource_id",
+        code: "CRM_LEAD_INVALID_STATE",
+        message: "Lead unavailable",
+      },
+    );
+  } catch (error) {
+    const lostClaim =
+      (error instanceof Problem && error.code === "CRM_LEAD_INVALID_STATE") ||
+      String(error).includes(
+        "UNIQUE constraint failed: crm_opportunities.lead_intake_id",
+      );
+    if (lostClaim) {
+      const existing = await db
+        .prepare(
+          "SELECT o.id FROM crm_opportunities o JOIN crm_lead_intakes l ON l.id=o.lead_intake_id WHERE o.lead_intake_id=? AND l.status='CONVERTED'",
+        )
+        .bind(leadId)
+        .first<{ id: string }>();
+      if (existing) return existing.id;
+      throw new Problem(409, "CRM_LEAD_INVALID_STATE", "Lead unavailable");
+    }
+    throw error;
+  }
   return opportunityId;
 }
 export async function moveOpportunityStage(
