@@ -42,6 +42,26 @@ beforeAll(async () => {
 });
 
 describe("R2 storage state machine", () => {
+  it("promotes bounded quarantined uploads through scheduled scan maintenance", async () => {
+    const service = files(e.DB, e.PRIVATE_BUCKET, {
+      scanner: deterministicTestScanner,
+    });
+    const upload = await service.requestUpload(
+      user,
+      "image/png",
+      png.length,
+      "scheduled-scan",
+    );
+    await service.putQuarantineObject(upload.id, png, "image/png");
+    expect(await service.scanQuarantinedUploads(1)).toBe(1);
+    const status = await e.DB.prepare(
+      "SELECT status FROM storage_files WHERE id=?",
+    )
+      .bind(upload.id)
+      .first<{ status: string }>();
+    expect(status?.status).toBe("ACTIVE");
+    expect(await service.scanQuarantinedUploads(1)).toBe(0);
+  });
   it("requires quarantine upload and validates size/MIME", async () => {
     const service = files(e.DB, e.PRIVATE_BUCKET, {
       scanner: deterministicTestScanner,

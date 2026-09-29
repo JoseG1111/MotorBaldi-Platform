@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { Problem } from "@motorbaldi/contracts";
+import { Problem, type Principal } from "@motorbaldi/contracts";
+import { requirePlatformPermission } from "@motorbaldi/authz";
 import {
   auditStatement,
   guardedBatch,
@@ -10,6 +11,10 @@ import { normalizeEmail, type PersonInput } from "@motorbaldi/identity";
 import { newId, utcNow } from "@motorbaldi/shared";
 
 const id = z.string().uuid();
+type StaffPrincipal = Principal & { personId: string };
+async function requireCrmManager(db: D1Database, actor: StaffPrincipal) {
+  await requirePlatformPermission(db, actor, "platform.crm.manage");
+}
 async function requireActiveCrmAssignee(db: D1Database, personId: string) {
   const row = await db
     .prepare(
@@ -120,10 +125,11 @@ export async function receiveLead(
 export async function triageLead(
   db: D1Database,
   leadId: string,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   action: "TRIAGED" | "REJECTED" | "SPAM",
   requestId: string,
 ) {
+  await requireCrmManager(db, actor);
   const result = await guardedBatch(
     db,
     [
@@ -131,14 +137,14 @@ export async function triageLead(
         .prepare(
           "UPDATE crm_lead_intakes SET status=?,triaged_at=?,assigned_to_person_id=?,version=version+1 WHERE id=? AND status='RECEIVED'",
         )
-        .bind(action, utcNow(), actorPersonId, leadId),
+        .bind(action, utcNow(), actor.personId, leadId),
       db
         .prepare(
           "INSERT INTO crm_lead_triage_events(lead_id,decision,actor_person_id) VALUES(?,CASE WHEN changes()=1 THEN ? ELSE NULL END,?)",
         )
-        .bind(leadId, action, actorPersonId),
+        .bind(leadId, action, actor.personId),
       auditStatement(db, {
-        actorId: actorPersonId,
+        actorId: actor.personId,
         action: "crm.lead.triaged",
         resourceType: "crm_lead",
         resourceId: leadId,
@@ -159,9 +165,10 @@ export async function linkLeadPerson(
   db: D1Database,
   leadId: string,
   personId: string,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   requestId: string,
 ) {
+  await requireCrmManager(db, actor);
   const person = await db
     .prepare("SELECT status FROM iam_people WHERE id=?")
     .bind(personId)
@@ -173,9 +180,9 @@ export async function linkLeadPerson(
       .prepare(
         "UPDATE crm_lead_intakes SET person_id=?,status='TRIAGED',triaged_at=?,assigned_to_person_id=?,version=version+1 WHERE id=? AND status IN ('RECEIVED','TRIAGED')",
       )
-      .bind(personId, utcNow(), actorPersonId, leadId),
+      .bind(personId, utcNow(), actor.personId, leadId),
     auditStatement(db, {
-      actorId: actorPersonId,
+      actorId: actor.personId,
       action: "crm.lead.person.linked",
       requirePreviousChange: true,
       resourceType: "crm_lead",
@@ -189,9 +196,10 @@ export async function linkLeadPerson(
 export async function createPersonFromLead(
   db: D1Database,
   leadId: string,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   requestId: string,
 ) {
+  await requireCrmManager(db, actor);
   const lead = await db
     .prepare(
       "SELECT given_name,family_name,email,status,person_id FROM crm_lead_intakes WHERE id=?",
@@ -240,12 +248,12 @@ export async function createPersonFromLead(
       .prepare(
         "UPDATE crm_lead_intakes SET person_id=?,status='TRIAGED',triaged_at=?,assigned_to_person_id=?,version=version+1 WHERE id=? AND person_id IS NULL AND status IN ('RECEIVED','TRIAGED')",
       )
-      .bind(personId, utcNow(), actorPersonId, leadId),
+      .bind(personId, utcNow(), actor.personId, leadId),
     db
       .prepare(
         "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,request_id) VALUES(?,?,'identity.person.created','iam_person',CASE WHEN (SELECT person_id FROM crm_lead_intakes WHERE id=?)=? THEN ? ELSE NULL END,?)",
       )
-      .bind(newId(), actorPersonId, leadId, personId, personId, requestId),
+      .bind(newId(), actor.personId, leadId, personId, personId, requestId),
   );
   await guardedBatch(db, statements, {
     table: "governance_audit_events",
@@ -258,12 +266,13 @@ export async function createPersonFromLead(
 export async function convertLead(
   db: D1Database,
   leadId: string,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   pipelineId: string,
   stageId: string,
   title: string,
   requestId: string,
 ) {
+  await requireCrmManager(db, actor);
   const lead = await db
     .prepare(
       "SELECT status,person_id,organization_id FROM crm_lead_intakes WHERE id=?",
@@ -297,7 +306,7 @@ export async function convertLead(
         lead.organization_id,
         leadId,
         title.trim(),
-        actorPersonId,
+        actor.personId,
       ),
     db
       .prepare(
@@ -308,7 +317,7 @@ export async function convertLead(
         lead.person_id,
         lead.organization_id,
         opportunityId,
-        actorPersonId,
+        actor.personId,
         utcNow(),
       ),
     db
@@ -317,7 +326,7 @@ export async function convertLead(
       )
       .bind(utcNow(), leadId),
     auditStatement(db, {
-      actorId: actorPersonId,
+      actorId: actor.personId,
       action: "crm.lead.converted",
       resourceType: "crm_lead",
       resourceId: leadId,
@@ -338,9 +347,10 @@ export async function moveOpportunityStage(
   opportunityId: string,
   stageId: string,
   expectedVersion: number,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   requestId: string,
 ) {
+  await requireCrmManager(db, actor);
   const current = await db
     .prepare(
       "SELECT pipeline_id,status,version FROM crm_opportunities WHERE id=?",
@@ -389,9 +399,9 @@ export async function moveOpportunityStage(
         .prepare(
           "INSERT INTO crm_opportunity_stage_events(opportunity_id,from_version,stage_id,actor_person_id) VALUES(?,?,CASE WHEN changes()=1 THEN ? ELSE NULL END,?)",
         )
-        .bind(opportunityId, expectedVersion, stageId, actorPersonId),
+        .bind(opportunityId, expectedVersion, stageId, actor.personId),
       auditStatement(db, {
-        actorId: actorPersonId,
+        actorId: actor.personId,
         action: "crm.opportunity.stage.changed",
         resourceType: "crm_opportunity",
         resourceId: opportunityId,
@@ -429,9 +439,10 @@ export const activityInput = z
   .strict();
 export async function recordActivity(
   db: D1Database,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   input: z.infer<typeof activityInput>,
 ) {
+  await requireCrmManager(db, actor);
   const c = activityInput.parse(input);
   const activityId = newId();
   await db
@@ -444,7 +455,7 @@ export async function recordActivity(
       c.personId ?? null,
       c.organizationId ?? null,
       c.opportunityId ?? null,
-      actorPersonId,
+      actor.personId,
       c.occurredAt,
       c.summary,
     )
@@ -462,9 +473,10 @@ export const noteInput = z
   .refine((c) => Boolean(c.personId || c.organizationId || c.opportunityId));
 export async function createNote(
   db: D1Database,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   input: z.infer<typeof noteInput>,
 ) {
+  await requireCrmManager(db, actor);
   const c = noteInput.parse(input);
   const noteId = newId();
   await db
@@ -473,7 +485,7 @@ export async function createNote(
     )
     .bind(
       noteId,
-      actorPersonId,
+      actor.personId,
       c.personId ?? null,
       c.organizationId ?? null,
       c.opportunityId ?? null,
@@ -495,10 +507,11 @@ export const taskInput = z
   .strict();
 export async function createTask(
   db: D1Database,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   input: z.infer<typeof taskInput>,
   requestId: string,
 ) {
+  await requireCrmManager(db, actor);
   const c = taskInput.parse(input);
   await requireActiveCrmAssignee(db, c.ownerPersonId);
   const taskId = newId();
@@ -510,7 +523,7 @@ export async function createTask(
       .bind(
         taskId,
         c.ownerPersonId,
-        actorPersonId,
+        actor.personId,
         c.dueAt ?? null,
         c.priority,
         c.description,
@@ -519,7 +532,7 @@ export async function createTask(
         c.opportunityId ?? null,
       ),
     auditStatement(db, {
-      actorId: actorPersonId,
+      actorId: actor.personId,
       action: "crm.task.created",
       resourceType: "crm_task",
       resourceId: taskId,
@@ -530,7 +543,7 @@ export async function createTask(
 }
 export async function updateTask(
   db: D1Database,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   taskId: string,
   input: {
     status: "OPEN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
@@ -538,6 +551,7 @@ export async function updateTask(
   },
   requestId: string,
 ) {
+  await requireCrmManager(db, actor);
   const c = z
     .object({
       status: z.enum(["OPEN", "IN_PROGRESS", "COMPLETED", "CANCELLED"]),
@@ -552,7 +566,7 @@ export async function updateTask(
       )
       .bind(c.status, c.status, utcNow(), utcNow(), taskId, c.version),
     auditStatement(db, {
-      actorId: actorPersonId,
+      actorId: actor.personId,
       action: "crm.task.updated",
       requirePreviousChange: true,
       resourceType: "crm_task",
@@ -566,11 +580,12 @@ export async function updateTask(
 }
 export async function assignLead(
   db: D1Database,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   leadId: string,
   targetPersonId: string,
   requestId: string,
 ) {
+  await requireCrmManager(db, actor);
   await requireActiveCrmAssignee(db, targetPersonId);
   const current = await db
     .prepare("SELECT assigned_to_person_id FROM crm_lead_intakes WHERE id=?")
@@ -593,10 +608,10 @@ export async function assignLead(
         leadId,
         current.assigned_to_person_id,
         targetPersonId,
-        actorPersonId,
+        actor.personId,
       ),
     auditStatement(db, {
-      actorId: actorPersonId,
+      actorId: actor.personId,
       action: "crm.lead.assigned",
       resourceType: "crm_lead",
       resourceId: leadId,
@@ -604,7 +619,13 @@ export async function assignLead(
     }),
   ]);
 }
-export async function createTag(db: D1Database, code: string, label: string) {
+export async function createTag(
+  db: D1Database,
+  actor: StaffPrincipal,
+  code: string,
+  label: string,
+) {
+  await requireCrmManager(db, actor);
   const c = z
     .object({
       code: z.string().regex(/^[A-Z][A-Z0-9_]{1,63}$/),
@@ -622,11 +643,12 @@ export async function createTag(db: D1Database, code: string, label: string) {
 
 export async function assignOpportunity(
   db: D1Database,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   opportunityId: string,
   targetPersonId: string,
   requestId: string,
 ) {
+  await requireCrmManager(db, actor);
   await requireActiveCrmAssignee(db, targetPersonId);
   const current = await db
     .prepare("SELECT owner_person_id FROM crm_opportunities WHERE id=?")
@@ -649,10 +671,10 @@ export async function assignOpportunity(
         opportunityId,
         current.owner_person_id,
         targetPersonId,
-        actorPersonId,
+        actor.personId,
       ),
     auditStatement(db, {
-      actorId: actorPersonId,
+      actorId: actor.personId,
       action: "crm.opportunity.assigned",
       resourceType: "crm_opportunity",
       resourceId: opportunityId,
@@ -662,11 +684,12 @@ export async function assignOpportunity(
 }
 export async function assignTask(
   db: D1Database,
-  actorPersonId: string,
+  actor: StaffPrincipal,
   taskId: string,
   targetPersonId: string,
   requestId: string,
 ) {
+  await requireCrmManager(db, actor);
   await requireActiveCrmAssignee(db, targetPersonId);
   const current = await db
     .prepare("SELECT owner_person_id FROM crm_tasks WHERE id=?")
@@ -689,10 +712,10 @@ export async function assignTask(
         taskId,
         current.owner_person_id,
         targetPersonId,
-        actorPersonId,
+        actor.personId,
       ),
     auditStatement(db, {
-      actorId: actorPersonId,
+      actorId: actor.personId,
       action: "crm.task.assigned",
       resourceType: "crm_task",
       resourceId: taskId,
@@ -702,10 +725,12 @@ export async function assignTask(
 }
 export async function assignTag(
   db: D1Database,
+  actor: StaffPrincipal,
   tagId: string,
   entityType: "PERSON" | "ORGANIZATION" | "LEAD" | "OPPORTUNITY",
   entityId: string,
 ) {
+  await requireCrmManager(db, actor);
   const table = {
     PERSON: "iam_people",
     ORGANIZATION: "org_organizations",

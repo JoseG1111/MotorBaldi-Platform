@@ -7,6 +7,7 @@
     ".": "./src/index.js"
   },
   "dependencies": {
+    "@motorbaldi/authz": "workspace:*",
     "@motorbaldi/contracts": "workspace:*",
     "@motorbaldi/db": "workspace:*",
     "@motorbaldi/shared": "workspace:*",

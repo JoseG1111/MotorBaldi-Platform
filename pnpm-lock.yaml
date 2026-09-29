@@ -153,6 +153,9 @@ importers:
       '@motorbaldi/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@motorbaldi/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   apps/portal:
     dependencies:
@@ -240,6 +243,9 @@ importers:
 
   packages/crm:
     dependencies:
+      '@motorbaldi/authz':
+        specifier: workspace:*
+        version: link:../authz
       '@motorbaldi/contracts':
         specifier: workspace:*
         version: link:../contracts

@@ -24,6 +24,7 @@ import {
 import { leadInput, receiveLead, convertLead } from "@motorbaldi/crm";
 import { mergePeople } from "@motorbaldi/identity";
 import { requirePlatformPermission } from "@motorbaldi/authz";
+import { assessAuthenticatedSession } from "@motorbaldi/auth";
 
 export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   private tail: Promise<void> = Promise.resolve();
@@ -32,6 +33,7 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
     request: Json,
     requestId: string,
     accountId: string,
+    sessionId: string | null,
   ): Promise<{ response: Json; storedResponse?: Json }> {
     if (operation === "crm.lead.create") {
       const body = leadInput.parse(request);
@@ -39,22 +41,21 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         response: { leadId: await receiveLead(this.env.DB, body, requestId) },
       };
     }
-    const account =
-      operation === "foundation.test"
-        ? null
-        : await ensureMotorBaldiAccount(this.env.DB, accountId, requestId);
-    const factor = account
-      ? await this.env.DB.prepare(
-          "SELECT two_factor_enabled FROM auth_users WHERE id=?",
-        )
-          .bind(accountId)
-          .first<{ two_factor_enabled: number }>()
+    const requiresAccount = operation !== "foundation.test";
+    const assurance =
+      requiresAccount && sessionId
+        ? await assessAuthenticatedSession(this.env.DB, accountId, sessionId)
+        : null;
+    if (requiresAccount && !assurance)
+      throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
+    const account = requiresAccount
+      ? await ensureMotorBaldiAccount(this.env.DB, accountId, requestId)
       : null;
     const actor = account
       ? ({
           accountId,
           personId: account.personId,
-          mfaEnabled: factor?.two_factor_enabled === 1,
+          mfaEnabled: assurance!.mfaEnabled,
         } as BusinessPrincipal)
       : null;
     const body = request as Record<string, Json>;
@@ -156,7 +157,7 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
           opportunityId: await convertLead(
             this.env.DB,
             String(body.leadId),
-            actor!.personId,
+            actor!,
             String(body.pipelineId),
             String(body.stageId),
             String(body.title),
@@ -230,6 +231,7 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
       scope: IdempotencyScope;
       request: Json;
       requestId: string;
+      sessionId?: string | null;
     };
     await assertDatabaseEnvironment(this.env.DB, this.env.ENVIRONMENT);
     const replay = await readReplay<Json>(
@@ -248,6 +250,7 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
       input.request,
       input.requestId,
       input.scope.accountId,
+      input.sessionId ?? null,
     );
     try {
       await storeReplay(

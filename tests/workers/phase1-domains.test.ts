@@ -114,7 +114,7 @@ describe("Phase 1 domain integration", () => {
     await suspendAccount(
       db,
       accountId,
-      principals[2]!.accountId,
+      principals[2]!,
       "Policy review",
       "suspend-once",
     );
@@ -125,7 +125,7 @@ describe("Phase 1 domain integration", () => {
       suspendAccount(
         db,
         accountId,
-        principals[2]!.accountId,
+        principals[2]!,
         "Policy review",
         "suspend-again",
       ),
@@ -567,13 +567,13 @@ describe("Phase 1 domain integration", () => {
     const personId = await createPersonFromLead(
       db,
       leadId,
-      principals[2]!.personId,
+      principals[2]!,
       "triage-one",
     );
     const opportunityId = await convertLead(
       db,
       leadId,
-      principals[2]!.personId,
+      principals[2]!,
       "customer-acquisition",
       "customer-new",
       "New lead",
@@ -583,7 +583,7 @@ describe("Phase 1 domain integration", () => {
       await convertLead(
         db,
         leadId,
-        principals[2]!.personId,
+        principals[2]!,
         "customer-acquisition",
         "customer-new",
         "New lead",
@@ -610,8 +610,8 @@ describe("Phase 1 domain integration", () => {
       .prepare("SELECT count(*) AS n FROM iam_people")
       .first<{ n: number }>())!.n;
     const attempts = await Promise.allSettled([
-      createPersonFromLead(db, leadId, principals[2]!.personId, "race-a"),
-      createPersonFromLead(db, leadId, principals[2]!.personId, "race-b"),
+      createPersonFromLead(db, leadId, principals[2]!, "race-a"),
+      createPersonFromLead(db, leadId, principals[2]!, "race-b"),
     ]);
     expect(
       attempts.filter((result) => result.status === "fulfilled"),
@@ -644,7 +644,7 @@ describe("Phase 1 domain integration", () => {
     const source = await createPersonFromLead(
       db,
       leadId,
-      principals[2]!.personId,
+      principals[2]!,
       "duplicate-triage",
     );
     const sourceMembership = "018f0000-0000-7000-8000-000000000401";

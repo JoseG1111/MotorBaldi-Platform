@@ -5,6 +5,7 @@ import { assertDatabaseEnvironment } from "@motorbaldi/db/environment";
 import { buildIdempotencyScope } from "@motorbaldi/db/idempotency";
 import { errorTracker, logger } from "@motorbaldi/observability";
 import { newId, type Json } from "@motorbaldi/shared";
+import { files, unavailableScanner } from "@motorbaldi/storage";
 import { openapi } from "./openapi.js";
 import { z, ZodError } from "zod";
 import {
@@ -243,8 +244,33 @@ async function boundedJson(
   }
 }
 
+async function boundedEvidence(request: Request) {
+  const reader = request.body?.getReader();
+  if (!reader) throw new Problem(400, "INVALID_FILE", "File required");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > 10485760) {
+      await reader.cancel();
+      throw new Problem(413, "BODY_TOO_LARGE", "File too large");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 async function idempotentCommand(
   env: ApiBindings,
+  headers: Headers,
   operation: string,
   accountId: string,
   body: Json,
@@ -252,12 +278,27 @@ async function idempotentCommand(
   key: string,
   organizationId?: string,
 ) {
+  let sessionId: string | null = null;
+  if (operation !== "crm.lead.create") {
+    const session = await authentication(
+      env,
+      apiConfig(env),
+      requestId,
+    ).auth.api.getSession({ headers });
+    if (
+      !session ||
+      session.user.id !== accountId ||
+      !session.user.emailVerified
+    )
+      throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
+    sessionId = session.session.id;
+  }
   const scope = buildIdempotencyScope({ accountId, operation, organizationId });
   const response = await env.IDEMPOTENCY_COORDINATOR.getByName(
     scope.scope + ":" + key,
   ).fetch("https://idempotency/run", {
     method: "POST",
-    body: JSON.stringify({ key, scope, request: body, requestId }),
+    body: JSON.stringify({ key, scope, request: body, requestId, sessionId }),
   });
   const result = await response.json<Record<string, Json>>();
   if (!response.ok)
@@ -358,6 +399,7 @@ async function route(
     const input = leadInput.parse(lead);
     await idempotentCommand(
       env,
+      request.headers,
       "crm.lead.create",
       "00000000-0000-7000-8000-000000000001",
       input,
@@ -389,6 +431,62 @@ async function route(
       throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
     return principal as typeof principal & { personId: string };
   };
+  if (url.pathname === "/api/v1/me/evidence-files") {
+    const actor = await businessPrincipal();
+    if (request.method === "GET") {
+      const rows = await env.DB.prepare(
+        "SELECT id,status,last_error_code,declared_mime,size_bytes,created_at FROM storage_files WHERE uploaded_by_account_id=? AND status <> 'DELETED' ORDER BY created_at DESC,id DESC LIMIT 50",
+      )
+        .bind(actor.accountId)
+        .all();
+      return json(rows.results, { headers: cors });
+    }
+    requireMethod("POST");
+    const mime =
+      request.headers
+        .get("content-type")
+        ?.split(";", 1)[0]
+        ?.trim()
+        .toLowerCase() ?? "";
+    const declaredSize = Number(request.headers.get("x-file-size"));
+    if (
+      !Number.isSafeInteger(declaredSize) ||
+      declaredSize < 1 ||
+      declaredSize > 10485760
+    )
+      throw new Problem(400, "INVALID_FILE", "Invalid file size");
+    const bytes = await boundedEvidence(request);
+    if (bytes.length !== declaredSize)
+      throw new Problem(400, "INVALID_FILE", "File size mismatch");
+    const storage = files(env.DB, env.PRIVATE_BUCKET, {
+      scanner: unavailableScanner,
+    });
+    const upload = await storage.requestUpload(
+      actor.accountId,
+      mime,
+      declaredSize,
+      requestId,
+    );
+    await storage.putQuarantineObject(upload.id, bytes, mime);
+    return json(
+      { fileId: upload.id, status: "QUARANTINED" },
+      { status: 202, headers: cors },
+    );
+  }
+  const ownEvidence = url.pathname.match(
+    /^\/api\/v1\/me\/evidence-files\/([0-9a-f-]{36})$/,
+  );
+  if (ownEvidence) {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    const row = await env.DB.prepare(
+      "SELECT id,status,last_error_code,declared_mime,size_bytes FROM storage_files WHERE id=? AND uploaded_by_account_id=?",
+    )
+      .bind(ownEvidence[1]!, actor.accountId)
+      .first();
+    if (!row) throw new Problem(404, "FILE_NOT_FOUND", "File unavailable");
+    return json(row, { headers: cors });
+  }
   if (
     url.pathname === "/api/v1/me" ||
     url.pathname === "/api/v1/me/workspaces"
@@ -414,6 +512,7 @@ async function route(
     const body = organizationInput.parse(await boundedJson(request));
     const result = await idempotentCommand(
       env,
+      request.headers,
       "organization.create",
       principal.accountId,
       body,
@@ -768,6 +867,7 @@ async function route(
       .parse(await boundedJson(request));
     const result = await idempotentCommand(
       env,
+      request.headers,
       "organization.invitation.accept",
       actor.accountId,
       body,
@@ -900,6 +1000,7 @@ async function route(
         .parse(await boundedJson(request));
       const result = await idempotentCommand(
         env,
+        request.headers,
         "organization.invitation.create",
         actor.accountId,
         { organizationId, ...body },
@@ -942,6 +1043,7 @@ async function route(
         .parse(await boundedJson(request));
       const result = await idempotentCommand(
         env,
+        request.headers,
         "organization.membership-request.create",
         actor.accountId,
         { organizationId, ...body },
@@ -954,6 +1056,7 @@ async function route(
     requireMethod("POST");
     const result = await idempotentCommand(
       env,
+      request.headers,
       "organization.verification.submit",
       actor.accountId,
       { organizationId },
@@ -973,6 +1076,7 @@ async function route(
       membershipRequestId = approveRequest[2]!;
     const result = await idempotentCommand(
       env,
+      request.headers,
       "organization.membership-request.approve",
       actor.accountId,
       { organizationId, membershipRequestId },
@@ -1064,6 +1168,25 @@ async function route(
   const evidenceAttach = url.pathname.match(
     /^\/api\/v1\/organizations\/([0-9a-f-]{36})\/verification\/([0-9a-f-]{36})\/files$/,
   );
+  const organizationCases = url.pathname.match(
+    /^\/api\/v1\/organizations\/([0-9a-f-]{36})\/verification\/cases$/,
+  );
+  if (organizationCases) {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requireOrganizationPermission(
+      env.DB,
+      actor,
+      organizationCases[1]!,
+      "org.verification.submit",
+    );
+    const rows = await env.DB.prepare(
+      "SELECT id,status,submitted_at FROM org_verification_cases WHERE organization_id=? ORDER BY submitted_at DESC,id DESC LIMIT 20",
+    )
+      .bind(organizationCases[1]!)
+      .all();
+    return json(rows.results, { headers: cors });
+  }
   if (evidenceAttach) {
     requireMethod("POST");
     const actor = await businessPrincipal();
@@ -1156,7 +1279,7 @@ async function route(
     await suspendAccount(
       env.DB,
       suspendAccountMatch[1]!,
-      actor.accountId,
+      actor,
       body.reason,
       requestId,
     );
@@ -1321,6 +1444,7 @@ async function route(
       .parse(await boundedJson(request));
     const result = await idempotentCommand(
       env,
+      request.headers,
       "identity.person.merge",
       actor.accountId,
       {
@@ -1479,6 +1603,7 @@ async function route(
     }
     const result = await idempotentCommand(
       env,
+      request.headers,
       verificationAction[3] === "approve"
         ? "organization.verification.approve"
         : "organization.verification.reject",
@@ -1537,13 +1662,7 @@ async function route(
         .object({ decision: z.enum(["TRIAGED", "REJECTED", "SPAM"]) })
         .strict()
         .parse(await boundedJson(request));
-      await triageLead(
-        env.DB,
-        leadId,
-        actor.personId,
-        body.decision,
-        requestId,
-      );
+      await triageLead(env.DB, leadId, actor, body.decision, requestId);
       return json({ triaged: true }, { headers: cors });
     }
     if (action === "create-person") {
@@ -1552,7 +1671,7 @@ async function route(
           personId: await createPersonFromLead(
             env.DB,
             leadId,
-            actor.personId,
+            actor,
             requestId,
           ),
         },
@@ -1564,13 +1683,7 @@ async function route(
         .object({ personId: z.string().uuid() })
         .strict()
         .parse(await boundedJson(request));
-      await linkLeadPerson(
-        env.DB,
-        leadId,
-        body.personId,
-        actor.personId,
-        requestId,
-      );
+      await linkLeadPerson(env.DB, leadId, body.personId, actor, requestId);
       return json({ linked: true }, { headers: cors });
     }
     if (action === "assign") {
@@ -1578,13 +1691,7 @@ async function route(
         .object({ personId: z.string().uuid() })
         .strict()
         .parse(await boundedJson(request));
-      await assignLead(
-        env.DB,
-        actor.personId,
-        leadId,
-        body.personId,
-        requestId,
-      );
+      await assignLead(env.DB, actor, leadId, body.personId, requestId);
       return json({ assigned: true }, { headers: cors });
     }
     const body = z
@@ -1597,6 +1704,7 @@ async function route(
       .parse(await boundedJson(request));
     const result = await idempotentCommand(
       env,
+      request.headers,
       "crm.lead.convert",
       actor.accountId,
       { leadId, ...body },
@@ -1673,7 +1781,7 @@ async function route(
       opportunityStage[1]!,
       body.stageId,
       body.version,
-      actor.personId,
+      actor,
       requestId,
     );
     return json({ updated: true }, { headers: cors });
@@ -1691,7 +1799,7 @@ async function route(
       .parse(await boundedJson(request));
     await assignOpportunity(
       env.DB,
-      actor.personId,
+      actor,
       opportunityAssign[1]!,
       body.personId,
       requestId,
@@ -1731,7 +1839,7 @@ async function route(
       {
         activityId: await recordActivity(
           env.DB,
-          actor.personId,
+          actor,
           activityInput.parse(await boundedJson(request)),
         ),
       },
@@ -1771,7 +1879,7 @@ async function route(
       {
         noteId: await createNote(
           env.DB,
-          actor.personId,
+          actor,
           noteInput.parse(await boundedJson(request)),
         ),
       },
@@ -1805,7 +1913,7 @@ async function route(
       {
         taskId: await createTask(
           env.DB,
-          actor.personId,
+          actor,
           taskInput.parse(await boundedJson(request)),
           requestId,
         ),
@@ -1831,7 +1939,7 @@ async function route(
       {
         version: await updateTask(
           env.DB,
-          actor.personId,
+          actor,
           taskUpdate[1]!,
           body,
           requestId,
@@ -1851,13 +1959,7 @@ async function route(
       .object({ personId: z.string().uuid() })
       .strict()
       .parse(await boundedJson(request));
-    await assignTask(
-      env.DB,
-      actor.personId,
-      taskAssign[1]!,
-      body.personId,
-      requestId,
-    );
+    await assignTask(env.DB, actor, taskAssign[1]!, body.personId, requestId);
     return json({ assigned: true }, { headers: cors });
   }
   if (url.pathname === "/api/v1/admin/crm/tags") {
@@ -1882,7 +1984,7 @@ async function route(
       .strict()
       .parse(await boundedJson(request));
     return json(
-      { tagId: await createTag(env.DB, body.code, body.label) },
+      { tagId: await createTag(env.DB, actor, body.code, body.label) },
       { status: 201, headers: cors },
     );
   }
@@ -1900,7 +2002,13 @@ async function route(
       })
       .strict()
       .parse(await boundedJson(request));
-    await assignTag(env.DB, tagAssign[1]!, body.entityType, body.entityId);
+    await assignTag(
+      env.DB,
+      actor,
+      tagAssign[1]!,
+      body.entityType,
+      body.entityId,
+    );
     return json({ assigned: true }, { headers: cors });
   }
   if (url.pathname === "/api/v1/admin/crm/pipelines") {
@@ -1915,6 +2023,28 @@ async function route(
   const credentialReview = url.pathname.match(
     /^\/api\/v1\/admin\/professionals\/([0-9a-f-]{36})\/credentials\/([0-9a-f-]{36})\/(verify|reject)$/,
   );
+  if (url.pathname === "/api/v1/admin/professionals/credentials") {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(
+      env.DB,
+      actor,
+      "platform.professional.read",
+    );
+    const rows = await env.DB.prepare(
+      "SELECT c.id,c.person_id,c.credential_type,c.issuer,c.status,CASE WHEN f.status='ACTIVE' THEN c.evidence_file_id ELSE NULL END AS evidence_file_id,c.created_at,p.display_name FROM professional_credentials c JOIN iam_people p ON p.id=c.person_id LEFT JOIN storage_files f ON f.id=c.evidence_file_id WHERE c.status='PENDING' ORDER BY c.created_at,c.id LIMIT 50",
+    ).all();
+    return json(rows.results, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/admin/duplicate-candidates") {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    await requirePlatformPermission(env.DB, actor, "platform.people.merge");
+    const rows = await env.DB.prepare(
+      "SELECT id,source_person_id,destination_person_id,reason,created_at FROM iam_duplicate_candidates WHERE status='OPEN' ORDER BY created_at,id LIMIT 50",
+    ).all();
+    return json(rows.results, { headers: cors });
+  }
   const credentialEvidence = url.pathname.match(
     /^\/api\/v1\/admin\/professionals\/([0-9a-f-]{36})\/credentials\/([0-9a-f-]{36})\/evidence$/,
   );

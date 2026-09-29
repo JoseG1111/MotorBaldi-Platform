@@ -1187,7 +1187,9 @@ export async function requestVerificationInformation(
   reason: string,
   requestId: string,
 ) {
-  await requirePlatformPermission(db, actor, "platform.organization.verify");
+  await requirePlatformPermission(db, actor, "platform.organization.verify", {
+    mfa: true,
+  });
   if (!reason.trim())
     throw new Problem(400, "REASON_REQUIRED", "Reason required");
   await guardedBatch(

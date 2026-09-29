@@ -141,6 +141,8 @@ export default {
           : unavailableScanner,
     });
     ctx.waitUntil(storage.recoverExpiredFileScans());
+    if (c.malwareScannerProvider !== "UNCONFIGURED")
+      ctx.waitUntil(storage.scanQuarantinedUploads());
     ctx.waitUntil(storage.cleanupStaleUploads());
     ctx.waitUntil(storage.cleanupOrphanPromotions());
     ctx.waitUntil(recoverExpiredLeases(env.DB));

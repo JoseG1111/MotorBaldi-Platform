@@ -16,6 +16,7 @@
     "@motorbaldi/messaging": "workspace:*",
     "@motorbaldi/observability": "workspace:*",
     "@motorbaldi/shared": "workspace:*",
+    "@motorbaldi/storage": "workspace:*",
     "@motorbaldi/identity": "workspace:*",
     "@motorbaldi/organizations": "workspace:*",
     "@motorbaldi/professional": "workspace:*",

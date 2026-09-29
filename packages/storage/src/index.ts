@@ -195,6 +195,24 @@ export function files(
       return status;
     },
 
+    async scanQuarantinedUploads(limit = 25) {
+      const rows = await db
+        .prepare(
+          "SELECT id FROM storage_files WHERE status='QUARANTINED' ORDER BY created_at,id LIMIT ?",
+        )
+        .bind(Math.min(Math.max(limit, 1), 100))
+        .all<{ id: string }>();
+      for (const row of rows.results ?? []) {
+        try {
+          await this.scan(row.id, newId());
+        } catch (error) {
+          if (!(error instanceof Problem) || error.code !== "FILE_STATE")
+            throw error;
+        }
+      }
+      return rows.results?.length ?? 0;
+    },
+
     async download(id: string, actorAccountId: string) {
       if (!(await options.authorizeDownload?.(actorAccountId, id)))
         throw new Problem(404, "FILE_NOT_FOUND", "File not found");

@@ -242,7 +242,7 @@ describe("Phase 1.1 closeout", () => {
       suspendAccount(
         db,
         "018f0000-0000-7000-8000-000000000499",
-        actors[0]!.accountId,
+        actors[0]!,
         "Missing account",
         "suspend-invalid",
       ),
@@ -251,7 +251,7 @@ describe("Phase 1.1 closeout", () => {
       triageLead(
         db,
         "018f0000-0000-7000-8000-000000000499",
-        actors[0]!.personId,
+        actors[0]!,
         "TRIAGED",
         "triage-invalid",
       ),
@@ -262,7 +262,7 @@ describe("Phase 1.1 closeout", () => {
         "018f0000-0000-7000-8000-000000000499",
         "customer-contacted",
         1,
-        actors[0]!.personId,
+        actors[0]!,
         "stage-invalid",
       ),
     ).rejects.toMatchObject({ code: "OPPORTUNITY_INVALID_STATE" });
@@ -298,15 +298,9 @@ describe("Phase 1.1 closeout", () => {
       { email: "triage-state@example.test" },
       "triage-state-lead",
     );
-    await triageLead(
-      db,
-      leadId,
-      actors[0]!.personId,
-      "TRIAGED",
-      "triage-valid",
-    );
+    await triageLead(db, leadId, actors[0]!, "TRIAGED", "triage-valid");
     await expect(
-      triageLead(db, leadId, actors[0]!.personId, "TRIAGED", "triage-repeat"),
+      triageLead(db, leadId, actors[0]!, "TRIAGED", "triage-repeat"),
     ).rejects.toMatchObject({ code: "CRM_LEAD_INVALID_STATE" });
     const caseId = await submitVerification(
       db,
@@ -433,7 +427,7 @@ describe("Phase 1.1 closeout", () => {
         id,
         "customer-contacted",
         1,
-        actors[0]!.personId,
+        actors[0]!,
         `normal-${suffix}`,
       );
       const open = await db
@@ -447,7 +441,7 @@ describe("Phase 1.1 closeout", () => {
           id,
           "workshop-active",
           2,
-          actors[0]!.personId,
+          actors[0]!,
           `wrong-pipeline-${suffix}`,
         ),
       ).rejects.toMatchObject({ code: "INVALID_OPPORTUNITY_STAGE" });
@@ -457,7 +451,7 @@ describe("Phase 1.1 closeout", () => {
           id,
           terminal,
           1,
-          actors[0]!.personId,
+          actors[0]!,
           `stale-${suffix}`,
         ),
       ).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
@@ -466,7 +460,7 @@ describe("Phase 1.1 closeout", () => {
         id,
         terminal,
         2,
-        actors[0]!.personId,
+        actors[0]!,
         `terminal-${suffix}`,
       );
       const closed = await db
@@ -483,7 +477,7 @@ describe("Phase 1.1 closeout", () => {
           id,
           "customer-contacted",
           3,
-          actors[0]!.personId,
+          actors[0]!,
           `reopen-${suffix}`,
         ),
       ).rejects.toMatchObject({ code: "OPPORTUNITY_INVALID_STATE" });
@@ -499,7 +493,7 @@ describe("Phase 1.1 closeout", () => {
     const provisional = await createPersonFromLead(
       db,
       leadId,
-      actors[0]!.personId,
+      actors[0]!,
       "duplicate-person",
     );
     const contact = await db
@@ -603,7 +597,7 @@ describe("Phase 1.1 closeout", () => {
     const laterPerson = await createPersonFromLead(
       db,
       laterLead,
-      actors[0]!.personId,
+      actors[0]!,
       "later-person",
     );
     expect(
@@ -625,7 +619,7 @@ describe("Phase 1.1 closeout", () => {
     const verifiedPerson = await createPersonFromLead(
       db,
       verifiedLead,
-      actors[0]!.personId,
+      actors[0]!,
       "verified-match-person",
     );
     await db
@@ -793,7 +787,7 @@ describe("Phase 1.1 closeout", () => {
     );
     await createTask(
       db,
-      actors[0]!.personId,
+      actors[0]!,
       {
         ownerPersonId: actors[2]!.personId,
         description: "Active assignment",
@@ -804,14 +798,14 @@ describe("Phase 1.1 closeout", () => {
     await suspendAccount(
       db,
       actors[2]!.accountId,
-      actors[0]!.accountId,
+      actors[0]!,
       "Suspended",
       "crm-suspension",
     );
     await expect(
       createTask(
         db,
-        actors[0]!.personId,
+        actors[0]!,
         {
           ownerPersonId: actors[2]!.personId,
           description: "Denied assignment",
@@ -823,7 +817,7 @@ describe("Phase 1.1 closeout", () => {
     await expect(
       assignLead(
         db,
-        actors[0]!.personId,
+        actors[0]!,
         leadId,
         actors[2]!.personId,
         "denied-lead-assignment",

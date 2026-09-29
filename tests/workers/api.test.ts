@@ -5,6 +5,7 @@ import { getMigrations } from "better-auth/db/migration";
 import { apiConfig, type ApiBindings } from "@motorbaldi/config";
 import { authOptions } from "@motorbaldi/auth";
 import { ensureMotorBaldiAccount } from "@motorbaldi/identity";
+import { files, deterministicTestScanner } from "@motorbaldi/storage";
 import { createOrganization, addLocation } from "@motorbaldi/organizations";
 import migration from "../../migrations/0001_foundation.sql?raw";
 import phase1Migration from "../../migrations/0002_phase1.sql?raw";
@@ -138,6 +139,171 @@ describe("real D1 migration", () => {
 });
 
 describe("API and Better Auth runtime", () => {
+  it("keeps evidence uploads owner-scoped and quarantined until validated scanning", async () => {
+    const png = Uint8Array.from(
+      atob(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      ),
+      (c) => c.charCodeAt(0),
+    );
+    const signedIn = await signIn();
+    const cookie = signedIn.headers
+      .getSetCookie()
+      .map((value) => value.split(";", 1)[0])
+      .join("; ");
+    const upload = (
+      bytes: Uint8Array,
+      mime = "image/png",
+      size = bytes.length,
+      authCookie = cookie,
+    ) =>
+      call("/api/v1/me/evidence-files", {
+        method: "POST",
+        headers: {
+          cookie: authCookie,
+          "content-type": mime,
+          "x-file-size": String(size),
+        },
+        body: bytes as unknown as BodyInit,
+      });
+    expect((await upload(png, "image/png", png.length, "")).status).toBe(401);
+    expect((await upload(png, "image/png", png.length + 1)).status).toBe(400);
+    expect((await upload(png, "text/plain")).status).toBe(400);
+    const mismatched = await upload(png, "image/jpeg");
+    expect(mismatched.status).toBe(202);
+    const mismatchId = ((await mismatched.json()) as { fileId: string }).fileId;
+    const scanner = files(testEnv.DB, testEnv.PRIVATE_BUCKET, {
+      scanner: deterministicTestScanner,
+    });
+    expect(await scanner.scan(mismatchId, "mismatch-scan")).toBe("REJECTED");
+    const infected = new TextEncoder().encode("%PDF-1.4\nEICAR fixture\n%%EOF");
+    const bad = await upload(infected, "application/pdf");
+    expect(bad.status).toBe(202);
+    expect(
+      await scanner.scan(
+        ((await bad.json()) as { fileId: string }).fileId,
+        "infected-scan",
+      ),
+    ).toBe("REJECTED");
+
+    const good = await upload(png);
+    expect(good.status).toBe(202);
+    const fileId = ((await good.json()) as { fileId: string }).fileId;
+    const org = await call("/api/v1/organizations", {
+      method: "POST",
+      headers: {
+        cookie,
+        "content-type": "application/json",
+        "idempotency-key": "evidence-org-create",
+      },
+      body: JSON.stringify({
+        type: "WORKSHOP",
+        legalName: "Evidence Workshop",
+        displayName: "Evidence Workshop",
+        countryCode: "US",
+      }),
+    });
+    expect(org.status).toBe(201);
+    const organizationId = ((await org.json()) as { organizationId: string })
+      .organizationId;
+    const submitted = await call(
+      `/api/v1/organizations/${organizationId}/verification/submit`,
+      {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/json",
+          "idempotency-key": "evidence-org-submit",
+        },
+        body: "{}",
+      },
+    );
+    expect(submitted.status).toBe(202);
+    const caseId = ((await submitted.json()) as { caseId: string }).caseId;
+    const attach = (id: string, authCookie = cookie) =>
+      call(
+        `/api/v1/organizations/${organizationId}/verification/${caseId}/files`,
+        {
+          method: "POST",
+          headers: { cookie: authCookie, "content-type": "application/json" },
+          body: JSON.stringify({ fileId: id }),
+        },
+      );
+    expect((await attach(fileId)).status).toBe(400);
+    expect(await scanner.scan(fileId, "evidence-clean-scan")).toBe("ACTIVE");
+    expect((await attach(fileId)).status).toBe(201);
+    expect((await attach(mismatchId)).status).toBe(400);
+    const createProfile = await call("/api/v1/me/mechanic-profile", {
+      method: "PUT",
+      headers: { cookie, "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(createProfile.status).toBe(200);
+    const credential = (id: string, authCookie = cookie) =>
+      call("/api/v1/me/credentials", {
+        method: "POST",
+        headers: { cookie: authCookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          credentialType: "CERT",
+          issuer: "Institute",
+          evidenceFileId: id,
+        }),
+      });
+    expect((await credential(mismatchId)).status).toBe(400);
+    expect((await credential(fileId)).status).toBe(201);
+    const ownStatus = await call(`/api/v1/me/evidence-files/${fileId}`, {
+      headers: { cookie },
+    });
+    expect((await ownStatus.json()) as { status: string }).toMatchObject({
+      status: "ACTIVE",
+    });
+
+    const secondId = "018f0000-0000-7000-8000-000000000903";
+    const password = await hashPassword("correct-password-123");
+    await testEnv.DB.batch([
+      testEnv.DB.prepare(
+        "INSERT INTO auth_users(id,name,email,email_verified) VALUES(?,'Other Evidence','other-evidence@example.test',1)",
+      ).bind(secondId),
+      testEnv.DB.prepare(
+        "INSERT INTO auth_credentials(id,user_id,account_id,provider_id,password) VALUES('cred-other-evidence',?,?,'credential',?)",
+      ).bind(secondId, secondId, password),
+    ]);
+    const secondSignIn = await signIn("other-evidence@example.test");
+    const secondCookie = secondSignIn.headers
+      .getSetCookie()
+      .map((value) => value.split(";", 1)[0])
+      .join("; ");
+    const secondUpload = await upload(
+      png,
+      "image/png",
+      png.length,
+      secondCookie,
+    );
+    expect(secondUpload.status).toBe(202);
+    const secondFileId = ((await secondUpload.json()) as { fileId: string })
+      .fileId;
+    expect(await scanner.scan(secondFileId, "second-owner-scan")).toBe(
+      "ACTIVE",
+    );
+    expect((await attach(secondFileId)).status).toBe(400);
+    expect((await credential(secondFileId)).status).toBe(400);
+    expect(
+      (
+        await call(`/api/v1/me/evidence-files/${fileId}`, {
+          headers: { cookie: secondCookie },
+        })
+      ).status,
+    ).toBe(404);
+    expect((await attach(fileId, secondCookie)).status).toBe(403);
+    expect(
+      (
+        await call(
+          `/api/v1/organizations/${organizationId}/verification/${caseId}/files/${fileId}`,
+          { headers: { cookie: secondCookie } },
+        )
+      ).status,
+    ).toBe(403);
+  });
   it("accepts local signup with explicit terms and a real verification sink", async () => {
     const response = await call("/api/v1/auth/sign-up/email", {
       method: "POST",

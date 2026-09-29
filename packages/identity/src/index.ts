@@ -346,7 +346,9 @@ export async function resolveDuplicateCandidate(
   reason: string,
   requestId: string,
 ) {
-  await requirePlatformPermission(db, actor, "platform.people.merge");
+  await requirePlatformPermission(db, actor, "platform.people.merge", {
+    mfa: true,
+  });
   if (!reason.trim())
     throw new Problem(400, "REASON_REQUIRED", "Reason required");
   const result = await db.batch([
@@ -536,10 +538,13 @@ export async function mergePeople(
 export async function suspendAccount(
   db: D1Database,
   accountId: string,
-  actorId: string,
+  actor: Principal & { personId: string },
   reason: string,
   requestId: string,
 ) {
+  await requirePlatformPermission(db, actor, "platform.account.suspend", {
+    mfa: true,
+  });
   if (!reason.trim())
     throw new Problem(400, "REASON_REQUIRED", "Reason required");
   const result = await guardedBatch(
@@ -554,12 +559,12 @@ export async function suspendAccount(
         .prepare(
           "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,reason,request_id) VALUES(?,?,'identity.account.suspended','iam_account',CASE WHEN changes()=1 THEN ? ELSE NULL END,?,?)",
         )
-        .bind(newId(), actorId, accountId, reason, requestId),
+        .bind(newId(), actor.accountId, accountId, reason, requestId),
       db
         .prepare(
           "INSERT INTO governance_security_events(id,code,actor_id,request_id) VALUES(?,'ACCOUNT_SUSPENDED',?,?)",
         )
-        .bind(newId(), actorId, requestId),
+        .bind(newId(), actor.accountId, requestId),
     ],
     {
       table: "governance_audit_events",

@@ -257,6 +257,33 @@ Object.assign(openapi.paths, {
   "/api/v1/me/workspaces": {
     get: get("List current personal and organization contexts"),
   },
+  "/api/v1/me/evidence-files": {
+    get: get("List own private evidence statuses"),
+    post: {
+      ...command("Upload private evidence into quarantine"),
+      parameters: [
+        {
+          name: "X-File-Size",
+          in: "header",
+          required: true,
+          schema: { type: "integer", minimum: 1, maximum: 10485760 },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "image/png": { schema: { type: "string", format: "binary" } },
+          "image/jpeg": { schema: { type: "string", format: "binary" } },
+          "application/pdf": { schema: { type: "string", format: "binary" } },
+        },
+      },
+    },
+  },
+  "/api/v1/me/evidence-files/{fileId}": {
+    get: get("Read own private evidence scan status", [
+      { name: "fileId", in: "path", required: true, schema: id },
+    ]),
+  },
   "/api/v1/me/profile": {
     get: get("Current person profile"),
     patch: command("Update current person profile with version"),
@@ -368,6 +395,9 @@ Object.assign(openapi.paths, {
   "/api/v1/organizations/{organizationId}/verification/submit": {
     post: idempotent("Submit organization verification case", [orgId]),
   },
+  "/api/v1/organizations/{organizationId}/verification/cases": {
+    get: get("List current organization verification cases", [orgId]),
+  },
   "/api/v1/organizations/{organizationId}/verification/{caseId}/files": {
     post: command("Attach ACTIVE private evidence", [orgId, caseId]),
   },
@@ -406,6 +436,9 @@ Object.assign(openapi.paths, {
     post: command("Resolve an open identity duplicate candidate with reason", [
       { name: "candidateId", in: "path", required: true, schema: id },
     ]),
+  },
+  "/api/v1/admin/duplicate-candidates": {
+    get: get("List open identity duplicate candidates"),
   },
   "/api/v1/admin/organizations": {
     get: get("List organizations with bounded pagination"),
@@ -516,6 +549,9 @@ Object.assign(openapi.paths, {
       personId,
       credentialId,
     ]),
+  },
+  "/api/v1/admin/professionals/credentials": {
+    get: get("List pending professional credentials"),
   },
   "/api/v1/admin/professionals/{personId}/credentials/{credentialId}/evidence":
     {

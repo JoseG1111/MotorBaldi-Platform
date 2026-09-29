@@ -23,6 +23,30 @@ export const allowedAuthPaths = new Set([
   "/two-factor/enable",
 ]);
 
+export async function assessAuthenticatedSession(
+  db: D1Database,
+  accountId: string,
+  sessionId: string,
+): Promise<{ mfaEnabled: boolean } | null> {
+  const row = await db
+    .prepare(
+      "SELECT u.two_factor_enabled,EXISTS(SELECT 1 FROM auth_two_factors f WHERE f.user_id=u.id AND f.verified=1) AS verified_factor,s.created_at>=u.updated_at AS recent_session FROM auth_users u JOIN auth_sessions s ON s.user_id=u.id WHERE u.id=? AND s.id=? AND u.email_verified=1 AND s.expires_at>?",
+    )
+    .bind(accountId, sessionId, new Date().toISOString())
+    .first<{
+      two_factor_enabled: number;
+      verified_factor: number;
+      recent_session: number;
+    }>();
+  if (!row) return null;
+  return {
+    mfaEnabled:
+      row.two_factor_enabled === 1 &&
+      row.verified_factor === 1 &&
+      row.recent_session === 1,
+  };
+}
+
 export function authentication(
   env: ApiBindings,
   c: ApiConfig,
@@ -37,15 +61,12 @@ export function authentication(
     async principal(headers: Headers): Promise<Principal | null> {
       const session = await auth.api.getSession({ headers });
       if (!session || !session.user.emailVerified) return null;
-      const assurance = await env.DB.prepare(
-        "SELECT u.two_factor_enabled,EXISTS(SELECT 1 FROM auth_two_factors f WHERE f.user_id=u.id AND f.verified=1) AS verified_factor,s.created_at>=u.updated_at AS recent_session FROM auth_users u JOIN auth_sessions s ON s.user_id=u.id WHERE u.id=? AND s.id=?",
-      )
-        .bind(session.user.id, session.session.id)
-        .first<{
-          two_factor_enabled: number;
-          verified_factor: number;
-          recent_session: number;
-        }>();
+      const assurance = await assessAuthenticatedSession(
+        env.DB,
+        session.user.id,
+        session.session.id,
+      );
+      if (!assurance) return null;
       const account = await ensureMotorBaldiAccount(
         env.DB,
         session.user.id,
@@ -54,10 +75,7 @@ export function authentication(
       return {
         accountId: session.user.id,
         personId: account.personId,
-        mfaEnabled:
-          assurance?.two_factor_enabled === 1 &&
-          assurance.verified_factor === 1 &&
-          assurance.recent_session === 1,
+        mfaEnabled: assurance.mfaEnabled,
       };
     },
   };
