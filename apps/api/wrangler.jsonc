@@ -57,15 +57,15 @@
       "name": "motorbaldi-api-development",
       "vars": {
         "ENVIRONMENT": "development",
-        "AUTH_BASE_URL": "https://REPLACE_WITH_DEVELOPMENT_API_WORKER_URL",
-        "CORS_ORIGINS": "https://REPLACE_WITH_DEVELOPMENT_PORTAL_URL,https://REPLACE_WITH_DEVELOPMENT_ADMIN_URL",
-        "EMAIL_PROVIDER": "DEVELOPMENT_SINK",
+        "AUTH_BASE_URL": "https://motorbaldi-api-development.josegbarrios2.workers.dev",
+        "CORS_ORIGINS": "https://motorbaldi-portal-development.josegbarrios2.workers.dev,https://motorbaldi-admin-development.josegbarrios2.workers.dev",
+        "EMAIL_PROVIDER": "UNCONFIGURED",
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "motorbaldi-core-dev",
-          "database_id": "REPLACE_WITH_DEVELOPMENT_D1_DATABASE_ID",
+          "database_id": "0c6bb6d8-3724-4c6f-aeec-f1e8378b0f72",
           "migrations_dir": "../../migrations",
         },
       ],

@@ -51,7 +51,7 @@
         {
           "binding": "DB",
           "database_name": "motorbaldi-core-dev",
-          "database_id": "REPLACE_WITH_DEVELOPMENT_D1_DATABASE_ID",
+          "database_id": "0c6bb6d8-3724-4c6f-aeec-f1e8378b0f72",
         },
       ],
       "r2_buckets": [
