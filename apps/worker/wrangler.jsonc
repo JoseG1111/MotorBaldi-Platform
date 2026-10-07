@@ -43,6 +43,20 @@
   "env": {
     "development": {
       "name": "motorbaldi-worker-development",
+      "observability": {
+        "logs": {
+          "enabled": true,
+          "invocation_logs": true,
+          "head_sampling_rate": 1,
+        },
+        "traces": {
+          "enabled": true,
+          "head_sampling_rate": 1,
+        },
+        "issues": {
+          "enabled": true,
+        },
+      },
       "vars": {
         "ENVIRONMENT": "development",
         "MALWARE_SCANNER_PROVIDER": "UNCONFIGURED",
