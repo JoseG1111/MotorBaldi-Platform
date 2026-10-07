@@ -71,12 +71,5 @@
     "@motorbaldi/organizations": "workspace:*",
     "@motorbaldi/professional": "workspace:*",
     "@motorbaldi/crm": "workspace:*"
-  },
-  "pnpm": {
-    "overrides": {
-      "undici": "7.29.1",
-      "sharp": "0.35.5",
-      "source-map-js": "1.2.2"
-    }
   }
 }
