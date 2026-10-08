@@ -382,6 +382,154 @@ describe("API and Better Auth runtime", () => {
       "SELECT count(*) AS n FROM crm_lead_intakes WHERE email='verified@example.test'",
     ).first<{ n: number }>();
     expect(row?.n).toBe(1);
+    const outbox = await testEnv.DB.prepare(
+      "SELECT count(*) AS n FROM integration_outbox_events WHERE event_type='crm.lead.received.v1' AND aggregate_id IN (SELECT id FROM crm_lead_intakes WHERE email='verified@example.test')",
+    ).first<{ n: number }>();
+    expect(outbox?.n).toBe(1);
+    const replay = await testEnv.DB.prepare(
+      "SELECT request_hash,response_json FROM governance_idempotency_records WHERE key='public-lead-key'",
+    ).first<{ request_hash: string; response_json: string }>();
+    expect(replay?.request_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(replay?.response_json).toContain("leadId");
+    const conflict = await call("/api/v1/public/leads", {
+      ...init,
+      body: JSON.stringify({ email: "different@example.test" }),
+    });
+    expect(conflict.status).toBe(409);
+    const noSecond = await testEnv.DB.prepare(
+      "SELECT count(*) AS n FROM crm_lead_intakes WHERE email='different@example.test'",
+    ).first<{ n: number }>();
+    expect(noSecond?.n).toBe(0);
+  });
+
+  it("keeps public CORS separate from auth and authenticated mutations", async () => {
+    testEnv.PUBLIC_CORS_ORIGINS = "https://website.test";
+    try {
+      const preflight = (path: string, origin: string) =>
+        call(path, { method: "OPTIONS", headers: { origin } });
+      expect(
+        (
+          await preflight("/api/v1/public/leads", "https://website.test")
+        ).headers.get("access-control-allow-origin"),
+      ).toBe("https://website.test");
+      expect(
+        (
+          await preflight("/api/v1/public/leads", "https://unknown.test")
+        ).headers.get("access-control-allow-origin"),
+      ).toBeNull();
+      expect(
+        (
+          await preflight("/api/v1/public/leads", "https://portal.test")
+        ).headers.get("access-control-allow-origin"),
+      ).toBeNull();
+      expect(
+        (await preflight("/api/v1/me", "https://portal.test")).headers.get(
+          "access-control-allow-origin",
+        ),
+      ).toBe("https://portal.test");
+      expect(
+        (await preflight("/api/v1/me", "https://website.test")).headers.get(
+          "access-control-allow-origin",
+        ),
+      ).toBeNull();
+      const error = await call("/api/v1/public/leads", {
+        method: "POST",
+        headers: {
+          origin: "https://website.test",
+          "content-type": "application/json",
+        },
+        body: "{}",
+      });
+      expect(error.status).toBe(400);
+      expect(error.headers.get("access-control-allow-origin")).toBe(
+        "https://website.test",
+      );
+      expect(
+        authOptions(testEnv, apiConfig(testEnv), "cors-test").trustedOrigins,
+      ).not.toContain("https://website.test");
+    } finally {
+      delete testEnv.PUBLIC_CORS_ORIGINS;
+    }
+  });
+
+  it("rolls back lead and outbox if atomic replay persistence fails", async () => {
+    const beforeOutbox = await testEnv.DB.prepare(
+      "SELECT count(*) AS n FROM integration_outbox_events WHERE event_type='crm.lead.received.v1'",
+    ).first<{ n: number }>();
+    await testEnv.DB.prepare(
+      "CREATE TRIGGER reject_test_lead_replay BEFORE INSERT ON governance_idempotency_records WHEN NEW.key='atomic-lead-failure' BEGIN SELECT RAISE(ABORT, 'forced replay failure'); END",
+    ).run();
+    try {
+      const response = await call("/api/v1/public/leads", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "atomic-lead-failure",
+        },
+        body: JSON.stringify({ email: "atomic-failure@example.test" }),
+      });
+      expect(response.status).toBe(500);
+      for (const table of [
+        "crm_lead_intakes",
+        "integration_outbox_events",
+        "governance_idempotency_records",
+      ]) {
+        const where =
+          table === "crm_lead_intakes"
+            ? "email='atomic-failure@example.test'"
+            : table === "integration_outbox_events"
+              ? "aggregate_id IN (SELECT id FROM crm_lead_intakes WHERE email='atomic-failure@example.test')"
+              : "key='atomic-lead-failure'";
+        const row = await testEnv.DB.prepare(
+          `SELECT count(*) AS n FROM ${table} WHERE ${where}`,
+        ).first<{ n: number }>();
+        expect(row?.n).toBe(0);
+      }
+      const afterOutbox = await testEnv.DB.prepare(
+        "SELECT count(*) AS n FROM integration_outbox_events WHERE event_type='crm.lead.received.v1'",
+      ).first<{ n: number }>();
+      expect(afterOutbox?.n).toBe(beforeOutbox?.n);
+    } finally {
+      await testEnv.DB.prepare("DROP TRIGGER reject_test_lead_replay").run();
+    }
+  });
+
+  it("keeps the transport token out of the business fingerprint and storage", async () => {
+    testEnv.TURNSTILE_BYPASS_TOKEN = "local-pass";
+    try {
+      const submit = (turnstileToken: string) =>
+        call("/api/v1/public/leads", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "idempotency-key": "transport-token-test",
+          },
+          body: JSON.stringify({
+            email: "token-exclusion@example.test",
+            turnstileToken,
+          }),
+        });
+      expect((await submit("local-pass")).status).toBe(202);
+      expect((await submit("local-pass")).status).toBe(202);
+      const row = await testEnv.DB.prepare(
+        "SELECT count(*) AS n FROM crm_lead_intakes WHERE email='token-exclusion@example.test'",
+      ).first<{ n: number }>();
+      expect(row?.n).toBe(1);
+      const replay = await testEnv.DB.prepare(
+        "SELECT request_hash,response_json FROM governance_idempotency_records WHERE key='transport-token-test'",
+      ).first<{ request_hash: string; response_json: string }>();
+      const { sha256Hex, canonical } = await import("@motorbaldi/shared");
+      expect(replay?.request_hash).toBe(
+        await sha256Hex(canonical({ email: "token-exclusion@example.test" })),
+      );
+      expect(replay?.response_json).not.toContain("local-pass");
+      const outbox = await testEnv.DB.prepare(
+        "SELECT payload_json FROM integration_outbox_events WHERE aggregate_id IN (SELECT id FROM crm_lead_intakes WHERE email='token-exclusion@example.test')",
+      ).first<{ payload_json: string }>();
+      expect(outbox?.payload_json).not.toContain("local-pass");
+    } finally {
+      delete testEnv.TURNSTILE_BYPASS_TOKEN;
+    }
   });
   it("creates one organization through the existing idempotency coordinator", async () => {
     const signedIn = await signIn();

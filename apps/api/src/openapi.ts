@@ -189,7 +189,7 @@ Object.assign(openapi, {
           organizationName: { type: "string", maxLength: 240 },
           message: { type: "string", maxLength: 2000 },
           countryCode: { type: "string", minLength: 2, maxLength: 2 },
-          turnstileToken: { type: "string" },
+          turnstileToken: { type: "string", maxLength: 2048 },
           utmSource: { type: "string" },
           utmMedium: { type: "string" },
           utmCampaign: { type: "string" },

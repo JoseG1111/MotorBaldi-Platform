@@ -30,6 +30,8 @@ Public API routes are `GET /health`, `GET /health/dependencies`, `GET /api/v1/op
 
 Phase 1 adds native D1 business tables without new Cloudflare product bindings. Public lead intake requires the existing Turnstile and API rate limiter bindings and the `PUBLIC_LEAD_INTAKE` governance flag. Organization creation and public signup use `ORGANIZATION_CREATION` and `PUBLIC_SIGNUP`. Remote signup remains disabled until an actual outbound email provider exists. The local `DEVELOPMENT_SINK` is for tests, not delivery. Password recovery and automatic invitation delivery share this prerequisite.
 
+`TURNSTILE_SECRET_KEY` is an API Worker secret. `TURNSTILE_EXPECTED_HOSTNAME` is a non-secret hostname-only value. `PUBLIC_CORS_ORIGINS` holds exact public website origins and does not feed Better Auth trusted origins; `CORS_ORIGINS` remains reserved for Portal/Admin/auth. Use separate Turnstile widgets per environment. `TURNSTILE_BYPASS_TOKEN` is local/test-only and forbidden remotely. `PUBLIC_LEAD_INTAKE` remains disabled remotely until the real development widget and website integration pass.
+
 Rate limit keys use a network derived signal for unauthenticated auth abuse. Future authenticated routes should use stable actor, tenant, and resource identifiers where available. Rate limiting is abuse control and never business or financial correctness.
 
 SQLite backed Durable Objects and the listed Foundation services are intended to remain compatible with Cloudflare Free plan allowances. Operators must check current plan limits before provisioning; correctness requirements take priority over plan selection.

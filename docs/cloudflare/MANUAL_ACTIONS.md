@@ -7,7 +7,7 @@ CF-0.1 performs no remote provisioning or deployment. An operator must complete 
 3. Confirm declarative SQLite Durable Object exports and bindings, including the background Worker binding to the environment specific API Worker.
 4. Configure `API_RATE_LIMITER` and `AUTH_RATE_LIMITER` namespace policies from Wrangler configuration.
 5. Configure Portal/Admin `API_SERVICE` bindings to the matching API Worker.
-6. Create Turnstile sites if an approved route begins using the verifier. Add `TURNSTILE_SECRET_KEY` to the API only. Never configure `TURNSTILE_BYPASS_TOKEN` remotely.
+6. Create separate Turnstile widgets for each deployment environment when approved. Configure `TURNSTILE_SECRET_KEY` as an API Worker secret only, never as a committed Wrangler var. Configure `TURNSTILE_EXPECTED_HOSTNAME` as a non-secret hostname-only API value. Set the website's exact HTTPS origin in `PUBLIC_CORS_ORIGINS`, separately from the Portal/Admin/auth `CORS_ORIGINS`. `TURNSTILE_BYPASS_TOKEN` is local/test-only and forbidden remotely. Keep `PUBLIC_LEAD_INTAKE` disabled until the real development widget and website integration pass.
 7. Add API secrets `AUTH_SECRET` and a versioned `AUTH_SECRETS` keyring. Do not add them to background, Portal, or Admin Workers.
 8. Record the final Worker URLs and configure exact HTTPS trusted origins. Keep browser app calls relative through the service binding proxy.
 9. Apply D1 migrations, including `0002_phase1.sql` and `0003_phase1_closeout.sql`, manually, then initialize and verify D1 identity:

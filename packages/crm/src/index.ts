@@ -93,10 +93,20 @@ export async function receiveLead(
   input: z.infer<typeof leadInput>,
   requestId: string,
 ) {
+  const { leadId, statements } = prepareLeadReceipt(db, input, requestId);
+  await db.batch(statements);
+  return leadId;
+}
+
+export function prepareLeadReceipt(
+  db: D1Database,
+  input: z.infer<typeof leadInput>,
+  requestId: string,
+) {
   const c = leadInput.parse(input);
   const leadId = newId();
   const email = c.email ? normalizeEmail(c.email) : null;
-  await db.batch([
+  const statements = [
     db
       .prepare(
         "INSERT INTO crm_lead_intakes(id,source_id,given_name,family_name,email,phone,organization_name,message,country_code,utm_source,utm_medium,utm_campaign,utm_content,utm_term,referrer,request_id) VALUES(?,'WEBSITE',?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -119,8 +129,8 @@ export async function receiveLead(
         requestId,
       ),
     event(db, leadId, "crm.lead.received.v1", { leadId }, requestId),
-  ]);
-  return leadId;
+  ];
+  return { leadId, statements };
 }
 export async function triageLead(
   db: D1Database,

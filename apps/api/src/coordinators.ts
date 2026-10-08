@@ -3,6 +3,7 @@ import type { ApiBindings } from "@motorbaldi/config";
 import {
   readReplay,
   storeReplay,
+  prepareReplayStatement,
   type IdempotencyScope,
 } from "@motorbaldi/db/idempotency";
 import { relayOutbox } from "@motorbaldi/messaging/queue";
@@ -21,7 +22,7 @@ import {
   decideVerification,
   type BusinessPrincipal,
 } from "@motorbaldi/organizations";
-import { leadInput, receiveLead, convertLead } from "@motorbaldi/crm";
+import { leadInput, prepareLeadReceipt, convertLead } from "@motorbaldi/crm";
 import { mergePeople } from "@motorbaldi/identity";
 import { requirePlatformPermission } from "@motorbaldi/authz";
 import { assessAuthenticatedSession } from "@motorbaldi/auth";
@@ -35,12 +36,6 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
     accountId: string,
     sessionId: string | null,
   ): Promise<{ response: Json; storedResponse?: Json }> {
-    if (operation === "crm.lead.create") {
-      const body = leadInput.parse(request);
-      return {
-        response: { leadId: await receiveLead(this.env.DB, body, requestId) },
-      };
-    }
     const requiresAccount = operation !== "foundation.test";
     const assurance =
       requiresAccount && sessionId
@@ -245,6 +240,30 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         ...(replay.response as Record<string, Json>),
         replayed: true,
       });
+    if (input.scope.operation === "crm.lead.create") {
+      const receipt = prepareLeadReceipt(
+        this.env.DB,
+        leadInput.parse(input.request),
+        input.requestId,
+      );
+      const response = { leadId: receipt.leadId };
+      const replayStatement = await prepareReplayStatement(
+        this.env.DB,
+        input.scope,
+        input.key,
+        input.request,
+        response,
+      );
+      try {
+        await this.env.DB.batch([...receipt.statements, replayStatement]);
+      } catch {
+        return Response.json(
+          { code: "INTERNAL_ERROR", message: "Internal server error" },
+          { status: 500 },
+        );
+      }
+      return Response.json({ ...response, replayed: false });
+    }
     const result = await this.execute(
       input.scope.operation,
       input.request,

@@ -9,8 +9,9 @@ import { files, unavailableScanner } from "@motorbaldi/storage";
 import { openapi } from "./openapi.js";
 import { z, ZodError } from "zod";
 import {
-  turnstileVerifier,
+  remoteLeadVerifier,
   deterministicAntiAbuseVerifier,
+  siteverifyRetryId,
 } from "@motorbaldi/auth/anti-abuse";
 import { leadInput } from "@motorbaldi/crm";
 import {
@@ -111,6 +112,8 @@ const corsHeaders = (
         vary: "Origin",
       }
     : {};
+const routeCorsOrigins = (pathname: string, c: ReturnType<typeof apiConfig>) =>
+  pathname === "/api/v1/public/leads" ? c.publicCorsOrigins : c.corsOrigins;
 
 function requireTrustedMutationOrigin(
   request: Request,
@@ -329,7 +332,10 @@ async function route(
 ) {
   const c = apiConfig(env);
   const url = new URL(request.url);
-  const cors = corsHeaders(request.headers.get("origin"), c.corsOrigins);
+  const cors = corsHeaders(
+    request.headers.get("origin"),
+    routeCorsOrigins(url.pathname, c),
+  );
   if (request.method === "OPTIONS")
     return new Response(null, { status: 204, headers: cors });
   requireTrustedMutationOrigin(request, url.pathname, c.corsOrigins);
@@ -373,30 +379,31 @@ async function route(
     if (!(await featureEnabled(env, "PUBLIC_LEAD_INTAKE")))
       throw new Problem(404, "NOT_FOUND", "Not found");
     const raw = await boundedJson(request);
+    const key = requiredKey(request);
     if (!raw || typeof raw !== "object" || Array.isArray(raw))
       throw new Problem(400, "INVALID_BODY", "Invalid request");
     const { turnstileToken, ...lead } = raw as Record<string, unknown>;
+    const input = leadInput.parse(lead);
     if (c.environment !== "local") {
-      if (!c.turnstileSecretKey || typeof turnstileToken !== "string")
-        throw new Problem(
-          503,
-          "ANTI_ABUSE_UNAVAILABLE",
-          "Anti-abuse verification unavailable",
-        );
-      await turnstileVerifier({
-        secret: c.turnstileSecretKey,
-        expectedHostname: c.turnstileExpectedHostname,
-      }).verify({
-        token: turnstileToken,
+      await remoteLeadVerifier(
+        c.turnstileSecretKey,
+        c.turnstileExpectedHostname,
+      ).verify({
+        token: typeof turnstileToken === "string" ? turnstileToken : "",
         action: "lead",
         remoteIp: request.headers.get("cf-connecting-ip") ?? undefined,
+        idempotencyKey:
+          typeof turnstileToken === "string" &&
+          turnstileToken.length > 0 &&
+          turnstileToken.length <= 2048
+            ? await siteverifyRetryId(key, turnstileToken)
+            : undefined,
       });
     } else if (c.turnstileBypassToken) {
       await deterministicAntiAbuseVerifier(c.turnstileBypassToken).verify({
         token: String(turnstileToken ?? ""),
       });
     }
-    const input = leadInput.parse(lead);
     await idempotentCommand(
       env,
       request.headers,
@@ -404,7 +411,7 @@ async function route(
       "00000000-0000-7000-8000-000000000001",
       input,
       requestId,
-      requiredKey(request),
+      key,
     );
     return json({ accepted: true }, { status: 202, headers: cors });
   }
@@ -2222,7 +2229,10 @@ export default {
     let cors: Record<string, string> = {};
     try {
       const c = apiConfig(env);
-      cors = corsHeaders(request.headers.get("origin"), c.corsOrigins);
+      cors = corsHeaders(
+        request.headers.get("origin"),
+        routeCorsOrigins(new URL(request.url).pathname, c),
+      );
       response = await route(request, env, ctx, requestId);
     } catch (error) {
       response = problem(error, requestId, cors);

@@ -5,6 +5,8 @@ import { openapi } from "@motorbaldi/api/openapi";
 import {
   deterministicAntiAbuseVerifier,
   turnstileVerifier,
+  siteverifyRetryId,
+  remoteLeadVerifier,
 } from "@motorbaldi/auth/anti-abuse";
 import {
   apiConfig,
@@ -69,6 +71,82 @@ describe("foundation contracts", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("fails closed on invalid Siteverify results and sends bounded retry inputs", async () => {
+    expect(() => remoteLeadVerifier(undefined, "website.test")).toThrowError(
+      expect.objectContaining({ code: "ANTI_ABUSE_UNAVAILABLE" }),
+    );
+    expect(() => remoteLeadVerifier("fixture", undefined)).toThrowError(
+      expect.objectContaining({ code: "ANTI_ABUSE_UNAVAILABLE" }),
+    );
+    const calls: { url: string; body: FormData }[] = [];
+    const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), body: init!.body as FormData });
+      return Response.json({
+        success: true,
+        action: "lead",
+        hostname: "website.test",
+      });
+    };
+    const verifier = turnstileVerifier({
+      secret: "fixture",
+      expectedHostname: "website.test",
+      fetcher: fetcher as typeof fetch,
+    });
+    const retry = await siteverifyRetryId("application-key", "token-one");
+    expect(retry).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(await siteverifyRetryId("application-key", "token-one")).toBe(retry);
+    expect(await siteverifyRetryId("application-key", "token-two")).not.toBe(
+      retry,
+    );
+    await verifier.verify({
+      token: "token-one",
+      action: "lead",
+      remoteIp: "192.0.2.1",
+      idempotencyKey: retry,
+    });
+    expect(calls[0]!.url).toBe(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+    );
+    expect(Object.fromEntries(calls[0]!.body.entries())).toEqual({
+      secret: "fixture",
+      response: "token-one",
+      remoteip: "192.0.2.1",
+      idempotency_key: retry,
+    });
+    for (const token of ["", "x".repeat(2049)])
+      await expect(
+        verifier.verify({ token, action: "lead" }),
+      ).rejects.toMatchObject({ code: "ANTI_ABUSE_REJECTED" });
+    expect(calls).toHaveLength(1);
+    for (const result of [
+      { success: true, action: "other", hostname: "website.test" },
+      { success: true, action: "lead", hostname: "other.test" },
+      { success: false },
+    ])
+      await expect(
+        turnstileVerifier({
+          secret: "fixture",
+          expectedHostname: "website.test",
+          fetcher: async () => Response.json(result),
+        }).verify({ token: "token", action: "lead" }),
+      ).rejects.toMatchObject({ code: "ANTI_ABUSE_REJECTED" });
+    for (const fetcher of [
+      async () => Response.json({ unexpected: true }),
+      async () => {
+        throw new Error("network");
+      },
+    ])
+      await expect(
+        turnstileVerifier({
+          secret: "fixture",
+          expectedHostname: "website.test",
+          fetcher,
+        }).verify({ token: "token", action: "lead" }),
+      ).rejects.toMatchObject({ code: "ANTI_ABUSE_UNAVAILABLE" });
+  });
+
   it("treats development as remote and keeps explicit local configuration", () => {
     const env = {
       ENVIRONMENT: "development",
@@ -80,6 +158,10 @@ describe("foundation contracts", () => {
       AUTH_RATE_LIMITER: {},
     } as unknown as ApiBindings;
     expect(apiConfig(env).environment).toBe("development");
+    expect(
+      apiConfig({ ...env, PUBLIC_CORS_ORIGINS: "https://website.test" })
+        .publicCorsOrigins,
+    ).toEqual(["https://website.test"]);
     const changed = (patch: Record<string, unknown>) =>
       ({ ...env, ...patch }) as ApiBindings;
     expect(() =>
@@ -88,6 +170,26 @@ describe("foundation contracts", () => {
     expect(() =>
       apiConfig(changed({ CORS_ORIGINS: "http://portal.test" })),
     ).toThrow(/HTTPS/);
+    for (const origin of [
+      "http://website.test",
+      "https://website.test/",
+      " https://website.test",
+      "https://website.test/path",
+      "https://website.test:443",
+      "broken",
+    ])
+      expect(() =>
+        apiConfig(changed({ PUBLIC_CORS_ORIGINS: origin })),
+      ).toThrow();
+    for (const hostname of [
+      "https://website.test",
+      "website.test/path",
+      "website.test?x=1",
+      "website.test:443",
+    ])
+      expect(() =>
+        apiConfig(changed({ TURNSTILE_EXPECTED_HOSTNAME: hostname })),
+      ).toThrow();
     expect(() => apiConfig(changed({ AUTH_SECRETS: undefined }))).toThrow(
       /AUTH_SECRETS/,
     );

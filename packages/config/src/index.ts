@@ -20,6 +20,7 @@ export interface ApiBindings extends CommonBindings {
   AUTH_RATE_LIMITER: RateLimit;
   AUTH_BASE_URL: string;
   CORS_ORIGINS: string;
+  PUBLIC_CORS_ORIGINS?: string;
   AUTH_SECRET: string;
   AUTH_SECRETS?: string;
   TURNSTILE_SECRET_KEY?: string;
@@ -45,6 +46,7 @@ export interface ApiConfig {
   environment: PlatformEnvironment;
   authBaseUrl: string;
   corsOrigins: readonly string[];
+  publicCorsOrigins: readonly string[];
   authSecret: string;
   authSecrets: readonly { version: number; value: string }[];
   turnstileSecretKey?: string;
@@ -69,10 +71,16 @@ const apiSchema = z.object({
   ENVIRONMENT: environment,
   AUTH_BASE_URL: z.string().url(),
   CORS_ORIGINS: z.string().min(1),
+  PUBLIC_CORS_ORIGINS: z.string().optional(),
   AUTH_SECRET: z.string().min(32),
   AUTH_SECRETS: z.string().optional(),
   TURNSTILE_SECRET_KEY: z.string().optional(),
-  TURNSTILE_EXPECTED_HOSTNAME: z.string().optional(),
+  TURNSTILE_EXPECTED_HOSTNAME: z
+    .string()
+    .regex(
+      /^(?=.{1,253}$)[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/,
+    )
+    .optional(),
   TURNSTILE_BYPASS_TOKEN: z.string().optional(),
   EMAIL_PROVIDER: z
     .enum(["UNCONFIGURED", "DEVELOPMENT_SINK"])
@@ -98,14 +106,35 @@ export function apiConfig(env: ApiBindings): ApiConfig {
         ].join(", "),
     );
   const c = parsed.data;
-  const corsOrigins = c.CORS_ORIGINS.split(",").map((origin) => origin.trim());
-  if (corsOrigins.some((origin) => new URL(origin).origin !== origin))
-    throw new Error("CORS requires exact origins");
+  const parseOrigins = (value: string, name: string) =>
+    value
+      ? value.split(",").map((origin) => {
+          let url: URL;
+          try {
+            url = new URL(origin);
+          } catch {
+            throw new Error(`${name} requires exact origins`);
+          }
+          if (
+            url.origin !== origin ||
+            !["http:", "https:"].includes(url.protocol)
+          )
+            throw new Error(`${name} requires exact origins`);
+          return origin;
+        })
+      : [];
+  const corsOrigins = parseOrigins(c.CORS_ORIGINS, "CORS_ORIGINS");
+  const publicCorsOrigins = parseOrigins(
+    c.PUBLIC_CORS_ORIGINS ?? "",
+    "PUBLIC_CORS_ORIGINS",
+  );
   const authSecrets = parseSecrets(c.AUTH_SECRETS);
   if (remote(c.ENVIRONMENT)) {
     if (
       !c.AUTH_BASE_URL.startsWith("https://") ||
-      corsOrigins.some((origin) => !origin.startsWith("https://"))
+      [...corsOrigins, ...publicCorsOrigins].some(
+        (origin) => !origin.startsWith("https://"),
+      )
     )
       throw new Error("Remote environments require HTTPS origins");
     if (!authSecrets.length)
@@ -121,6 +150,7 @@ export function apiConfig(env: ApiBindings): ApiConfig {
     environment: c.ENVIRONMENT,
     authBaseUrl: c.AUTH_BASE_URL,
     corsOrigins,
+    publicCorsOrigins,
     authSecret: c.AUTH_SECRET,
     authSecrets,
     turnstileSecretKey: c.TURNSTILE_SECRET_KEY,

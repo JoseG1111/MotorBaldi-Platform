@@ -107,6 +107,24 @@ export async function storeReplay<T extends Json>(
   request: Json,
   response: T,
 ): Promise<void> {
+  const result = await prepareReplayStatement(
+    db,
+    safeScope,
+    key,
+    request,
+    response,
+  ).then((statement) => statement.run());
+  if ((result.meta.changes ?? 0) !== 1)
+    throw new Problem(409, "IDEMPOTENCY_CONFLICT", "Key is already in use");
+}
+
+export async function prepareReplayStatement<T extends Json>(
+  db: D1Database,
+  safeScope: IdempotencyScope,
+  key: string,
+  request: Json,
+  response: T,
+): Promise<D1PreparedStatement> {
   const encoded = JSON.stringify(response);
   if (
     new TextEncoder().encode(encoded).byteLength > maxIdempotencyResponseBytes
@@ -121,7 +139,7 @@ export async function storeReplay<T extends Json>(
     Date.now() + safeScope.ttlSeconds * 1000,
   ).toISOString();
   const now = new Date().toISOString();
-  const result = await db
+  return db
     .prepare(
       `INSERT INTO governance_idempotency_records(scope, key, operation, account_id, organization_id, request_hash, response_json, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -141,10 +159,7 @@ export async function storeReplay<T extends Json>(
       expiresAt,
       now,
       now,
-    )
-    .run();
-  if ((result.meta.changes ?? 0) !== 1)
-    throw new Problem(409, "IDEMPOTENCY_CONFLICT", "Key is already in use");
+    );
 }
 
 export async function cleanupExpiredIdempotencyRecords(
