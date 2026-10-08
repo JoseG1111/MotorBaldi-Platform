@@ -23,7 +23,10 @@
           "enabled": true,
         },
       },
-      "vars": { "ENVIRONMENT": "development" },
+      "vars": {
+        "ENVIRONMENT": "development",
+        "TURNSTILE_SITE_KEY": "0x4AAAAAAFQ5LH6o75SvXd6P",
+      },
       "services": [
         { "binding": "API_SERVICE", "service": "motorbaldi-api-development" },
       ],

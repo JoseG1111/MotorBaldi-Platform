@@ -73,6 +73,8 @@
         "ENVIRONMENT": "development",
         "AUTH_BASE_URL": "https://motorbaldi-api-development.josegbarrios2.workers.dev",
         "CORS_ORIGINS": "https://motorbaldi-portal-development.josegbarrios2.workers.dev,https://motorbaldi-admin-development.josegbarrios2.workers.dev",
+        "PUBLIC_CORS_ORIGINS": "https://motorbaldi-portal-development.josegbarrios2.workers.dev",
+        "TURNSTILE_EXPECTED_HOSTNAME": "motorbaldi-portal-development.josegbarrios2.workers.dev",
         "EMAIL_PROVIDER": "UNCONFIGURED",
       },
       "d1_databases": [

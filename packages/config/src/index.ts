@@ -37,6 +37,7 @@ export interface BackgroundWorkerBindings extends CommonBindings {
 }
 export interface PortalBindings extends CommonBindings {
   API_SERVICE: Fetcher;
+  TURNSTILE_SITE_KEY?: string;
 }
 export interface AdminBindings extends CommonBindings {
   API_SERVICE: Fetcher;

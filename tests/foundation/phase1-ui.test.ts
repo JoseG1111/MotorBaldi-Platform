@@ -2,8 +2,150 @@ import { describe, expect, it } from "vitest";
 import { Script, createContext, runInContext } from "node:vm";
 import { portalPage, portalScript } from "../../apps/portal/src/page.js";
 import { adminPage, adminScript } from "../../apps/admin/src/page.js";
+import portal from "../../apps/portal/src/index.js";
+import { turnstileTestScript } from "../../apps/portal/src/turnstile-test.js";
+import type { PortalBindings } from "@motorbaldi/config";
 
 describe("Phase 1 browser assets", () => {
+  it("serves the development Turnstile form with a public sitekey and isolated CSP", async () => {
+    const bindings = {
+      ENVIRONMENT: "development",
+      TURNSTILE_SITE_KEY: "0x4AAAAAAFQ5LH6o75SvXd6P",
+      API_SERVICE: { fetch: async () => new Response("proxied") },
+    } as unknown as PortalBindings;
+    const request = (path: string, env = bindings) =>
+      portal.fetch!(new Request("https://portal.test" + path), env);
+    const page = await request("/turnstile-test");
+    const html = await page.text();
+    expect(page.status).toBe(200);
+    expect(html).toContain('lang="es"');
+    expect(html).toContain('data-sitekey="0x4AAAAAAFQ5LH6o75SvXd6P"');
+    expect(html).toContain('data-action="lead"');
+    expect(html).toContain(
+      'src="https://challenges.cloudflare.com/turnstile/v0/api.js"',
+    );
+    expect(html).not.toContain("TURNSTILE_SECRET_KEY");
+    expect(page.headers.get("content-security-policy")).toContain(
+      "frame-src https://challenges.cloudflare.com",
+    );
+    expect(page.headers.get("content-security-policy")).toContain(
+      "script-src 'self' https://challenges.cloudflare.com",
+    );
+    const normal = await request("/");
+    expect(normal.headers.get("content-security-policy")).not.toContain(
+      "challenges.cloudflare.com",
+    );
+    expect((await request("/turnstile-test.js")).status).toBe(200);
+    for (const environment of ["local", "staging", "production"] as const) {
+      const env = { ...bindings, ENVIRONMENT: environment };
+      expect((await request("/turnstile-test", env)).status).toBe(404);
+      expect((await request("/turnstile-test.js", env)).status).toBe(404);
+    }
+  });
+
+  it("retries unchanged leads with one key and resets the widget after each attempt", async () => {
+    const values: Record<string, string> = {
+      givenName: "Ana",
+      familyName: "García",
+      email: "ana@example.test",
+      phone: "",
+      organizationName: "Taller",
+      message: "Hola",
+      countryCode: "co",
+    };
+    const listeners: Record<
+      string,
+      (event: { preventDefault(): void }) => Promise<void> | void
+    > = {};
+    let resetCount = 0;
+    let uuidCount = 0;
+    const calls: { path: string; init: RequestInit }[] = [];
+    const form = {
+      addEventListener(type: string, listener: (typeof listeners)[string]) {
+        listeners[type] = listener;
+      },
+      reset() {
+        for (const key of Object.keys(values)) values[key] = "";
+      },
+    };
+    const status = { textContent: "" };
+    const context = createContext({
+      document: {
+        getElementById: (id: string) =>
+          id === "lead-test-form" ? form : status,
+      },
+      window: {
+        turnstile: {
+          getResponse: () => "fresh-token",
+          reset: () => {
+            resetCount++;
+          },
+        },
+      },
+      FormData: class {
+        get(name: string) {
+          return values[name] ?? "";
+        }
+      },
+      crypto: {
+        randomUUID: () =>
+          `00000000-0000-4000-8000-${String(++uuidCount).padStart(12, "0")}`,
+      },
+      fetch: async (path: string, init: RequestInit) => {
+        calls.push({ path, init });
+        return new Response(null, { status: calls.length === 4 ? 202 : 503 });
+      },
+    });
+    expect(() => new Script(turnstileTestScript)).not.toThrow();
+    runInContext(turnstileTestScript, context);
+    const submit = async () => listeners.submit!({ preventDefault() {} });
+    await submit();
+    await submit();
+    expect(calls.map((call) => call.path)).toEqual([
+      "/api/v1/public/leads",
+      "/api/v1/public/leads",
+    ]);
+    expect(calls[0]!.init.headers).toEqual({
+      "Content-Type": "application/json",
+      "Idempotency-Key": (calls[0]!.init.headers as Record<string, string>)[
+        "Idempotency-Key"
+      ],
+    });
+    expect(
+      (calls[1]!.init.headers as Record<string, string>)["Idempotency-Key"],
+    ).toBe(
+      (calls[0]!.init.headers as Record<string, string>)["Idempotency-Key"],
+    );
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({
+      givenName: "Ana",
+      familyName: "García",
+      email: "ana@example.test",
+      organizationName: "Taller",
+      message: "Hola",
+      countryCode: "CO",
+      turnstileToken: "fresh-token",
+    });
+    expect(resetCount).toBe(2);
+    values.message = "Otro mensaje";
+    listeners.input!({ preventDefault() {} });
+    await submit();
+    expect(
+      (calls[2]!.init.headers as Record<string, string>)["Idempotency-Key"],
+    ).not.toBe(
+      (calls[0]!.init.headers as Record<string, string>)["Idempotency-Key"],
+    );
+    await submit();
+    expect(resetCount).toBe(4);
+    expect(values.email).toBe("");
+    values.email = "ana@example.test";
+    await submit();
+    expect(
+      (calls[4]!.init.headers as Record<string, string>)["Idempotency-Key"],
+    ).not.toBe(
+      (calls[3]!.init.headers as Record<string, string>)["Idempotency-Key"],
+    );
+    expect(resetCount).toBe(5);
+  });
   it("serves Spanish-first semantic shells and valid browser scripts", () => {
     expect(portalPage).toContain('<html lang="es">');
     expect(adminPage).toContain('<html lang="es">');
