@@ -376,6 +376,8 @@ importers:
         specifier: workspace:*
         version: link:../db
 
+  packages/vehicles: {}
+
 packages:
 
   '@apidevtools/json-schema-ref-parser@14.0.1':

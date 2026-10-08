@@ -250,7 +250,7 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 
 ### MB-CF-015 — Full remote Phase 1 validation
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-CF-014
 - **Objective:** Prove all Phase 1 behavior in Development.
 - **Scope / required work:** Exercise authentication, reconciliation, MFA, roles, organizations/memberships, CRM, Turnstile/public lead, idempotency, audit/security events, outbox/Queue, R2 privacy, CORS/origin, rate limits, isolation, Portal/Admin/API/Worker, observability and CI/gate.
@@ -259,12 +259,13 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 - **Verification:** Remote positive/negative matrix plus `pnpm gate` and CI status.
 - **Completion criteria:** All applicable remote cases pass with recorded evidence; Phase 2 gate opens.
 - **Human-action conditions:** Only real external account access or unresolved product decision after safe checks.
+- **Evidence:** On 2026-10-08, existing MFA-assured Portal/Admin sessions returned 200 for principal, workspaces, evidence list and Admin access; the operator opened the Admin dashboard. A Development validation workshop was created with owner membership/permissions and idempotent replay, then its creation flag was restored off. Admin CRM reads returned 200. D1 showed completed lead/organization replays, append-only audit/security records and all five outbox events `PROCESSED`, including `organization.created.v1`; Queue/DLQ and private R2 configurations were checked. CORS/origin, remote signup, anonymous access and Turnstile negative probes passed; a bounded live auth limiter probe returned 429. D1 reported `development` and no pending migrations; API/Portal/Admin/Worker Development deployments exist. `pnpm gate` passed 22 unit/65 Worker tests and GitHub [Platform CI run 37815258715](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/37815258715) passed at `f0ba378`. Development observability bindings/logging were inspected; a short log tail did not capture a request, so direct delivery remains unproved by that probe.
 
 ## Phase 2 — Vehicle Core
 
 ### MB-P2-001 — Vehicle domain invariants + schema
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-CF-015
 - **Objective:** Define central vehicle, generic kind/spec, ownership-neutral model and constraints.
 - **Scope / required work:** Define central vehicle, generic kind/spec, ownership-neutral model and constraints.
@@ -273,10 +274,11 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 - **Verification:** Migration and invariant tests
 - **Completion criteria:** Schema enforces accepted vehicle invariants.
 - **Human-action conditions:** Global stop rule; otherwise none.
+- **Evidence:** Migration `0004_vehicle_core.sql` defines an ownership-neutral central vehicle row, generic kind/specification, UUIDv7 shape and one-step version checks. Three Worker invariant tests passed; the full gate passed 22 unit/68 Worker tests. The additive migration was applied to Development D1 on 2026-10-08 with explicit environment selection; remote schema/trigger inspection succeeded, vehicle count was zero, environment identity remained `development`, and no migrations remain pending.
 
 ### MB-P2-002 — Identifiers, relationships, claims and garage access
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P2-001
 - **Objective:** Add historical identifiers, explicit owner/driver/workshop ties, claims and grants; garage differs from ownership; no private plate lookup.
 - **Scope / required work:** Add historical identifiers, explicit owner/driver/workshop ties, claims and grants; garage differs from ownership; no private plate lookup.
@@ -285,10 +287,11 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 - **Verification:** Authorization and claim tests
 - **Completion criteria:** Access is explicit and default deny.
 - **Human-action conditions:** Global stop rule; otherwise none.
+- **Evidence:** `0005_vehicle_access.sql` separates historical identifiers, relationship claims, explicit relationships, grants, and garage entries. Read-only `@motorbaldi/vehicles` authorization defaults to deny; tests show an identifier, claim, ownership relationship, or garage entry alone does not authorize a read. Direct grants require an active linked account/person; organization grants require active membership and matching location scope. History/revocation triggers prevent rewrite or deletion. `pnpm gate` passed 22 unit/72 Worker tests. The additive Development D1 migration applied on 2026-10-08; six Vehicle tables exist, prior Phase 1 row counts and environment identity remained intact, and no migrations are pending. Claim adjudication and grant issuance APIs remain for MB-P2-004; no private identifier lookup was exposed.
 
 ### MB-P2-003 — Odometer/history + immutable professional records
 
-- **Status:** NOT STARTED
+- **Status:** IN PROGRESS
 - **Dependencies:** MB-P2-002
 - **Objective:** Append odometer history; finalize records immutably with amendments.
 - **Scope / required work:** Append odometer history; finalize records immutably with amendments.

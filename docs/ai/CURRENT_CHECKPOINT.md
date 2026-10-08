@@ -1,13 +1,13 @@
 # Current checkpoint
 
-- **Current checkpoint:** MB-CF-015 — Full remote Phase 1 validation
+- **Current checkpoint:** MB-P2-003 — Odometer/history + immutable professional records
 - **Status:** IN PROGRESS
-- **Last verified checkpoint:** MB-CF-014 — First Development administrator + MFA + Admin access
-- **Work completed:** Development resource/D1 inventory, safe HTTP negative probes, protected Portal/Admin checks using existing browser sessions without recording tokens, and authenticated creation of one clearly labeled Development validation workshop. Organization creation was temporarily enabled for this test and returned to disabled.
-- **Verification completed:** `pnpm gate` passed with 22 unit and 65 Worker tests. API dependency health is 200, D1 identity is `development`, and no migrations are pending. Both Portal and Admin proxies return 200 for assured `/me`, `/me/workspaces`, `/me/evidence-files`, and `/admin/access`. The workshop returned 201; replay returned the same ID; workspace, membership, permission and Admin organization reads returned 200. Admin CRM leads, tasks and pipelines returned 200. Remote D1 confirms 3 leads, completed lead/organization replays, 5 processed outbox events including `organization.created.v1`, and audit/security events. Queue/DLQ exist; private R2 has no public URL. CORS, origin, signup, anonymous authorization, and missing Turnstile-token negative probes passed. A bounded auth-rate probe returned 429. Existing Admin dashboard opens after MFA.
-- **Remaining work:** Verify current revision in GitHub CI and record its result. Short live log-tail probe did not capture a request; verify observability by another supported method if possible, otherwise record the runtime evidence limit accurately. Reconcile docs, then decide MB-CF-015 status and Phase 2 eligibility.
-- **Current blocker:** None. The live log-tail probe was inconclusive despite observability-enabled Development bindings.
-- **Exact next action:** Publish the validated current revision to CI through the repository's existing workflow, inspect the result, and reconcile the final Phase 1 evidence.
-- **Relevant files:** `apps/{api,worker,portal,admin}/`, `packages/{auth,authz,identity,organizations,crm,db,messaging,storage,observability}/`, `migrations/`, `docs/cloudflare/`, `.github/workflows/foundation-ci.yml`.
-- **Commands worth rerunning:** `pnpm gate`; `pnpm exec wrangler d1 migrations list motorbaldi-core-dev --remote --env development --config apps/api/wrangler.jsonc`; `pnpm exec wrangler d1 execute DB --remote --env development --config apps/api/wrangler.jsonc --command "SELECT ..." --json` using aggregate, non-secret queries.
-- **Expected result:** All applicable Phase 1 remote checks and local gate pass, with no security regression; then MB-CF-015 becomes VERIFIED and Phase 2 may start.
+- **Last verified checkpoint:** MB-P2-002 — Identifiers, relationships, claims and garage access
+- **Work completed:** MB-P2-001/002 created central vehicle and separated identifier, relationship, claim, grant, and garage schemas. `@motorbaldi/vehicles` checks exact grants against active accounts, people, organizations, memberships and location scope. Additive migrations `0004` and `0005` are applied in Development.
+- **Verification completed:** `pnpm gate` passed 22 unit and 72 Worker tests. Development D1 has six Vehicle tables, no vehicle records yet, intact Phase 1 counts, `development` identity, and no pending migrations. Tests prove identifier/claim/relationship/garage alone cannot authorize access.
+- **Remaining work:** Implement append-oriented odometer history and immutable finalized professional records with explicit amendments; avoid inventing detailed service workflows.
+- **Current blocker:** None. Exact professional record fields/workflow are **UNKNOWN — VERIFY FROM REPOSITORY**; implement only established technical invariants until a real product choice is unavoidable.
+- **Exact next action:** Inspect existing professional and storage patterns, then design MB-P2-003 history/finalization/amendment schema and tests.
+- **Relevant files:** `docs/architecture/phase-2-vehicle-core.md`, `migrations/0004_vehicle_core.sql`, `migrations/0005_vehicle_access.sql`, `packages/{vehicles,professional,storage}/`, `tests/workers/vehicle-schema.test.ts`.
+- **Commands worth rerunning:** `pnpm gate`; `pnpm exec wrangler d1 migrations list motorbaldi-core-dev --remote --env development --config apps/api/wrangler.jsonc`.
+- **Expected result:** Odometer readings append without rewriting history; finalized professional records cannot be edited or deleted and corrections preserve the prior record through amendments.
