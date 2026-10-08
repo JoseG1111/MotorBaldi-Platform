@@ -112,6 +112,14 @@ const corsHeaders = (
         vary: "Origin",
       }
     : {};
+export function forwardAuthResponse(
+  response: Response,
+  cors: Record<string, string>,
+): Response {
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(cors)) headers.set(name, value);
+  return new Response(response.body, { status: response.status, headers });
+}
 const routeCorsOrigins = (pathname: string, c: ReturnType<typeof apiConfig>) =>
   pathname === "/api/v1/public/leads" ? c.publicCorsOrigins : c.corsOrigins;
 
@@ -2181,10 +2189,7 @@ async function route(
           .bind(newId(), requestId)
           .run(),
       );
-    return new Response(response.body, {
-      status: response.status,
-      headers: { ...Object.fromEntries(response.headers), ...cors },
-    });
+    return forwardAuthResponse(response, cors);
   }
   if (url.pathname === "/api/v1/foundation/idempotency-test") {
     requireMethod("POST");

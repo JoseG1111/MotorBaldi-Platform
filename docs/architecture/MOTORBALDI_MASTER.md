@@ -45,4 +45,4 @@ Future phases remain:
 8. Marketplace
 9. Intelligence
 
-CF-0 implements repository split and Cloudflare-native foundation only. It does not implement Phase 1 business domains.
+The original CF-0 foundation was followed by Phase 1 identity, CRM, and organization implementation. See the [Phase 1 design](phase-1-identity-crm-organizations.md) and [current execution state](../ai/PROJECT_STATE.md).

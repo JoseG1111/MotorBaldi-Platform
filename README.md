@@ -24,7 +24,7 @@ pnpm dev:api
 
 Local development uses Wrangler local storage for D1, R2, Queues and Durable Objects. Postgres, Redis, MinIO and Docker are not required for CF-0 Foundation.
 
-The top level Wrangler configuration is the local runtime. Named `development`, `staging`, and `production` environments represent remote deployments. Remote migrations and environment initialization are manual only.
+The top level Wrangler configuration is the local runtime. Named `development`, `staging`, and `production` environments represent remote deployments. Remote commands must select the environment explicitly. Development resources are already configured; staging and production retain placeholders. See [autonomous execution state](docs/ai/CURRENT_CHECKPOINT.md).
 
 ## Tests And Builds
 
@@ -44,9 +44,9 @@ pnpm security:scan:dist
 
 `pnpm gate` runs the local CF-0.1 code gate, including dependency audit, all local and named-environment dry-run bundles, and a recursive scan of root `dist/`. Foundation CI runs compatible code checks and additionally scans Git history with Gitleaks. The local gate does not include Git-history scanning.
 
-## Manual Cloudflare Setup Status
+## Cloudflare Setup Status
 
-No remote Cloudflare resources are provisioned by this repo. The owner will create resources manually later. See:
+Development Workers and bindings exist and are reachable. The repository does not provision new account-level Cloudflare resources. Staging and production remain unverified. See:
 
 - [RESOURCE_INVENTORY.md](docs/cloudflare/RESOURCE_INVENTORY.md)
 - [MANUAL_ACTIONS.md](docs/cloudflare/MANUAL_ACTIONS.md)

@@ -159,6 +159,47 @@ describe("Phase 1 browser assets", () => {
     expect(() => new Script(adminScript)).not.toThrow();
   });
 
+  it("shows Admin sign-in for 401 and restricted access only for 403", async () => {
+    for (const scenario of [
+      {
+        status: 401,
+        code: "UNAUTHENTICATED",
+        loginHidden: false,
+        deniedHidden: true,
+      },
+      {
+        status: 403,
+        code: "FORBIDDEN",
+        loginHidden: true,
+        deniedHidden: false,
+      },
+      { status: 200, code: "", loginHidden: true, deniedHidden: true },
+    ]) {
+      const { context, nodes } = browserHarness(adminScript, async () =>
+        Response.json(
+          scenario.status === 200
+            ? { permissions: ["platform.people.read"], mfaEnabled: true }
+            : { code: scenario.code },
+          { status: scenario.status },
+        ),
+      );
+      runInContext(
+        "document.getElementById('denied').classList.add('hidden');document.getElementById('private').classList.add('hidden')",
+        context,
+      );
+      await runInContext("refresh()", context);
+      expect(nodes.get("login")!.classList.contains("hidden")).toBe(
+        scenario.loginHidden,
+      );
+      expect(nodes.get("denied")!.classList.contains("hidden")).toBe(
+        scenario.deniedHidden,
+      );
+      expect(nodes.get("private")!.classList.contains("hidden")).toBe(
+        scenario.status !== 200,
+      );
+    }
+  });
+
   it("wires Portal evidence upload and case attachment through authenticated API calls", async () => {
     const calls: { path: string; init?: RequestInit }[] = [];
     const { context, nodes } = browserHarness(
@@ -276,10 +317,10 @@ type FakeNode = {
   >;
   onclick?: () => Promise<void>;
   classList: {
-    add(): void;
-    remove(): void;
-    toggle(): void;
-    contains(): boolean;
+    add(name: string): void;
+    remove(name: string): void;
+    toggle(name: string, force?: boolean): boolean;
+    contains(name: string): boolean;
   };
   append(...children: FakeNode[]): void;
   replaceChildren(): void;
@@ -296,14 +337,26 @@ function browserHarness(
     children: [],
     textContent: "",
     listeners: {},
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-      contains() {
-        return false;
-      },
-    },
+    classList: (() => {
+      const values = new Set<string>();
+      return {
+        add(name: string) {
+          values.add(name);
+        },
+        remove(name: string) {
+          values.delete(name);
+        },
+        toggle(name: string, force?: boolean) {
+          const enabled = force ?? !values.has(name);
+          if (enabled) values.add(name);
+          else values.delete(name);
+          return enabled;
+        },
+        contains(name: string) {
+          return values.has(name);
+        },
+      };
+    })(),
     append(...children) {
       this.children.push(...children);
     },

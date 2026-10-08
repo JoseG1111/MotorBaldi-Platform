@@ -6,4 +6,4 @@ Wrangler D1 migrations in `migrations/` are authoritative. CF-0 does not ship an
 
 Local application command: `pnpm d1:migrate:local`.
 
-Remote migrations are manual-only after resources exist: `wrangler d1 migrations apply <database> --remote --config apps/api/wrangler.jsonc`.
+At CF-0, remote migrations were manual-only after resources existed. Subsequent approved Development execution may apply non-destructive migrations autonomously after inspecting the target and selecting `--env development` explicitly. Destructive migrations and Production operations remain human-action boundaries. Use `wrangler d1 migrations apply <database> --remote --env <environment> --config apps/api/wrangler.jsonc` only after verifying the target.

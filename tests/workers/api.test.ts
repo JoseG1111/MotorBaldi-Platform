@@ -4,6 +4,7 @@ import { hashPassword } from "better-auth/crypto";
 import { getMigrations } from "better-auth/db/migration";
 import { apiConfig, type ApiBindings } from "@motorbaldi/config";
 import { authOptions } from "@motorbaldi/auth";
+import apiWorker, { forwardAuthResponse } from "../../apps/api/src/index.js";
 import { ensureMotorBaldiAccount } from "@motorbaldi/identity";
 import { files, deterministicTestScanner } from "@motorbaldi/storage";
 import { createOrganization, addLocation } from "@motorbaldi/organizations";
@@ -88,6 +89,18 @@ async function signIn(
 }
 
 describe("real D1 migration", () => {
+  it("preserves multiple auth cookies when forwarding a two-factor response", () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "session=abc; Path=/; HttpOnly");
+    headers.append("set-cookie", "challenge=; Max-Age=0; Path=/; HttpOnly");
+    const response = forwardAuthResponse(new Response("{}", { headers }), {
+      "access-control-allow-origin": "https://portal.test",
+    });
+    expect(response.headers.getSetCookie()).toEqual(headers.getSetCookie());
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "https://portal.test",
+    );
+  });
   it("fails closed when Worker and D1 environments differ", async () => {
     const { assertDatabaseEnvironment } =
       await import("@motorbaldi/db/environment");
@@ -783,6 +796,32 @@ describe("API and Better Auth runtime", () => {
     );
     expect(((await denied.json()) as { requestId: string }).requestId).toBe(
       denied.headers.get("x-request-id"),
+    );
+  });
+
+  it("returns 429 when the matching rate limiter denies a request", async () => {
+    const denied = { limit: async () => ({ success: false }) } as RateLimit;
+    const allowed = { limit: async () => ({ success: true }) } as RateLimit;
+    const context = {
+      waitUntil() {},
+      passThroughOnException() {},
+      props: {},
+    } as unknown as ExecutionContext;
+    const auth = await apiWorker.fetch!(
+      new Request("https://api.test/api/v1/auth/get-session") as never,
+      { ...testEnv, AUTH_RATE_LIMITER: denied, API_RATE_LIMITER: allowed },
+      context,
+    );
+    expect(auth.status).toBe(429);
+    expect(((await auth.json()) as { code: string }).code).toBe("RATE_LIMITED");
+    const general = await apiWorker.fetch!(
+      new Request("https://api.test/health") as never,
+      { ...testEnv, AUTH_RATE_LIMITER: allowed, API_RATE_LIMITER: denied },
+      context,
+    );
+    expect(general.status).toBe(429);
+    expect(((await general.json()) as { code: string }).code).toBe(
+      "RATE_LIMITED",
     );
   });
 

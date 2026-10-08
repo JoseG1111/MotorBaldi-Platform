@@ -9,7 +9,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "lint": "eslint apps packages scripts tests && prettier --check README.md 'apps/**/*.{ts,md,json,jsonc}' 'packages/**/*.{ts,json}' 'scripts/**/*.ts' 'scripts/**/*.mjs' 'tests/**/*.ts' 'docs/{architecture,cloudflare,contracts,runbooks,adr}/*.md'",
+    "lint": "eslint apps packages scripts tests && prettier --check AGENTS.md README.md 'docs/ai/*.md' 'apps/**/*.{ts,md,json,jsonc}' 'packages/**/*.{ts,json}' 'scripts/**/*.ts' 'scripts/**/*.mjs' 'tests/**/*.ts' 'docs/{architecture,cloudflare,contracts,runbooks,adr}/*.md'",
     "typecheck": "tsc --noEmit",
     "build": "pnpm build:portal && pnpm build:admin && pnpm build:api && pnpm build:worker",
     "build:api": "wrangler deploy --config apps/api/wrangler.jsonc --dry-run --outdir dist/api",
