@@ -1,3 +1,4 @@
+import { inspectionRoutes } from "./inspection-routes.js";
 import { workshopRoutes } from "./workshop-routes.js";
 import { authentication, allowedAuthPaths } from "@motorbaldi/auth";
 import { apiConfig, type ApiBindings } from "@motorbaldi/config";
@@ -449,6 +450,25 @@ async function route(
       throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
     return principal as typeof principal & { personId: string };
   };
+  const inspectionResponse = await inspectionRoutes(
+    request,
+    env.DB,
+    env.PRIVATE_BUCKET,
+    businessPrincipal,
+    async (operation, body) =>
+      idempotentCommand(
+        env,
+        request.headers,
+        operation,
+        (await businessPrincipal()).accountId,
+        body,
+        requestId,
+        requiredKey(request),
+      ),
+    () => boundedJson(request),
+    cors,
+  );
+  if (inspectionResponse) return inspectionResponse;
   const workshopResponse = await workshopRoutes(
     request,
     env.DB,

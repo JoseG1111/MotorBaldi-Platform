@@ -416,6 +416,10 @@ function browserHarness(
       get(name: string) {
         return this.element.fields?.get(name) ?? null;
       }
+      getAll(name: string) {
+        const value = this.element.fields?.get(name);
+        return value == null ? [] : Array.isArray(value) ? value : [value];
+      }
     },
     prompt: () => "Motivo válido",
     setTimeout,
@@ -568,5 +572,207 @@ describe("Workshop browser controls", () => {
     expect(titles).toContain("Iniciar trabajo");
     expect(titles).not.toContain("Actualizar orden");
     expect(titles).not.toContain("Cancelar orden");
+  });
+});
+
+describe("Inspection browser authority and media controls", () => {
+  it("gates finalization/amendments by MFA and keeps final media immutable", async () => {
+    for (const [status, mfaEnabled, canWrite, finalize, amend] of [
+      ["DRAFT", false, true, false, false],
+      ["DRAFT", true, true, true, false],
+      ["FINAL", true, true, false, true],
+      ["FINAL", false, true, false, false],
+      ["FINAL", true, false, false, false],
+    ] as const) {
+      const { context, nodes } = browserHarness(portalScript, async (path) =>
+        path.includes("/inspections/")
+          ? Response.json({
+              record: { id: "report-test", status, version: 2 },
+              content: {
+                schemaVersion: 1,
+                summary: "Synthetic observations",
+                findings: [],
+              },
+              files: [],
+              amendments: [],
+              canWrite,
+              mfaEnabled,
+            })
+          : path === "/api/v1/me/evidence-files"
+            ? Response.json([])
+            : Response.json({ code: "UNAUTHENTICATED" }, { status: 401 }),
+      );
+      await runInContext("openInspection('report-test')", context);
+      const titles = nodes
+        .get("inspection-detail")!
+        .children.map((node) => node.textContent);
+      expect(titles.includes("Finalizar informe")).toBe(finalize);
+      expect(titles.includes("Registrar enmienda")).toBe(amend);
+      expect(titles.includes("Adjuntar evidencia")).toBe(
+        status === "DRAFT" && canWrite,
+      );
+      expect(titles.includes("Actualizar resumen")).toBe(
+        status === "DRAFT" && canWrite,
+      );
+    }
+  });
+  it.each(["summary", "finding", "additional finding"])(
+    "keeps original and amendment snapshots while basing %s corrections on the latest amendment",
+    async (edit) => {
+      const original = {
+        schemaVersion: 1,
+        summary: "Original report",
+        findings: [
+          {
+            id: "original-finding",
+            label: "Original label",
+            observation: "Original observation",
+            evidenceFileIds: ["file-original"],
+          },
+        ],
+      };
+      const earlier = {
+        ...original,
+        summary: "Earlier correction",
+        findings: [
+          { ...original.findings[0], observation: "Earlier observation" },
+        ],
+      };
+      const latest = {
+        ...earlier,
+        summary: "Latest correction",
+        findings: [
+          {
+            ...earlier.findings[0],
+            label: "Latest label",
+            observation: "Latest observation",
+          },
+          {
+            id: "added-finding",
+            label: "Added label",
+            observation: "Added observation",
+            evidenceFileIds: [],
+          },
+        ],
+      };
+      const writes: {
+        path: string;
+        body: { content: typeof latest; reason: string };
+      }[] = [];
+      const { context, nodes } = browserHarness(
+        portalScript,
+        async (path, init) => {
+          if (init?.method === "POST") {
+            writes.push({ path, body: JSON.parse(String(init.body)) });
+            return Response.json({ recordId: "report-test" });
+          }
+          return path.includes("/inspections/")
+            ? Response.json({
+                record: { id: "report-test", status: "FINAL", version: 2 },
+                content: original,
+                amendments: [earlier, latest].map((snapshot, index) => ({
+                  content_json: JSON.stringify(snapshot),
+                  reason: "Correction " + index,
+                  created_at: "2026-10-09T0" + index + ":00:00Z",
+                })),
+                amendmentsTruncated: true,
+                files: [],
+                canWrite: true,
+                mfaEnabled: true,
+              })
+            : Response.json({ code: "UNAUTHENTICATED" }, { status: 401 });
+        },
+      );
+      await runInContext("openInspection('report-test')", context);
+      const root = nodes.get("inspection-detail")!;
+      const text = (node: FakeNode): string =>
+        [node.textContent, ...node.children.map(text)].join("\n");
+      expect(text(root)).toContain("Informe final original inmutable");
+      expect(text(root)).toContain("Original report");
+      expect(text(root)).toContain("Original observation");
+      expect(text(root)).toContain("Earlier observation");
+      expect(text(root)).toContain("Latest observation");
+      expect(text(root)).toContain("Added observation");
+      expect(text(root)).toContain("últimas 100 enmiendas");
+      const title =
+        edit === "summary"
+          ? "Registrar enmienda"
+          : edit === "finding"
+            ? "Enmendar hallazgo"
+            : "Ampliar mediante enmienda";
+      const form =
+        root.children[
+          root.children.findIndex((node) => node.textContent === title) + 1
+        ];
+      expect(form).toBeDefined();
+      if (!form) throw new Error("Correction form is missing");
+      form.fields = new Map<string, unknown>([
+        ["reason", "Corrección posterior"],
+        ["summary", "Next summary"],
+        ["label", "Next label"],
+        ["observation", "Next observation"],
+      ]);
+      context.testForm = form;
+      await runInContext(
+        "testForm.onsubmit({preventDefault(){},target:testForm})",
+        context,
+      );
+      expect(writes).toHaveLength(1);
+      const write = writes[0];
+      expect(write).toBeDefined();
+      if (!write) throw new Error("Amendment request is missing");
+      expect(write.path).toBe("/api/v1/inspections/report-test/amend");
+      const expected = JSON.parse(JSON.stringify(latest));
+      if (edit === "summary") expected.summary = "Next summary";
+      else if (edit === "finding")
+        Object.assign(expected.findings[0], {
+          label: "Next label",
+          observation: "Next observation",
+        });
+      else
+        expected.findings.push({
+          id: "test-uuid",
+          label: "Next label",
+          observation: "Next observation",
+          evidenceFileIds: [],
+        });
+      expect(write.body).toEqual({
+        content: expected,
+        reason: "Corrección posterior",
+      });
+      expect(original.summary).toBe("Original report");
+      expect(original.findings[0]?.observation).toBe("Original observation");
+      for (const forbidden of [
+        "Actualizar resumen",
+        "Corregir hallazgo",
+        "Subir evidencia para análisis",
+        "Adjuntar evidencia",
+        "Finalizar informe",
+      ])
+        expect(text(root)).not.toContain(forbidden);
+    },
+  );
+  it("retains pending trusted uploads in quarantine without sending an attachment", async () => {
+    const calls: string[] = [];
+    const { context } = browserHarness(portalScript, async (path) => {
+      calls.push(path);
+      return Response.json(
+        path.endsWith("/me/evidence-files")
+          ? { fileId: "pending-test" }
+          : { status: "QUARANTINED" },
+      );
+    });
+    await expect(
+      runInContext("uploadEvidence({size:64,type:'image/png'})", context),
+    ).rejects.toThrow(/revisión/);
+    expect(
+      calls.filter(
+        (path) =>
+          path.includes("evidence-files") || path.includes("inspections"),
+      ),
+    ).toEqual([
+      "/api/v1/me/evidence-files",
+      "/api/v1/me/evidence-files/pending-test",
+    ]);
   });
 });

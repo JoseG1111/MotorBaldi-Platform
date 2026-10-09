@@ -1,4 +1,10 @@
 import {
+  authorizeInspectionVehicleCommand,
+  authorizeInspectionAttachment,
+  prepareInspectionAttachment,
+  inspectionAttachmentInput,
+} from "@motorbaldi/inspections";
+import {
   authorizeWorkshopCommand,
   parseWorkshopCommand,
   prepareWorkshopCommand,
@@ -273,6 +279,44 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         vehicleBody,
       );
     }
+    if (vehicleActor && vehicleBody)
+      await authorizeInspectionVehicleCommand(
+        this.env.DB,
+        vehicleActor,
+        input.scope.operation as VehicleOperation,
+        vehicleBody,
+      );
+    let inspectionActor: BusinessPrincipal | null = null;
+    let inspectionBody: ReturnType<
+      typeof inspectionAttachmentInput.parse
+    > | null = null;
+    if (input.scope.operation === "inspection.file.attach") {
+      const assurance = input.sessionId
+        ? await assessAuthenticatedSession(
+            this.env.DB,
+            input.scope.accountId,
+            input.sessionId,
+          )
+        : null;
+      if (!assurance)
+        throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
+      const account = await ensureMotorBaldiAccount(
+        this.env.DB,
+        input.scope.accountId,
+        input.requestId,
+      );
+      inspectionActor = {
+        accountId: input.scope.accountId,
+        personId: account.personId,
+        mfaEnabled: assurance.mfaEnabled,
+      };
+      inspectionBody = inspectionAttachmentInput.parse(input.request);
+      await authorizeInspectionAttachment(
+        this.env.DB,
+        inspectionActor,
+        inspectionBody,
+      );
+    }
     let workshopActor: BusinessPrincipal | null = null;
     let workshopBody: Record<string, Json> | null = null;
     if (input.scope.operation.startsWith("workshop.")) {
@@ -314,6 +358,46 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         ...(replay.response as Record<string, Json>),
         replayed: true,
       });
+    if (inspectionActor && inspectionBody) {
+      const command = await prepareInspectionAttachment(
+        this.env.DB,
+        inspectionActor,
+        inspectionBody,
+        input.requestId,
+      );
+      const replayStatement = await prepareReplayStatement(
+        this.env.DB,
+        input.scope,
+        input.key,
+        input.request,
+        command.response,
+      );
+      try {
+        await this.env.DB.batch([
+          replayStatement,
+          vehicleChangeAudit(
+            this.env.DB,
+            inspectionActor,
+            "inspection.command.accepted",
+            command.vehicleId,
+            input.requestId,
+          ),
+          ...command.statements,
+        ]);
+      } catch (error) {
+        if (
+          String(error).includes("constraint failed") ||
+          String(error).includes("INSPECTION_")
+        )
+          throw new Problem(
+            409,
+            "INSPECTION_COMMAND_CONFLICT",
+            "Inspection or file state changed; refresh and retry",
+          );
+        throw error;
+      }
+      return Response.json({ ...command.response, replayed: false });
+    }
     if (workshopActor && workshopBody) {
       const command = await prepareWorkshopCommand(
         this.env.DB,

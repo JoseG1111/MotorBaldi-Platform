@@ -21,6 +21,7 @@ export const idempotencyOperationRegistry = {
   "vehicle.garage.add": 604800,
   "vehicle.garage.remove": 604800,
   "vehicle.odometer.append": 604800,
+  "inspection.file.attach": 604800,
   "vehicle.record.create": 604800,
   "vehicle.record.update": 604800,
   "vehicle.record.finalize": 604800,

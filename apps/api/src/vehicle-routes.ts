@@ -1,3 +1,7 @@
+import {
+  inspectionRecord,
+  requireInspectionRead,
+} from "@motorbaldi/inspections";
 import type { Principal } from "@motorbaldi/contracts";
 import { Problem } from "@motorbaldi/contracts";
 import { requirePlatformPermission } from "@motorbaldi/authz";
@@ -185,8 +189,21 @@ export async function vehicleRoutes(
                 record.location_id == null ? null : String(record.location_id),
             },
           )
-        )
+        ) {
+          if (record.record_type === "INSPECTION") {
+            try {
+              await requireInspectionRead(
+                db,
+                actor,
+                await inspectionRecord(db, String(record.id)),
+              );
+            } catch (error) {
+              if (error instanceof Problem && error.status === 404) continue;
+              throw error;
+            }
+          }
           allowed.push(record);
+        }
       rows.results = allowed;
     }
     const amendments =

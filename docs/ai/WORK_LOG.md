@@ -26,3 +26,11 @@ One concise entry per newly verified checkpoint or major architectural state tra
 - 2026-10-09 — Owner explicitly deferred MB-P3-005 real antimalware/remaining positive remote file closeout at a $0 additional-service budget. Status is DEFERRED — OWNER APPROVED, never VERIFIED. ADR 0024 preserves private quarantine/authorization and the pre-public-upload/download revisit requirement. MB-P4-001 now depends on verified MB-P2-005/MB-P3-004 so unrelated report-domain work can proceed.
 
 - 2026-10-09 — MB-P4-001 VERIFIED: generic versioned Inspection findings/amendment contract reuses canonical professional records, validates evidence references and immutable bounded snapshots; gate passes 32 unit/89 Worker tests. Checklist/legal verdict remain unknown, real scanner stays owner-deferred.
+
+- 2026-10-09 — MB-P4-002 VERIFIED: immutable owned ACTIVE-only Inspection media association and scoped snapshot/download metadata pass 32 unit/93 Worker tests, including quarantine/ownership/CAS/file-state/finalization/location/capability/revocation negatives. Migration 0010 applied in Development. Real scanner/positive remote file closeout remain owner-deferred.
+
+- 2026-10-09 — MB-P4-003 VERIFIED: scoped Inspection execution/schema/evidence enforcement protects generic record commands/replays; author-only MFA finalization/amendments and atomic attachment coordinator pass 32 unit/95 Worker tests. Migration 0011 applied in Development; real scan remains deferred.
+
+- 2026-10-09 — Owner-approved real parallel execution configured in `.codex/config.toml` (gpt-6.1-sol/low; initially two, then owner lifted the fixed two-agent policy and configured capacity became six, subject to actual runtime slots). Actual thread metadata confirmed both agents low and main medium; no restart needed for explicit spawns. Agents implemented Markdown state validation and Inspection amendment UI correctness with exclusive ownership; main integrates/gates/deploys.
+
+- 2026-10-09 — MB-P4-004 VERIFIED: scoped Inspection APIs/Portal/Admin, latest amendment snapshots and immutable original presentation pass 37 unit/96 Worker tests and full gate. All Development applications deployed; authenticated no-file report/quarantine smoke passed. Real scan/remote ACTIVE-file delivery remain owner-deferred.

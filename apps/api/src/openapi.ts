@@ -718,3 +718,58 @@ Object.assign(openapi.paths, {
       ),
     },
 });
+
+const inspectionId = {
+  name: "recordId",
+  in: "path",
+  required: true,
+  schema: id,
+} as const;
+Object.assign(openapi.paths, {
+  "/api/v1/organizations/{organizationId}/inspections": {
+    get: get("List authorized Inspection reports", [orgId]),
+    post: idempotent("Create canonical Inspection draft", [orgId]),
+  },
+  "/api/v1/organizations/{organizationId}/inspections/locations": {
+    get: get("List scoped Inspection execution locations", [orgId]),
+  },
+  "/api/v1/organizations/{organizationId}/inspections/locations/{locationId}/vehicles":
+    {
+      get: get("List exact-granted Inspection vehicles", [
+        orgId,
+        { name: "locationId", in: "path", required: true, schema: id },
+      ]),
+    },
+  "/api/v1/inspections/{recordId}": {
+    get: get("Read authorized report, amendments and private media metadata", [
+      inspectionId,
+    ]),
+  },
+  "/api/v1/inspections/{recordId}/files": {
+    get: get("List authorized Inspection evidence", [inspectionId]),
+    post: idempotent(
+      "Atomically attach owned ACTIVE evidence to Inspection draft",
+      [inspectionId],
+    ),
+  },
+  "/api/v1/inspections/{recordId}/files/{fileId}": {
+    get: get(
+      "Download ACTIVE private Inspection evidence with current authorization",
+      [
+        inspectionId,
+        { name: "fileId", in: "path", required: true, schema: id },
+      ],
+    ),
+  },
+  "/api/v1/admin/inspections": {
+    get: get("Staff Inspection report reads with fresh MFA"),
+  },
+});
+for (const action of ["update", "finalize", "amend"])
+  Object.assign(openapi.paths, {
+    ["/api/v1/inspections/{recordId}/" + action]: {
+      post: idempotent("Authorized canonical Inspection " + action, [
+        inspectionId,
+      ]),
+    },
+  });

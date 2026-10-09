@@ -23,6 +23,10 @@ An explicit owner deferral is recorded as `DEFERRED — OWNER APPROVED`, never a
 
 Checkpoint constraints below add to these global rules. If a future checkpoint needs a narrowly scoped technical prerequisite, add it with reason and dependencies; never silently change product scope or reverse architecture.
 
+## Approved parallel execution
+
+The owner authorized real concurrent gpt-6.1-sol/low subagents on 2026-10-09 and subsequently removed the fixed two-agent policy; `.codex/config.toml` records these defaults without changing the main gpt-6.1-sol/medium session. When safe, spawn as many bounded independent tasks as useful within available runtime capacity (this session has four total slots including main; project config allows up to six spawned threads) with explicit model/effort overrides, exclusive file ownership or worktrees and focused acceptance tests. Main owns architectural/shared changes, state registry/cursor, Git integration, comprehensive validation and remote deployments. Never concurrently mutate schemas/migrations/auth/shared contracts/deployment configuration. Later-phase work is eligible only when its prerequisites are VERIFIED; otherwise parallelize independent subtasks of the eligible checkpoint. Verify actual runtime effort before claiming LOW is active. See the [parallel runbook](../runbooks/codex-parallel-development.md).
+
 ## Historical provenance
 
 The initiating operator supplied a completed-checkpoint history. Repository code, migrations, Wrangler bindings, tests, git history, and direct anonymous Development checks on 2026-10-08 corroborate substantial parts. `VERIFIED` entries below preserve that historical operator attestation with its stated provenance; where remote D1, Queue, secret, or deployment details could not be independently queried in this unauthenticated workspace, the evidence explicitly says so. On contradictory live evidence, immediately downgrade the affected status and dependents. These entries are not claims of a fresh comprehensive remote audit.
@@ -419,7 +423,7 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 
 ### MB-P4-002 — Evidence/media lifecycle
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P4-001
 - **Objective:** Bind inspection evidence to existing private R2 metadata/quarantine/ACTIVE lifecycle; implement immutable associations and scoped authorization without integrating the owner-deferred scanner.
 - **Scope / required work:** Bind inspection evidence to existing private R2 metadata/quarantine/ACTIVE lifecycle; implement immutable associations and scoped authorization without integrating the owner-deferred scanner.
@@ -429,21 +433,25 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 - **Completion criteria:** Only authorized clean media is served.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Migration 0010 adds immutable owned ACTIVE-only associations to canonical DRAFT INSPECTION records. Scoped private metadata/download helpers and snapshot resolution enforce type, author, verified INSPECTION capability/location and exact vehicle grants. Gate passed 32 unit/93 Worker tests: quarantine/unassociated rejection, stale CAS/file-state rollback, other-uploader rejection, immutable/final media, location grant/capability/revocation denial. Migration 0010 applied in Development. ACTIVE metadata fixtures are isolated local D1 state tests, not scanner results or remote promotion. No positive real remote scan is claimed.
+
 ### MB-P4-003 — Workflow + authorization
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P4-002
-- **Objective:** Implement inspection states, role/location scopes, and review.
-- **Scope / required work:** Implement inspection states, role/location scopes, and review.
+- **Objective:** Enforce canonical DRAFT/FINAL authorship, exact organization/location/vehicle grants, INSPECTION capability and privileged finalization/amendments; no mandatory second reviewer or legal verdict is inferred.
+- **Scope / required work:** Enforce canonical DRAFT/FINAL authorship, exact organization/location/vehicle grants, INSPECTION capability and privileged finalization/amendments; no mandatory second reviewer or legal verdict is inferred.
 - **Relevant files/systems:** Inspection/authz packages
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Transition and default-deny tests
 - **Completion criteria:** Only permitted actors transition records.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Migration 0011 grants scoped inspection execution to Owner/Admin/Inspector. Serialized Vehicle record commands enforce the Inspection schema/evidence/capability/execution guard before replay, including generic entry points; author-only finalization/amendments retain fresh MFA. The attachment coordinator commits version/association/audit/minimal-ID outbox/replay atomically and rechecks current authority. Gate passed 32 unit/95 Worker tests, including capability/schema/evidence rejection, revoked execution replay denial, immutable final/amendment history, missing MFA and atomic attachment replay/conflict/rollback. Migration 0011 applied in Development; no deployed Inspection UI or remote scan claimed yet.
+
 ### MB-P4-004 — APIs + Portal/Admin
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P4-003
 - **Objective:** Expose inspection flows in Spanish-first UI.
 - **Scope / required work:** Expose inspection flows in Spanish-first UI.
@@ -453,12 +461,14 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 - **Completion criteria:** Authorized workflows complete.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Scoped Inspection report/media APIs and OpenAPI, Spanish Portal draft/findings/MFA finalization/amendment controls and MFA staff Admin reads pass 37 unit/96 Worker tests and the full gate. Original final reports remain visible; subsequent amendments use the latest snapshot and show all correction observations. Latest 100 amendment history is bounded with explicit truncation; regression covers 101 entries. Local ACTIVE metadata fixtures test private bytes/replay/revocation without claiming a real scan. Development migrations 0010/0011 and all four applications deployed; authenticated no-file report/quarantine smoke passed. Owner scanner deferral is unchanged.
+
 ### MB-P4-005 — Remote validation
 
-- **Status:** NOT STARTED
+- **Status:** IN PROGRESS
 - **Dependencies:** MB-P4-004
 - **Objective:** Validate inspections in Development.
-- **Scope / required work:** Validate inspections in Development.
+- **Scope / required work:** Validate independent Inspection report workflow without media: scoped creation/read/update/finalization/amendments, MFA, replay/CAS/revocation, Portal/Admin, Queue/audit consistency and CI. Exercise trusted file upload/private quarantine rejection. Positive real scan/ACTIVE remote delivery remains explicitly deferred under ADR 0024 and MB-P3-005.
 - **Relevant files/systems:** All Development apps/resources
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote smoke, negative tests, gate

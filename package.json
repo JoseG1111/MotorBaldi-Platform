@@ -34,7 +34,8 @@
     "boundaries:check": "node scripts/foundation/boundaries.mjs && node scripts/foundation/boundary-fixtures.mjs",
     "test:artifacts": "node scripts/foundation/artifact-fixtures.mjs",
     "wrangler:types": "wrangler types --config apps/api/wrangler.jsonc worker-configuration.d.ts",
-    "gate": "pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm test:unit && pnpm test:workers && pnpm openapi:check && pnpm security:check && pnpm audit --audit-level high && pnpm test:artifacts"
+    "gate": "pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm execution:check && pnpm test:unit && pnpm test:workers && pnpm openapi:check && pnpm security:check && pnpm audit --audit-level high && pnpm test:artifacts",
+    "execution:check": "node scripts/foundation/execution-state.mjs && node scripts/foundation/execution-state-fixtures.mjs"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",

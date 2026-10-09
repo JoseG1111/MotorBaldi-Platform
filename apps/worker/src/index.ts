@@ -31,6 +31,19 @@ import { z } from "zod";
 const uuid = z.string().uuid();
 const eventContracts = [
   [
+    "inspection.report.changed.v1",
+    "inspection_report",
+    z
+      .object({
+        recordId: uuid,
+        vehicleId: uuid,
+        organizationId: uuid,
+        locationId: uuid,
+        operation: z.literal("inspection.file.attach"),
+      })
+      .strict(),
+  ],
+  [
     "workshop.order.changed.v1",
     "workshop_order",
     z

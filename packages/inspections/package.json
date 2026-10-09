@@ -9,6 +9,8 @@
   "dependencies": {
     "@motorbaldi/contracts": "workspace:*",
     "@motorbaldi/shared": "workspace:*",
-    "zod": "^4.3.0"
+    "zod": "^4.3.0",
+    "@motorbaldi/vehicles": "workspace:*",
+    "@motorbaldi/db": "workspace:*"
   }
 }

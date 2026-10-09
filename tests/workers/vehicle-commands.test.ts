@@ -1,4 +1,7 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { buildIdempotencyScope } from "@motorbaldi/db/idempotency";
+import inspectionMediaMigration from "../../migrations/0010_inspection_media.sql?raw";
+import inspectionWorkflowMigration from "../../migrations/0011_inspection_workflow.sql?raw";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { env, exports as workerExports } from "cloudflare:workers";
 import { hashPassword } from "better-auth/crypto";
 import type { ApiBindings } from "@motorbaldi/config";
@@ -13,6 +16,11 @@ const worker = (
 const accountId = "018f0000-0000-7000-8000-000000000071";
 const password = "local-mfa-password-123";
 const cookies = new Map<string, string>();
+// Independent runtime cases model separate test clients; the real limiter remains enabled.
+let clientCase = 1;
+beforeEach(() => {
+  clientCase++;
+});
 
 async function request(path: string, body?: object, key?: string) {
   const response = await worker.fetch!(
@@ -20,6 +28,7 @@ async function request(path: string, body?: object, key?: string) {
       method: body ? "POST" : "GET",
       headers: {
         origin: "https://portal.test",
+        "cf-connecting-ip": "192.0.2." + clientCase,
         ...(key ? { "idempotency-key": key } : {}),
         ...(body ? { "content-type": "application/json" } : {}),
         ...(cookies.size
@@ -110,6 +119,8 @@ beforeAll(async () => {
     vehicleCommands,
     workshopMigration,
     workshopFilesMigration,
+    inspectionMediaMigration,
+    inspectionWorkflowMigration,
   ])
     await db.exec(sql.replace(/\n/g, " "));
   await db
@@ -893,5 +904,442 @@ describe("Workshop command runtime", () => {
     expect(
       (await request(path + "/" + orderId + "/files/" + upload.id)).status,
     ).toBe(404);
+  });
+});
+
+describe("Inspection workflow enforcement on generic Vehicle commands", () => {
+  it("requires capability, valid schema, current executor authority and preserves immutable final/amendment history", async () => {
+    const locationId = newId();
+    await db
+      .prepare(
+        "INSERT INTO org_locations(id,organization_id,name,location_type,country_code,administrative_area,city,address_line_1) VALUES(?,?,'Inspection Site','SERVICE_SITE','CO','Test','Test','Synthetic')",
+      )
+      .bind(locationId, organizationId)
+      .run();
+    const vehicle = await createVehicle();
+    await grant(vehicle, "vehicle.record.write");
+    await grant(vehicle, "vehicle.record.read");
+    const content = {
+      schemaVersion: 1,
+      summary: "Synthetic initial inspection observations",
+      findings: [],
+    };
+    const input = {
+      organizationId,
+      locationId,
+      recordType: "INSPECTION",
+      content,
+    };
+    expect(
+      (await command("/vehicles/" + vehicle + "/records", input)).status,
+    ).toBe(404);
+    await db
+      .prepare(
+        "INSERT INTO org_capabilities(organization_id,code) VALUES(?,'INSPECTION')",
+      )
+      .bind(organizationId)
+      .run();
+    expect(
+      (
+        await command("/vehicles/" + vehicle + "/records", {
+          ...input,
+          content: { summary: "Invalid missing schema" },
+        })
+      ).status,
+    ).toBe(400);
+    const key = newId(),
+      created = await command("/vehicles/" + vehicle + "/records", input, key);
+    expect(created.status).toBe(200);
+    const recordId = ((await created.json()) as { recordId: string }).recordId;
+    await db
+      .prepare(
+        "DELETE FROM authz_role_permissions WHERE role_id='org-owner' AND permission_code='org.inspection.execute'",
+      )
+      .run();
+    expect(
+      (await command("/vehicles/" + vehicle + "/records", input, key)).status,
+    ).toBe(403);
+    await db
+      .prepare(
+        "INSERT INTO authz_role_permissions(role_id,permission_code) VALUES('org-owner','org.inspection.execute')",
+      )
+      .run();
+    expect(
+      (await command("/vehicles/" + vehicle + "/records", input, key)).status,
+    ).toBe(200);
+    expect(
+      (
+        await command(
+          "/vehicles/" + vehicle + "/records/" + recordId + "/update",
+          {
+            version: 1,
+            content: {
+              ...content,
+              findings: [
+                {
+                  id: newId(),
+                  label: "Synthetic",
+                  observation: "Synthetic observation",
+                  evidenceFileIds: [newId()],
+                },
+              ],
+            },
+          },
+        )
+      ).status,
+    ).toBe(409);
+    const updated = {
+      ...content,
+      summary: "Synthetic corrected draft observations",
+    };
+    expect(
+      (
+        await command(
+          "/vehicles/" + vehicle + "/records/" + recordId + "/update",
+          { version: 1, content: updated },
+        )
+      ).status,
+    ).toBe(200);
+    await expect(
+      authorizeVehicleCommand(
+        db,
+        { accountId, personId, mfaEnabled: false },
+        "vehicle.record.finalize",
+        {
+          vehicleId: vehicle,
+          recordId,
+          version: 2,
+          reason: "Validate MFA requirement",
+        },
+      ),
+    ).rejects.toMatchObject({ code: "MFA_REQUIRED" });
+    expect(
+      (
+        await command(
+          "/vehicles/" + vehicle + "/records/" + recordId + "/finalize",
+          { version: 2 },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await command(
+          "/vehicles/" + vehicle + "/records/" + recordId + "/update",
+          { version: 3, content },
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await command(
+          "/vehicles/" + vehicle + "/records/" + recordId + "/amend",
+          { content, reason: "Correct through separate amendment" },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      await db
+        .prepare(
+          "SELECT content_json,status,version FROM vehicle_professional_records WHERE id=?",
+        )
+        .bind(recordId)
+        .first(),
+    ).toEqual({
+      content_json: JSON.stringify(updated),
+      status: "FINAL",
+      version: 3,
+    });
+  });
+});
+
+describe("Atomic Inspection attachment coordinator", () => {
+  it("commits replay/audit/event/association together and rechecks authority before replay", async () => {
+    const locationId = newId();
+    await db
+      .prepare(
+        "INSERT INTO org_locations(id,organization_id,name,location_type,country_code,administrative_area,city,address_line_1) VALUES(?,?,'Inspection Media Site','SERVICE_SITE','CO','Test','Test','Synthetic')",
+      )
+      .bind(locationId, organizationId)
+      .run();
+    const vehicle = await createVehicle();
+    await grant(vehicle, "vehicle.record.write");
+    const created = await command("/vehicles/" + vehicle + "/records", {
+      organizationId,
+      locationId,
+      recordType: "INSPECTION",
+      content: {
+        schemaVersion: 1,
+        summary: "Synthetic attachment coordinator report",
+        findings: [],
+      },
+    });
+    expect(created.status).toBe(200);
+    const recordId = ((await created.json()) as { recordId: string }).recordId;
+    // Isolated local metadata fixture; no file scan or deployed safety assertion.
+    const fileId = newId();
+    await db
+      .prepare(
+        "INSERT INTO storage_files(id,uploaded_by_account_id,object_key,active_key,declared_mime,size_bytes,sha256,status,request_id) VALUES(?,?,?,?,'image/png',64,?,'ACTIVE','synthetic-inspection-test')",
+      )
+      .bind(
+        fileId,
+        accountId,
+        "test-quarantine/" + fileId,
+        "test-active/" + fileId,
+        "0".repeat(64),
+      )
+      .run();
+    const session = await db
+      .prepare(
+        "SELECT id FROM auth_sessions WHERE user_id=? ORDER BY created_at DESC LIMIT 1",
+      )
+      .bind(accountId)
+      .first<{ id: string }>();
+    const scope = buildIdempotencyScope({
+        accountId,
+        operation: "inspection.file.attach",
+      }),
+      key = newId();
+    const input = {
+      recordId,
+      fileId,
+      version: 1,
+      reason: "Synthetic trusted lifecycle metadata",
+    };
+    const run = (body: object, k = key) =>
+      (env as unknown as ApiBindings).IDEMPOTENCY_COORDINATOR.getByName(
+        scope.scope + ":" + k,
+      ).fetch("https://idempotency/run", {
+        method: "POST",
+        body: JSON.stringify({
+          key: k,
+          scope,
+          request: body,
+          sessionId: session!.id,
+          requestId: newId(),
+        }),
+      });
+    const result = await run(input);
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({
+      recordId,
+      version: 2,
+      replayed: false,
+    });
+    expect(await (await run(input)).json()).toMatchObject({
+      version: 2,
+      replayed: true,
+    });
+    expect(
+      (await run({ ...input, reason: "Conflicting replay body" })).status,
+    ).toBe(409);
+    expect((await run({ ...input, version: 2 }, newId())).status).toBe(409);
+    expect(
+      await db
+        .prepare("SELECT version FROM vehicle_professional_records WHERE id=?")
+        .bind(recordId)
+        .first(),
+    ).toEqual({ version: 2 });
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) AS total FROM governance_audit_events WHERE action='inspection.file.attach' AND resource_id=?",
+        )
+        .bind(recordId)
+        .first(),
+    ).toEqual({ total: 1 });
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) AS total FROM integration_outbox_events WHERE aggregate_id=? AND event_type='inspection.report.changed.v1'",
+        )
+        .bind(recordId)
+        .first(),
+    ).toEqual({ total: 1 });
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) AS total FROM governance_idempotency_records WHERE operation='inspection.file.attach'",
+        )
+        .first(),
+    ).toEqual({ total: 1 });
+    await db
+      .prepare(
+        "DELETE FROM authz_role_permissions WHERE role_id='org-owner' AND permission_code='org.inspection.execute'",
+      )
+      .run();
+    expect((await run(input)).status).toBe(403);
+    await db
+      .prepare(
+        "INSERT INTO authz_role_permissions(role_id,permission_code) VALUES('org-owner','org.inspection.execute')",
+      )
+      .run();
+  });
+});
+
+describe("Dedicated Inspection API and private media", () => {
+  it("uses canonical reports and atomic media with private scoped bytes and quarantine rejection", async () => {
+    const locationId = newId();
+    await db
+      .prepare(
+        "INSERT INTO org_locations(id,organization_id,name,location_type,country_code,administrative_area,city,address_line_1) VALUES(?,?,'Inspection API Site','SERVICE_SITE','CO','Test','Test','Synthetic')",
+      )
+      .bind(locationId, organizationId)
+      .run();
+    const vehicle = await createVehicle();
+    await grant(vehicle, "vehicle.record.write");
+    await grant(vehicle, "vehicle.record.read");
+    const path = "/organizations/" + organizationId + "/inspections",
+      content = {
+        schemaVersion: 1,
+        summary: "Synthetic API observations",
+        findings: [],
+      };
+    expect(
+      (
+        await command(path, {
+          vehicleId: vehicle,
+          locationId,
+          organizationId,
+          content,
+        })
+      ).status,
+    ).toBe(400);
+    expect((await request(path + "/locations")).status).toBe(200);
+    expect(
+      (await request(path + "/locations/" + locationId + "/vehicles")).status,
+    ).toBe(200);
+    const create = await command(path, {
+      vehicleId: vehicle,
+      locationId,
+      content,
+    });
+    expect(create.status).toBe(200);
+    const recordId = ((await create.json()) as { recordId: string }).recordId;
+    const report = "/inspections/" + recordId;
+    expect((await request(report)).status).toBe(200);
+    expect((await request("/admin/inspections")).status).toBe(200);
+    const pending = newId(),
+      active = newId();
+    for (const [id, state] of [
+      [pending, "QUARANTINED"],
+      [active, "ACTIVE"],
+    ])
+      await db
+        .prepare(
+          "INSERT INTO storage_files(id,uploaded_by_account_id,object_key,active_key,declared_mime,size_bytes,sha256,status,request_id) VALUES(?,?,?,?,'image/png',4,?,?,'synthetic-inspection-api-test')",
+        )
+        .bind(
+          id,
+          accountId,
+          "test-quarantine/" + id,
+          state === "ACTIVE" ? "test-active/" + id : null,
+          state === "ACTIVE" ? "0".repeat(64) : null,
+          state,
+        )
+        .run();
+    expect(
+      (
+        await command(report + "/files", {
+          version: 1,
+          fileId: pending,
+          reason: "Validate unavailable fixture",
+        })
+      ).status,
+    ).toBe(409);
+    expect((await request(report + "/files/" + pending)).status).toBe(404);
+    await (env as unknown as ApiBindings).PRIVATE_BUCKET.put(
+      "test-active/" + active,
+      new Uint8Array([1, 2, 3, 4]),
+    );
+    const input = {
+        version: 1,
+        fileId: active,
+        reason: "Synthetic local lifecycle fixture",
+      },
+      key = newId();
+    expect((await command(report + "/files", input, key)).status).toBe(200);
+    expect((await command(report + "/files", input, key)).status).toBe(200);
+    const download = await request(report + "/files/" + active);
+    expect(download.status).toBe(200);
+    expect(download.headers.get("content-disposition")).toBe("attachment");
+    expect(download.headers.get("cache-control")).toBe("no-store");
+    expect(download.headers.get("x-content-type-options")).toBe("nosniff");
+    expect([...new Uint8Array(await download.arrayBuffer())]).toEqual([
+      1, 2, 3, 4,
+    ]);
+    const detail = (await (await request(report)).json()) as {
+      files: Record<string, unknown>[];
+    };
+    expect(detail.files).toHaveLength(1);
+    expect(JSON.stringify(detail)).not.toContain("test-active/");
+    expect(
+      (
+        await command(report + "/update", {
+          version: 2,
+          content: {
+            ...content,
+            findings: [
+              {
+                id: newId(),
+                label: "Observation",
+                observation: "Synthetic observed state",
+                evidenceFileIds: [active],
+              },
+            ],
+          },
+        })
+      ).status,
+    ).toBe(200);
+    expect((await command(report + "/finalize", { version: 3 })).status).toBe(
+      200,
+    );
+    expect(
+      (
+        await command(report + "/files", {
+          version: 4,
+          fileId: active,
+          reason: "Reject final attachment",
+        })
+      ).status,
+    ).toBe(409);
+    const correctionRows = Array.from({ length: 101 }, (_, n) =>
+      db
+        .prepare(
+          "INSERT INTO vehicle_professional_amendments(id,record_id,author_person_id,reason,content_json,created_at) VALUES(?,?,?,'Synthetic history pagination fixture',?,?)",
+        )
+        .bind(
+          newId(),
+          recordId,
+          personId,
+          JSON.stringify({ ...content, summary: "Synthetic correction " + n }),
+          "2026-01-01T00:00:00." + String(n).padStart(3, "0") + "Z",
+        ),
+    );
+    await db.batch(correctionRows);
+    const corrected = (await (await request(report)).json()) as {
+      amendmentCount: number;
+      amendmentsTruncated: boolean;
+      amendments: { content_json: string }[];
+      content: { summary: string };
+    };
+    expect(corrected.amendmentCount).toBe(101);
+    expect(corrected.amendmentsTruncated).toBe(true);
+    expect(corrected.amendments).toHaveLength(100);
+    expect(JSON.parse(corrected.amendments.at(-1)!.content_json).summary).toBe(
+      "Synthetic correction 100",
+    );
+    expect(corrected.content.summary).toBe(content.summary);
+    await db
+      .prepare(
+        "UPDATE vehicle_access_grants SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE vehicle_id=? AND permission_code='vehicle.record.read'",
+      )
+      .bind(vehicle)
+      .run();
+    expect((await request(report + "/files/" + active)).status).toBe(404);
+    const saved = new Map(cookies);
+    cookies.clear();
+    expect((await request("/admin/inspections")).status).toBe(401);
+    for (const [name, value] of saved) cookies.set(name, value);
   });
 });
