@@ -4,6 +4,7 @@ import { hashPassword } from "better-auth/crypto";
 import { getMigrations } from "better-auth/db/migration";
 import { apiConfig, type ApiBindings } from "@motorbaldi/config";
 import { authOptions } from "@motorbaldi/auth";
+import { newId } from "@motorbaldi/shared";
 import apiWorker, { forwardAuthResponse } from "../../apps/api/src/index.js";
 import { ensureMotorBaldiAccount } from "@motorbaldi/identity";
 import { files, deterministicTestScanner } from "@motorbaldi/storage";
@@ -11,6 +12,11 @@ import { createOrganization, addLocation } from "@motorbaldi/organizations";
 import migration from "../../migrations/0001_foundation.sql?raw";
 import phase1Migration from "../../migrations/0002_phase1.sql?raw";
 import closeoutMigration from "../../migrations/0003_phase1_closeout.sql?raw";
+import vehicleCoreMigration from "../../migrations/0004_vehicle_core.sql?raw";
+import vehicleAccessMigration from "../../migrations/0005_vehicle_access.sql?raw";
+import vehicleHistoryMigration from "../../migrations/0006_vehicle_history.sql?raw";
+
+import vehicleCommandsMigration from "../../migrations/0007_vehicle_commands.sql?raw";
 
 const testEnv = env as unknown as ApiBindings;
 const worker = (
@@ -43,6 +49,10 @@ beforeAll(async () => {
   await testEnv.DB.exec(migration.replace(/\n/g, " "));
   await testEnv.DB.exec(phase1Migration.replace(/\n/g, " "));
   await testEnv.DB.exec(closeoutMigration.replace(/\n/g, " "));
+  await testEnv.DB.exec(vehicleCoreMigration.replace(/\n/g, " "));
+  await testEnv.DB.exec(vehicleAccessMigration.replace(/\n/g, " "));
+  await testEnv.DB.exec(vehicleHistoryMigration.replace(/\n/g, " "));
+  await testEnv.DB.exec(vehicleCommandsMigration.replace(/\n/g, " "));
   await testEnv.DB.prepare(
     "INSERT INTO governance_environment_metadata(singleton, environment) VALUES (1, 'local')",
   ).run();
@@ -878,6 +888,72 @@ describe("API and Better Auth runtime", () => {
         (await call("/api/v1/principal", { headers: { cookie } })).status,
       ).toBe(401);
     else expect(response.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it("hides garage vehicles and direct reads until an exact grant exists", async () => {
+    const accountId = newId();
+    const email = "vehicle-read@example.test";
+    const password = "vehicle-read-password-123";
+    await testEnv.DB.batch([
+      testEnv.DB.prepare(
+        "INSERT INTO auth_users(id,name,email,email_verified) VALUES(?,'Vehicle Reader',?,1)",
+      ).bind(accountId, email),
+      testEnv.DB.prepare(
+        "INSERT INTO auth_credentials(id,user_id,account_id,provider_id,password) VALUES(?,?,?,'credential',?)",
+      ).bind(newId(), accountId, accountId, await hashPassword(password)),
+    ]);
+    const account = await ensureMotorBaldiAccount(
+      testEnv.DB,
+      accountId,
+      "vehicle-read-reconciliation",
+    );
+    const signedIn = await signIn(email, password);
+    expect(signedIn.status).toBe(200);
+    const cookie = signedIn.headers
+      .getSetCookie()
+      .map((value) => value.split(";", 1)[0])
+      .join("; ");
+    const vehicleId = newId();
+    await testEnv.DB.prepare(
+      "INSERT INTO vehicle_vehicles(id,kind_code,specification_json) VALUES(?,'CAR','{\"propulsion\":\"electric\"}')",
+    )
+      .bind(vehicleId)
+      .run();
+    await testEnv.DB.prepare(
+      "INSERT INTO vehicle_garage_entries(person_id,vehicle_id) VALUES(?,?)",
+    )
+      .bind(account.personId, vehicleId)
+      .run();
+    const path = `/api/v1/vehicles/${vehicleId}`;
+    expect((await call(path)).status).toBe(401);
+    expect((await call(path, { headers: { cookie } })).status).toBe(404);
+    const empty = await call("/api/v1/me/garage", { headers: { cookie } });
+    expect(empty.status).toBe(200);
+    expect(await empty.json()).toEqual({ items: [] });
+    const grantId = newId();
+    await testEnv.DB.prepare(
+      "INSERT INTO vehicle_access_grants(id,vehicle_id,person_id,permission_code,granted_by_account_id) VALUES(?,?,?,'vehicle.read',?)",
+    )
+      .bind(grantId, vehicleId, account.personId, accountId)
+      .run();
+    const visible = await call(path, { headers: { cookie } });
+    expect(visible.status).toBe(200);
+    expect(await visible.json()).toMatchObject({
+      id: vehicleId,
+      kindCode: "CAR",
+      specification: { propulsion: "electric" },
+    });
+    const garage = await call("/api/v1/me/garage", { headers: { cookie } });
+    expect(garage.status).toBe(200);
+    expect(((await garage.json()) as { items: unknown[] }).items).toHaveLength(
+      1,
+    );
+    await testEnv.DB.prepare(
+      "UPDATE vehicle_access_grants SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?",
+    )
+      .bind(grantId)
+      .run();
+    expect((await call(path, { headers: { cookie } })).status).toBe(404);
   });
 });
 

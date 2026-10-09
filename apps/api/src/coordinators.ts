@@ -25,6 +25,13 @@ import {
 import { leadInput, prepareLeadReceipt, convertLead } from "@motorbaldi/crm";
 import { mergePeople } from "@motorbaldi/identity";
 import { requirePlatformPermission } from "@motorbaldi/authz";
+import {
+  authorizeVehicleCommand,
+  parseVehicleCommand,
+  prepareVehicleCommand,
+  vehicleChangeAudit,
+  type VehicleOperation,
+} from "@motorbaldi/vehicles";
 import { assessAuthenticatedSession } from "@motorbaldi/auth";
 
 export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
@@ -229,6 +236,36 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
       sessionId?: string | null;
     };
     await assertDatabaseEnvironment(this.env.DB, this.env.ENVIRONMENT);
+    let vehicleActor: BusinessPrincipal | null = null;
+    let vehicleBody: Record<string, Json> | null = null;
+    if (input.scope.operation.startsWith("vehicle.")) {
+      const assurance = input.sessionId
+        ? await assessAuthenticatedSession(
+            this.env.DB,
+            input.scope.accountId,
+            input.sessionId,
+          )
+        : null;
+      if (!assurance)
+        throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
+      const account = await ensureMotorBaldiAccount(
+        this.env.DB,
+        input.scope.accountId,
+        input.requestId,
+      );
+      vehicleActor = {
+        accountId: input.scope.accountId,
+        personId: account.personId,
+        mfaEnabled: assurance.mfaEnabled,
+      };
+      vehicleBody = parseVehicleCommand(input.scope.operation, input.request);
+      await authorizeVehicleCommand(
+        this.env.DB,
+        vehicleActor,
+        input.scope.operation as VehicleOperation,
+        vehicleBody,
+      );
+    }
     const replay = await readReplay<Json>(
       this.env.DB,
       input.scope,
@@ -240,6 +277,57 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         ...(replay.response as Record<string, Json>),
         replayed: true,
       });
+    if (vehicleActor && vehicleBody) {
+      const command = await prepareVehicleCommand(
+        this.env.DB,
+        vehicleActor,
+        input.scope.operation as VehicleOperation,
+        vehicleBody,
+        input.requestId,
+      );
+      const replayStatement = await prepareReplayStatement(
+        this.env.DB,
+        input.scope,
+        input.key,
+        input.request,
+        command.response,
+      );
+      try {
+        await this.env.DB.batch([
+          replayStatement,
+          vehicleChangeAudit(
+            this.env.DB,
+            vehicleActor,
+            "vehicle.command.accepted",
+            command.vehicleId,
+            input.requestId,
+          ),
+          ...command.statements,
+        ]);
+      } catch (error) {
+        if (
+          String(error).includes(
+            "NOT NULL constraint failed: governance_audit_events.resource_id",
+          )
+        )
+          throw new Problem(
+            409,
+            "VERSION_CONFLICT",
+            "Command state changed; refresh and retry",
+          );
+        if (
+          String(error).includes("constraint failed") ||
+          String(error).includes("odometer reading")
+        )
+          throw new Problem(
+            409,
+            "VEHICLE_COMMAND_CONFLICT",
+            "Vehicle command conflicts with current state",
+          );
+        throw error;
+      }
+      return Response.json({ ...command.response, replayed: false });
+    }
     if (input.scope.operation === "crm.lead.create") {
       const receipt = prepareLeadReceipt(
         this.env.DB,

@@ -6,6 +6,8 @@ import { buildIdempotencyScope } from "@motorbaldi/db/idempotency";
 import { errorTracker, logger } from "@motorbaldi/observability";
 import { newId, type Json } from "@motorbaldi/shared";
 import { files, unavailableScanner } from "@motorbaldi/storage";
+import { hasVehiclePermission } from "@motorbaldi/vehicles";
+import { vehicleRoutes } from "./vehicle-routes.js";
 import { openapi } from "./openapi.js";
 import { z, ZodError } from "zod";
 import {
@@ -446,6 +448,74 @@ async function route(
       throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
     return principal as typeof principal & { personId: string };
   };
+  const vehicleResponse = await vehicleRoutes(
+    request,
+    env.DB,
+    businessPrincipal,
+    async (operation, body) =>
+      idempotentCommand(
+        env,
+        request.headers,
+        operation,
+        (await businessPrincipal()).accountId,
+        body,
+        requestId,
+        requiredKey(request),
+      ),
+    () => boundedJson(request),
+    cors,
+  );
+  if (vehicleResponse) return vehicleResponse;
+  const vehicleRead = async (vehicleId: string) => {
+    const actor = await businessPrincipal();
+    if (!(await hasVehiclePermission(env.DB, actor, vehicleId, "vehicle.read")))
+      throw new Problem(404, "VEHICLE_NOT_FOUND", "Vehicle not found");
+    const row = await env.DB.prepare(
+      "SELECT id,kind_code,specification_json,version FROM vehicle_vehicles WHERE id=?",
+    )
+      .bind(vehicleId)
+      .first<{
+        id: string;
+        kind_code: string;
+        specification_json: string;
+        version: number;
+      }>();
+    if (!row) throw new Problem(404, "VEHICLE_NOT_FOUND", "Vehicle not found");
+    return {
+      id: row.id,
+      kindCode: row.kind_code,
+      specification: JSON.parse(row.specification_json),
+      version: row.version,
+    };
+  };
+  const vehicleMatch = url.pathname.match(
+    /^\/api\/v1\/vehicles\/([0-9a-f-]{36})$/,
+  );
+  if (vehicleMatch) {
+    requireMethod("GET");
+    return json(await vehicleRead(vehicleMatch[1]!), { headers: cors });
+  }
+  if (url.pathname === "/api/v1/me/garage") {
+    requireMethod("GET");
+    const actor = await businessPrincipal();
+    const rows = await env.DB.prepare(
+      "SELECT vehicle_id FROM vehicle_garage_entries WHERE person_id=? ORDER BY added_at DESC,vehicle_id LIMIT 30",
+    )
+      .bind(actor.personId)
+      .all<{ vehicle_id: string }>();
+    const items = [];
+    for (const entry of rows.results)
+      if (
+        await hasVehiclePermission(
+          env.DB,
+          actor,
+          entry.vehicle_id,
+          "vehicle.read",
+        )
+      )
+        items.push(await vehicleRead(entry.vehicle_id));
+    return json({ items }, { headers: cors });
+  }
   if (url.pathname === "/api/v1/me/evidence-files") {
     const actor = await businessPrincipal();
     if (request.method === "GET") {

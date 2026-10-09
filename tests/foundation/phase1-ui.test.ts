@@ -150,6 +150,7 @@ describe("Phase 1 browser assets", () => {
     expect(portalPage).toContain('<html lang="es">');
     expect(adminPage).toContain('<html lang="es">');
     expect(portalPage).toContain("Mis organizaciones");
+    expect(portalPage).toContain("Mi garaje");
     expect(portalPage).toContain("Mi perfil profesional");
     expect(adminPage).toContain("Personas");
     expect(adminPage).toContain("Verificaciones");
@@ -157,6 +158,26 @@ describe("Phase 1 browser assets", () => {
     expect(adminPage).toContain('aria-live="polite"');
     expect(() => new Script(portalScript)).not.toThrow();
     expect(() => new Script(adminScript)).not.toThrow();
+  });
+
+  it("shows only the granted garage list returned by the authenticated API", async () => {
+    const calls: string[] = [];
+    const { context, nodes } = browserHarness(portalScript, async (path) => {
+      calls.push(path);
+      if (path === "/api/v1/me/garage")
+        return Response.json({
+          items: [
+            { id: "018f0000-0000-7000-8000-000000000001", kindCode: "CAR" },
+          ],
+        });
+      return Response.json({ code: "UNAUTHENTICATED" }, { status: 401 });
+    });
+    await runInContext("refreshGarage()", context);
+    expect(calls).toContain("/api/v1/me/garage");
+    expect(nodes.get("garage-list")!.children).toHaveLength(2);
+    expect(
+      nodes.get("garage-list")!.children[0]!.children[0]!.textContent,
+    ).toContain("Vehículo");
   });
 
   it("shows Admin sign-in for 401 and restricted access only for 403", async () => {
@@ -402,3 +423,77 @@ function browserHarness(
   runInContext(script, context);
   return { context, nodes };
 }
+
+describe("Vehicle browser workflows", () => {
+  it("keeps a failed vehicle command key for retry and releases it after success", async () => {
+    const calls: RequestInit[] = [];
+    const { context } = browserHarness(adminScript, async (path, init) => {
+      if (path !== "/api/v1/admin/vehicles")
+        return Response.json({ code: "UNAUTHENTICATED" }, { status: 401 });
+      calls.push(init!);
+      return calls.length === 1
+        ? Response.json({ code: "INTERNAL_ERROR" }, { status: 503 })
+        : Response.json({ vehicleId: "vehicle-test" });
+    });
+    await runInContext(
+      "api('/admin/vehicles',send({kindCode:'CAR'},true)).catch(()=>{})",
+      context,
+    );
+    await runInContext(
+      "api('/admin/vehicles',send({kindCode:'CAR'},true))",
+      context,
+    );
+    expect(
+      (calls[0]!.headers as Record<string, string>)["idempotency-key"],
+    ).toBe((calls[1]!.headers as Record<string, string>)["idempotency-key"]);
+    expect(runInContext("vehicleRetryKeys.size", context)).toBe(0);
+  });
+
+  it("shows vehicle history and claim controls without exposing ungranted professional records", async () => {
+    const id = "018f0000-0000-7000-8000-000000000001";
+    const calls: string[] = [];
+    const { context, nodes } = browserHarness(portalScript, async (path) => {
+      calls.push(path);
+      if (path === "/api/v1/vehicles/" + id)
+        return Response.json({
+          kindCode: "CAR",
+          specification: { brand: "Test Brand" },
+        });
+      if (path.endsWith("/permissions"))
+        return Response.json({ permissions: ["vehicle.read"] });
+      if (path.endsWith("/odometer"))
+        return Response.json({
+          items: [
+            {
+              reading_value: 1250,
+              unit: "KILOMETERS",
+              observed_at: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        });
+      if (path.endsWith("/claims")) return Response.json({ items: [] });
+      return Response.json({ code: "UNAUTHENTICATED" }, { status: 401 });
+    });
+    await runInContext(`openVehicle('${id}')`, context);
+    expect(calls).not.toContain("/api/v1/vehicles/" + id + "/records");
+    expect(
+      nodes
+        .get("vehicle-detail")!
+        .children.some((n) =>
+          n.children.some((c) => c.textContent === "1250 kilómetros"),
+        ),
+    ).toBe(true);
+    expect(
+      nodes
+        .get("vehicle-detail")!
+        .children.some(
+          (n) => n.textContent === "Solicitar revisión de relación",
+        ),
+    ).toBe(true);
+    expect(
+      nodes
+        .get("vehicle-detail")!
+        .children.some((n) => n.textContent === "Registrar odómetro"),
+    ).toBe(false);
+  });
+});

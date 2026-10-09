@@ -20,6 +20,7 @@
     "@motorbaldi/identity": "workspace:*",
     "@motorbaldi/organizations": "workspace:*",
     "@motorbaldi/professional": "workspace:*",
-    "@motorbaldi/crm": "workspace:*"
+    "@motorbaldi/crm": "workspace:*",
+    "@motorbaldi/vehicles": "workspace:*"
   }
 }

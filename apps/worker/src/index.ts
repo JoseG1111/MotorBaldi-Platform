@@ -31,6 +31,16 @@ import { z } from "zod";
 const uuid = z.string().uuid();
 const eventContracts = [
   [
+    "vehicle.changed.v1",
+    "vehicle",
+    z
+      .object({
+        vehicleId: uuid,
+        operation: z.string().regex(/^vehicle\.[a-z.]+$/),
+      })
+      .strict(),
+  ],
+  [
     "identity.account.created.v1",
     "identity",
     z.object({ accountId: uuid, personId: uuid }).strict(),

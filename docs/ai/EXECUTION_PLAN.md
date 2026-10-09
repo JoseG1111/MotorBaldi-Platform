@@ -291,7 +291,7 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 
 ### MB-P2-003 — Odometer/history + immutable professional records
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P2-002
 - **Objective:** Append odometer history; finalize records immutably with amendments.
 - **Scope / required work:** Append odometer history; finalize records immutably with amendments.
@@ -300,10 +300,11 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 - **Verification:** History and amendment tests
 - **Completion criteria:** Corrections preserve final record history.
 - **Human-action conditions:** Global stop rule; otherwise none.
+- **Evidence:** `0006_vehicle_history.sql` adds append-only odometer readings with same-vehicle correction links, draft-to-final professional records that cannot be edited or deleted after finalization, and append-only amendments requiring a final original. Two focused Worker tests passed and `pnpm gate` passed 22 unit/74 Worker tests. The additive Development migration applied on 2026-10-08; remote D1 has all three tables, prior Phase 1 counts and `development` identity remain intact, and no migrations are pending. Detailed record fields and workflow remain for MB-P2-004 and later phases.
 
 ### MB-P2-004 — Vehicle APIs + authorization + Portal/Admin workflows
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P2-003
 - **Objective:** Expose authorized vehicle operations in API and Spanish-first UIs.
 - **Scope / required work:** Expose authorized vehicle operations in API and Spanish-first UIs.
@@ -312,18 +313,19 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 - **Verification:** API and UI route tests
 - **Completion criteria:** Flows enforce roles, context, and accessibility.
 - **Human-action conditions:** Global stop rule; otherwise none.
+- **Evidence:** On 2026-10-09 the delegated staff-reviewed policy was documented and implemented in 16 Vehicle commands, with exact grants, verified organization/location professional authorization, MFA on privileged review/finalization, immutable histories and optimistic versions. New commands batch business changes, audit, outbox and replay; current authority is rechecked before replay. Portal/Admin workflows and OpenAPI are implemented. `pnpm gate` passed 25 unit/80 Worker tests, including real password/TOTP command integration, replay/body conflicts, stale-CAS rollback, revoked replay denial, odometer corrections and immutable professional finalization/amendments. Additive migration `0007_vehicle_commands.sql` applied to Development; no migrations remain. API version `a50d8a6b-8cdf-4aba-9f09-61895fafa830`, Worker `ceb992ee-9ed5-4810-9599-6982fdde509a`, Portal `3a8c9c7f-ed68-45ec-bbd7-589e5ffd7ca9` and Admin `bd008e85-a2f8-4920-b666-b7f54a79afb3` deployed. Remote end-to-end command validation is separately required by MB-P2-005.
 
 ### MB-P2-005 — Vehicle Core remote Development validation
 
-- **Status:** NOT STARTED
+- **Status:** HUMAN ACTION REQUIRED
 - **Dependencies:** MB-P2-004
 - **Objective:** Verify Vehicle Core across Development services.
-- **Scope / required work:** Verify Vehicle Core across Development services.
+- **Scope / required work:** Run `scripts/vehicles/development-smoke.mjs` with an existing MFA-assured Development session, inspect audit/outbox/Queue processing and preserved environment isolation. Anonymous remote protection and Vehicle UI asset checks already pass.
 - **Relevant files/systems:** API, Portal, Admin, D1, observability
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote smoke, negative auth, gate
 - **Completion criteria:** Vehicle Core remotely verified.
-- **Human-action conditions:** Global stop rule; otherwise none.
+- **Human-action conditions:** Sign in to Development Admin with the existing account and TOTP when no usable assured browser session is available. The available saved session expired on 2026-10-09 and authenticated `/me` returned 401; never mint a session or bypass MFA to unblock verification.
 
 ## Phase 3 — Workshop Operations
 

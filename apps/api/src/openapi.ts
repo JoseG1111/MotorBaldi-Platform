@@ -70,6 +70,12 @@ const orgId = {
   required: true,
   schema: id,
 };
+const vehicleId = {
+  name: "vehicleId",
+  in: "path",
+  required: true,
+  schema: id,
+};
 const personId = { name: "personId", in: "path", required: true, schema: id };
 const leadId = { name: "leadId", in: "path", required: true, schema: id };
 const membershipRequestId = {
@@ -254,6 +260,19 @@ Object.assign(openapi.paths, {
     post: command("Reset password using a valid token", [], false),
   },
   "/api/v1/me": { get: get("Current MotorBaldi principal") },
+  "/api/v1/me/garage": {
+    get: get("List garage vehicles with an active explicit read grant"),
+  },
+  "/api/v1/vehicles/{vehicleId}": {
+    get: {
+      ...get("Read a vehicle with an active explicit grant", [vehicleId]),
+      responses: {
+        "200": response("Vehicle"),
+        "401": problem,
+        "404": problem,
+      },
+    },
+  },
   "/api/v1/me/workspaces": {
     get: get("List current personal and organization contexts"),
   },
@@ -567,3 +586,72 @@ Object.assign(openapi.paths, {
     ]),
   },
 });
+
+Object.assign(openapi.paths, {
+  "/api/v1/admin/vehicles": {
+    get: get("List vehicles for MFA-assured staff"),
+    post: idempotent("Register vehicle with staff permission and MFA"),
+  },
+  "/api/v1/admin/vehicles/{vehicleId}": {
+    get: get("Read staff-authorized vehicle and access history", [vehicleId]),
+    post: idempotent("Update specification with optimistic version", [
+      vehicleId,
+    ]),
+  },
+  "/api/v1/vehicles/{vehicleId}/permissions": {
+    get: get("Read current exact vehicle grants", [vehicleId]),
+  },
+  "/api/v1/vehicles/{vehicleId}/claims": {
+    get: get("Read own vehicle claims", [vehicleId]),
+    post: idempotent("Submit own relationship claim", [vehicleId]),
+  },
+  "/api/v1/vehicles/{vehicleId}/odometer": {
+    get: get("Read append-only odometer history", [vehicleId]),
+    post: idempotent("Append odometer observation or correction", [vehicleId]),
+  },
+  "/api/v1/vehicles/{vehicleId}/records": {
+    get: get("Read granted final records and own drafts", [vehicleId]),
+    post: idempotent(
+      "Create professional draft with vehicle and organization authorization",
+      [vehicleId],
+    ),
+  },
+});
+for (const collection of ["identifiers", "grants"])
+  Object.assign(openapi.paths, {
+    ["/api/v1/admin/vehicles/{vehicleId}/" + collection]: {
+      post: idempotent("Add staff-reviewed " + collection, [vehicleId]),
+    },
+  });
+for (const [collection, action] of [
+  ["identifiers", "retire"],
+  ["claims", "review"],
+  ["relationships", "end"],
+  ["grants", "revoke"],
+])
+  Object.assign(openapi.paths, {
+    ["/api/v1/admin/vehicles/{vehicleId}/" +
+    collection +
+    "/{resourceId}/" +
+    action]: {
+      post: idempotent("Staff " + action + " " + collection, [
+        vehicleId,
+        { name: "resourceId", in: "path", required: true, schema: id },
+      ]),
+    },
+  });
+for (const action of ["update", "finalize", "amend"])
+  Object.assign(openapi.paths, {
+    ["/api/v1/vehicles/{vehicleId}/records/{recordId}/" + action]: {
+      post: idempotent("Author " + action + " professional record", [
+        vehicleId,
+        { name: "recordId", in: "path", required: true, schema: id },
+      ]),
+    },
+  });
+for (const action of ["add", "remove"])
+  Object.assign(openapi.paths, {
+    ["/api/v1/me/garage/{vehicleId}/" + action]: {
+      post: idempotent("Personal garage " + action, [vehicleId]),
+    },
+  });

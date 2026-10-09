@@ -57,3 +57,5 @@ export async function hasVehiclePermission(
     .first<{ allowed: number }>();
   return row?.allowed === 1;
 }
+
+export * from "./commands.js";

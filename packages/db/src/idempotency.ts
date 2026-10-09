@@ -5,6 +5,23 @@ export const maxIdempotencyResponseBytes = 8192;
 
 export const idempotencyOperationRegistry = {
   "foundation.test": 3600,
+  "vehicle.create": 604800,
+  "vehicle.update": 604800,
+  "vehicle.identifier.add": 604800,
+  "vehicle.identifier.retire": 604800,
+  "vehicle.claim.submit": 604800,
+  "vehicle.claim.review": 604800,
+  "vehicle.relationship.end": 604800,
+  "vehicle.grant.create": 604800,
+  "vehicle.grant.revoke": 604800,
+  "vehicle.garage.add": 604800,
+  "vehicle.garage.remove": 604800,
+  "vehicle.odometer.append": 604800,
+  "vehicle.record.create": 604800,
+  "vehicle.record.update": 604800,
+  "vehicle.record.finalize": 604800,
+  "vehicle.record.amend": 604800,
+
   "identity.account.ensure": 86400,
   "identity.person.merge": 604800,
   "organization.create": 86400,
