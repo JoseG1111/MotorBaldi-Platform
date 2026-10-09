@@ -1,3 +1,8 @@
+import {
+  inspectionSnapshot,
+  inspectionReportSchema,
+  inspectionAmendmentSchema,
+} from "@motorbaldi/inspections";
 import { describe, expect, it } from "vitest";
 import { buildIdempotencyScope } from "@motorbaldi/db/idempotency";
 import { canonical } from "@motorbaldi/shared";
@@ -380,5 +385,77 @@ describe("Workshop operational contract", () => {
         manage: false,
       }),
     ).toThrow();
+  });
+});
+
+describe("Inspection report contract", () => {
+  const id = "018f0000-0000-7000-8000-000000000001";
+  const file = "018f0000-0000-7000-8000-000000000002";
+  const report = () => ({
+    schemaVersion: 1,
+    summary: "Synthetic professional observations",
+    findings: [
+      {
+        id,
+        label: "Observation",
+        observation: "Synthetic visible condition",
+        evidenceFileIds: [] as string[],
+      },
+    ],
+  });
+  it("preserves a canonical immutable snapshot when input changes", () => {
+    const input = report();
+    const snapshot = inspectionSnapshot(input, new Set());
+    input.summary = "Changed later";
+    input.findings[0]!.observation = "Changed finding";
+    expect(JSON.parse(snapshot).summary).toBe(
+      "Synthetic professional observations",
+    );
+    expect(JSON.parse(snapshot).findings[0].observation).toBe(
+      "Synthetic visible condition",
+    );
+    expect(inspectionSnapshot(report(), new Set())).toBe(snapshot);
+  });
+  it("rejects unassociated evidence, duplicate references/IDs and unknown business fields", () => {
+    const input = report();
+    input.findings[0]!.evidenceFileIds = [file];
+    expect(() => inspectionSnapshot(input, new Set())).toThrowError(
+      expect.objectContaining({ code: "INSPECTION_EVIDENCE_UNAVAILABLE" }),
+    );
+    expect(() => inspectionSnapshot(input, new Set([file]))).not.toThrow();
+    input.findings[0]!.evidenceFileIds = [file, file];
+    expect(() => inspectionReportSchema.parse(input)).toThrow();
+    expect(() =>
+      inspectionReportSchema.parse({
+        ...report(),
+        findings: [...report().findings, ...report().findings],
+      }),
+    ).toThrow();
+    expect(() =>
+      inspectionReportSchema.parse({ ...report(), verdict: "APPROVED" }),
+    ).toThrow();
+    expect(() =>
+      inspectionReportSchema.parse({ ...report(), schemaVersion: 2 }),
+    ).toThrow();
+  });
+  it("bounds serialized content and requires explicit amendment reasons", () => {
+    const input = report();
+    input.findings = Array.from({ length: 20 }, (_, n) => ({
+      ...input.findings[0]!,
+      id: `018f0000-0000-7000-8000-${String(n + 1).padStart(12, "0")}`,
+      observation: "x".repeat(4000),
+    }));
+    expect(() => inspectionSnapshot(input, new Set())).toThrowError(
+      expect.objectContaining({ code: "INSPECTION_REPORT_TOO_LARGE" }),
+    );
+    expect(() =>
+      inspectionAmendmentSchema.parse({ reason: " ", content: report() }),
+    ).toThrow();
+    expect(
+      inspectionAmendmentSchema.parse({
+        reason: "Correct the recorded observation",
+        content: report(),
+      }).content.schemaVersion,
+    ).toBe(1);
   });
 });

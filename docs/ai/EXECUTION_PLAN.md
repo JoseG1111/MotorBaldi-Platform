@@ -11,13 +11,15 @@ This file is the checkpoint registry. `CURRENT_CHECKPOINT.md` is the recovery cu
 5. If implementation exists but verification is incomplete, use `IMPLEMENTED — NOT VERIFIED`. On success, mark `VERIFIED` with concise evidence and add one `WORK_LOG.md` entry. Advance the cursor and continue automatically to the next eligible checkpoint. Phase 2 requires MB-CF-015 `VERIFIED`.
 6. Stop only at a genuine human-action boundary. Mark `HUMAN ACTION REQUIRED` when a specific human action is necessary; `BLOCKED` is for a technical/external impediment with an identified retry condition. Resume automatically when it clears. Use `SKIPPED — WITH REASON` only for an explicit, justified non-applicable checkpoint and adjust dependents deliberately.
 
-Allowed statuses, exactly: `NOT STARTED`, `READY`, `IN PROGRESS`, `IMPLEMENTED — NOT VERIFIED`, `VERIFIED`, `BLOCKED`, `HUMAN ACTION REQUIRED`, `SKIPPED — WITH REASON`. `READY` means dependencies are verified and no work has begun. Do not use `VERIFIED` to mean “coded” or “reported complete.”
+Allowed statuses, exactly: `NOT STARTED`, `READY`, `IN PROGRESS`, `IMPLEMENTED — NOT VERIFIED`, `VERIFIED`, `BLOCKED`, `HUMAN ACTION REQUIRED`, `SKIPPED — WITH REASON`, `DEFERRED — OWNER APPROVED`. `READY` means dependencies are verified and no work has begun. Do not use `VERIFIED` to mean “coded” or “reported complete.”
 
 ## Autonomy and stop rule
 
 Proceed without asking for repository inspection, routine choices settled by code/ADRs/tests, ordinary refactoring, tests, current-work lint/type fixes, correcting mistakes, non-destructive Development D1 operations, deployments to already-existing Development Workers/resources when verification needs them, Development smoke tests, and advancement to approved checkpoints. Select named remote Wrangler environments explicitly. Never weaken security or reveal/commit secrets. Do not ask anyone to paste secret values into files or these docs.
 
 Stop for an actual secret/credential that must be supplied or an interactive account login, a new provider requiring manual interaction, unsafe account-level Cloudflare provisioning, DNS/nameserver work, spending money, production deployment, possible production data destruction, a materially destructive migration, an unresolved business choice, two legitimate architecture choices unresolved by ADRs, material repository conflict with an accepted decision, a step requiring weaker security, or genuinely absent necessary information. Prepare all safe work first and state the exact action needed. The initiating user authorized use of existing keys and Development resources; that does not authorize production deployment, destructive changes, DNS, spending, or writing secrets to the repository.
+
+An explicit owner deferral is recorded as `DEFERRED — OWNER APPROVED`, never as verified or skipped. Keep its outstanding verification and release restriction visible. Unrelated work may proceed only after its dependency is deliberately changed to verified prerequisites; deferred work does not satisfy a verified dependency. The 2026-10-09 owner decision defers MB-P3-005 real antimalware/positive remote file closeout at a $0 additional-service budget. Do not integrate ClamAV, Cloudflare Containers or paid antivirus now. Trusted synthetic Development uploads may exercise validation, authorization and private quarantine; no manual ACTIVE promotion or remote test scanner. Real scanning must be revisited before public file upload/download enablement.
 
 Checkpoint constraints below add to these global rules. If a future checkpoint needs a narrowly scoped technical prerequisite, add it with reason and dependencies; never silently change product scope or reverse architecture.
 
@@ -389,39 +391,41 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 
 ### MB-P3-005 — Remote validation
 
-- **Status:** HUMAN ACTION REQUIRED
+- **Status:** DEFERRED — OWNER APPROVED
 - **Dependencies:** MB-P3-004
 - **Objective:** Validate workshop operations in Development.
-- **Scope / required work:** Core operational and negative file smoke passed. Integrate a real private malware scanner using its approved protocol, securely provision any required Worker secret, verify CLEAN promotion/attachment/download and rejection/unavailability, then rerun full smoke/gate/CI.
+- **Scope / required work:** Owner deferred real antimalware scanning and the remaining positive remote file closeout on 2026-10-09. Core operational and negative quarantine smoke already passed. Retain real CLEAN promotion/attachment/download and rejection/unavailability plus full closeout as outstanding verification to revisit before public file upload/download enablement.
 - **Relevant files/systems:** All Development apps/resources
-- **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
+- **Constraints:** $0 additional security-service budget; no ClamAV, Cloudflare Containers or paid antivirus. Preserve private R2, validation, authorization and quarantine. Trusted synthetic Development files may exercise existing quarantine paths; no fake scan or manual ACTIVE promotion. See ADR 0024.
 - **Verification:** Remote smoke, negative tests, gate
 - **Completion criteria:** Workflow remotely verified.
-- **Human-action conditions:** No approved real private malware provider/protocol or credential exists in the repository/Development Worker. Supply provider name/documentation or endpoint; credentials must be installed securely as Worker secrets, never pasted into repository/continuity docs. Remote deterministic/no-op scanning is forbidden by existing config and ADR 0017.
+- **Human-action conditions:** Revisit with owner before public file upload/download enablement; future provider/protocol/secret provision and any spend remain human boundaries. This owner deferral does not block independent checkpoints.
 
 ## Phase 4 — Inspections / Peritaje
 
 ### MB-P4-001 — Inspection domain + immutable report contract
 
-- **Status:** NOT STARTED
-- **Dependencies:** MB-P3-005
+- **Status:** VERIFIED
+- **Dependencies:** MB-P2-005, MB-P3-004 (independent report domain; MB-P3-005 scanner closeout explicitly deferred by owner)
 - **Objective:** Define inspection/peritaje findings and immutable final report with amendments.
 - **Scope / required work:** Define inspection/peritaje findings and immutable final report with amendments.
 - **Relevant files/systems:** Inspection package, contracts, migration
-- **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
+- **Constraints:** Reuse canonical Vehicle professional records/amendments; preserve owner scanner deferral. Do not invent legal certification, inspection checklist or verdict requirements.
 - **Verification:** Domain and immutability tests
 - **Completion criteria:** Report contract preserves evidence and corrections.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Repository has no established detailed checklist/legal verdict. The bounded generic contract in `packages/inspections` reuses canonical INSPECTION professional records/amendments, strictly validates versioned findings/content, rejects duplicate/unauthorized evidence references and serializes immutable snapshots at 64 KiB. `pnpm gate` passed 32 unit/89 Worker tests, including immutable input/snapshot, unauthorized evidence, duplicate/unknown fields, size and amendment reason tests; existing D1 FINAL/amendment trigger tests remain green. No API workflow, remote scan or legal certification is claimed by this contract.
+
 ### MB-P4-002 — Evidence/media lifecycle
 
-- **Status:** NOT STARTED
+- **Status:** IN PROGRESS
 - **Dependencies:** MB-P4-001
-- **Objective:** Bind inspection evidence to private R2 lifecycle and scanning.
-- **Scope / required work:** Bind inspection evidence to private R2 lifecycle and scanning.
+- **Objective:** Bind inspection evidence to existing private R2 metadata/quarantine/ACTIVE lifecycle; implement immutable associations and scoped authorization without integrating the owner-deferred scanner.
+- **Scope / required work:** Bind inspection evidence to existing private R2 metadata/quarantine/ACTIVE lifecycle; implement immutable associations and scoped authorization without integrating the owner-deferred scanner.
 - **Relevant files/systems:** Storage, inspection, D1
-- **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
-- **Verification:** Upload, scan, privacy tests
+- **Constraints:** ADR 0024 owner deferral applies. Private R2, ACTIVE-only association/download, no new scanner or remote test mode; real scanning remains a prerequisite to public file enablement.
+- **Verification:** Association/ownership/authorization/immutability tests, unavailable/quarantined rejection and existing local file-lifecycle tests. No real remote scan or manual promotion.
 - **Completion criteria:** Only authorized clean media is served.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 

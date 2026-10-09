@@ -1,0 +1,14 @@
+{
+  "name": "@motorbaldi/inspections",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@motorbaldi/contracts": "workspace:*",
+    "@motorbaldi/shared": "workspace:*",
+    "zod": "^4.3.0"
+  }
+}

@@ -29,3 +29,7 @@ Work descriptions, attachments and internal operational history are CONFIDENTIAL
 D1 is canonical. New Workshop commands use the existing serialized coordinator with a single batch containing business changes, dependent CAS guards, append-only audit/history, minimal-ID outbox events and replay persistence. The existing generic financial-command crash window remains for MB-P5-000. Queue handlers acknowledge at-least-once events idempotently; they do not claim email delivery. UUIDv7, UTC ISO timestamps, default-deny authorization, private R2, Spanish-first native accessible controls and explicit Development environment selection remain required.
 
 See [Vehicle Core](phase-2-vehicle-core.md), [Phase 1 organization authorization](phase-1-identity-crm-organizations.md), [master architecture](MOTORBALDI_MASTER.md) and [execution plan](../ai/EXECUTION_PLAN.md).
+
+## Owner-approved scanner deferral
+
+On 2026-10-09 the owner deferred real antimalware and MB-P3-005's remaining positive remote file validation with a $0 additional security-service budget. See [ADR 0024](../adr/0024-owner-antimalware-deferral.md). Core operational/negative quarantine evidence remains valid; the deferred checkpoint is not VERIFIED. Trusted Development test files remain private and quarantined, never promoted by trust. Independent report-domain development continues through verified prerequisites. Revisit real scanning before public file upload/download enablement.

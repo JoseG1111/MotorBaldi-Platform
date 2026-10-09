@@ -40,6 +40,9 @@ importers:
       '@motorbaldi/identity':
         specifier: workspace:*
         version: link:packages/identity
+      '@motorbaldi/inspections':
+        specifier: workspace:*
+        version: link:packages/inspections
       '@motorbaldi/messaging':
         specifier: workspace:*
         version: link:packages/messaging
@@ -302,6 +305,18 @@ importers:
       '@motorbaldi/db':
         specifier: workspace:*
         version: link:../db
+      '@motorbaldi/shared':
+        specifier: workspace:*
+        version: link:../shared
+      zod:
+        specifier: ^4.3.0
+        version: 4.6.5
+
+  packages/inspections:
+    dependencies:
+      '@motorbaldi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@motorbaldi/shared':
         specifier: workspace:*
         version: link:../shared

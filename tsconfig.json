@@ -45,7 +45,8 @@
       "@motorbaldi/professional": ["packages/professional/src/index.ts"],
       "@motorbaldi/crm": ["packages/crm/src/index.ts"],
       "@motorbaldi/vehicles": ["packages/vehicles/src/index.ts"],
-      "@motorbaldi/workshops": ["packages/workshops/src/index.ts"]
+      "@motorbaldi/workshops": ["packages/workshops/src/index.ts"],
+      "@motorbaldi/inspections": ["packages/inspections/src/index.ts"]
     }
   },
   "include": [

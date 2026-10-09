@@ -22,3 +22,7 @@ One concise entry per newly verified checkpoint or major architectural state tra
 - 2026-10-09 — MB-P3-003 VERIFIED: atomic scoped Workshop commands, Portal operations, Admin reads and OpenAPI pass the gate (29 unit/88 Worker tests). All four Development apps deployed and authenticated remote operational progression/replay/CAS/assignment/scope/immutable closure smoke passed. File integration and full Phase 3 remote closeout remain separate.
 
 - 2026-10-09 — MB-P3-004 VERIFIED: private ACTIVE-only immutable Workshop attachments/download and atomic retry/audit/outbox integration pass 29 unit/89 Worker tests and CI 37970578056. Migration 0009 and Development API/Worker/Portal deployed; remote quarantine rejection and 13 matching receipts verified. MB-P3-005 requires a real private antimalware provider before positive remote file verification.
+
+- 2026-10-09 — Owner explicitly deferred MB-P3-005 real antimalware/remaining positive remote file closeout at a $0 additional-service budget. Status is DEFERRED — OWNER APPROVED, never VERIFIED. ADR 0024 preserves private quarantine/authorization and the pre-public-upload/download revisit requirement. MB-P4-001 now depends on verified MB-P2-005/MB-P3-004 so unrelated report-domain work can proceed.
+
+- 2026-10-09 — MB-P4-001 VERIFIED: generic versioned Inspection findings/amendment contract reuses canonical professional records, validates evidence references and immutable bounded snapshots; gate passes 32 unit/89 Worker tests. Checklist/legal verdict remain unknown, real scanner stays owner-deferred.
