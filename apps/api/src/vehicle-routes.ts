@@ -170,6 +170,25 @@ export async function vehicleRoutes(
             )
             .bind(vehicleId!, actor.personId)
             .all();
+    if (collection === "records") {
+      const allowed = [];
+      for (const record of rows.results)
+        if (
+          await hasVehiclePermission(
+            db,
+            actor,
+            vehicleId!,
+            "vehicle.record.read",
+            {
+              organizationId: String(record.organization_id),
+              locationId:
+                record.location_id == null ? null : String(record.location_id),
+            },
+          )
+        )
+          allowed.push(record);
+      rows.results = allowed;
+    }
     const amendments =
       collection === "records"
         ? (
@@ -181,7 +200,12 @@ export async function vehicleRoutes(
               .all()
           ).results
         : [];
-    return reply({ items: rows.results, amendments });
+    return reply({
+      items: rows.results,
+      amendments: amendments.filter((a) =>
+        rows.results.some((r) => r.id === a.record_id),
+      ),
+    });
   }
   const staffAction = path.match(
     new RegExp(

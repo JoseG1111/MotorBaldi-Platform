@@ -31,6 +31,24 @@ import { z } from "zod";
 const uuid = z.string().uuid();
 const eventContracts = [
   [
+    "workshop.order.changed.v1",
+    "workshop_order",
+    z
+      .object({
+        orderId: uuid,
+        vehicleId: uuid,
+        organizationId: uuid,
+        locationId: uuid,
+        operation: z.enum([
+          "workshop.order.create",
+          "workshop.order.update",
+          "workshop.order.transition",
+          "workshop.order.file.attach",
+        ]),
+      })
+      .strict(),
+  ],
+  [
     "vehicle.changed.v1",
     "vehicle",
     z

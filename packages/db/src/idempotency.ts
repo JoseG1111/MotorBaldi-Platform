@@ -5,6 +5,10 @@ export const maxIdempotencyResponseBytes = 8192;
 
 export const idempotencyOperationRegistry = {
   "foundation.test": 3600,
+  "workshop.order.create": 604800,
+  "workshop.order.file.attach": 604800,
+  "workshop.order.update": 604800,
+  "workshop.order.transition": 604800,
   "vehicle.create": 604800,
   "vehicle.update": 604800,
   "vehicle.identifier.add": 604800,

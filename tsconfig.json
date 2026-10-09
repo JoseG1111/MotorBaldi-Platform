@@ -44,7 +44,8 @@
       "@motorbaldi/organizations": ["packages/organizations/src/index.ts"],
       "@motorbaldi/professional": ["packages/professional/src/index.ts"],
       "@motorbaldi/crm": ["packages/crm/src/index.ts"],
-      "@motorbaldi/vehicles": ["packages/vehicles/src/index.ts"]
+      "@motorbaldi/vehicles": ["packages/vehicles/src/index.ts"],
+      "@motorbaldi/workshops": ["packages/workshops/src/index.ts"]
     }
   },
   "include": [

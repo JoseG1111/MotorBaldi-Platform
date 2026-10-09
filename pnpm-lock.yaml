@@ -67,6 +67,9 @@ importers:
       '@motorbaldi/vehicles':
         specifier: workspace:*
         version: link:packages/vehicles
+      '@motorbaldi/workshops':
+        specifier: workspace:*
+        version: link:packages/workshops
       better-auth:
         specifier: 1.7.5
         version: 1.7.5(@opentelemetry/api@1.9.1)(drizzle-orm@0.45.3(@cloudflare/workers-types@5.20260923.1)(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(kysely@0.29.6)(pg@8.23.0))(pg@8.23.0)(vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)))
@@ -164,6 +167,9 @@ importers:
       '@motorbaldi/vehicles':
         specifier: workspace:*
         version: link:../../packages/vehicles
+      '@motorbaldi/workshops':
+        specifier: workspace:*
+        version: link:../../packages/workshops
 
   apps/portal:
     dependencies:
@@ -396,6 +402,27 @@ importers:
       '@motorbaldi/shared':
         specifier: workspace:*
         version: link:../shared
+      zod:
+        specifier: ^4.3.0
+        version: 4.6.5
+
+  packages/workshops:
+    dependencies:
+      '@motorbaldi/authz':
+        specifier: workspace:*
+        version: link:../authz
+      '@motorbaldi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@motorbaldi/db':
+        specifier: workspace:*
+        version: link:../db
+      '@motorbaldi/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@motorbaldi/vehicles':
+        specifier: workspace:*
+        version: link:../vehicles
       zod:
         specifier: ^4.3.0
         version: 4.6.5

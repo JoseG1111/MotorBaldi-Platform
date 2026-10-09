@@ -326,3 +326,59 @@ describe("foundation contracts", () => {
     expect(seen).toEqual(["https://api.internal/api/v1/principal"]);
   });
 });
+
+import { assertWorkshopTransition } from "@motorbaldi/workshops";
+describe("Workshop operational contract", () => {
+  const authorized = {
+    manage: true,
+    execute: true,
+    assigned: true,
+    finalRecord: true,
+    mfa: true,
+  };
+  it("allows the bounded progression and keeps terminal states immutable", () => {
+    for (const [from, to] of [
+      ["DRAFT", "OPEN"],
+      ["OPEN", "IN_PROGRESS"],
+      ["IN_PROGRESS", "COMPLETED"],
+      ["COMPLETED", "CLOSED"],
+      ["OPEN", "CANCELLED"],
+    ] as const)
+      expect(() =>
+        assertWorkshopTransition(from, to, authorized),
+      ).not.toThrow();
+    for (const [from, to] of [
+      ["DRAFT", "COMPLETED"],
+      ["OPEN", "CLOSED"],
+      ["CLOSED", "OPEN"],
+      ["CANCELLED", "DRAFT"],
+    ] as const)
+      expect(() => assertWorkshopTransition(from, to, authorized)).toThrow();
+  });
+  it("requires executor assignment, immutable completion evidence and MFA closeout", () => {
+    expect(() =>
+      assertWorkshopTransition("OPEN", "IN_PROGRESS", {
+        ...authorized,
+        assigned: false,
+      }),
+    ).toThrow();
+    expect(() =>
+      assertWorkshopTransition("IN_PROGRESS", "COMPLETED", {
+        ...authorized,
+        finalRecord: false,
+      }),
+    ).toThrow();
+    expect(() =>
+      assertWorkshopTransition("COMPLETED", "CLOSED", {
+        ...authorized,
+        mfa: false,
+      }),
+    ).toThrow();
+    expect(() =>
+      assertWorkshopTransition("DRAFT", "OPEN", {
+        ...authorized,
+        manage: false,
+      }),
+    ).toThrow();
+  });
+});

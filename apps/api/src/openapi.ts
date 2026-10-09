@@ -655,3 +655,66 @@ for (const action of ["add", "remove"])
       post: idempotent("Personal garage " + action, [vehicleId]),
     },
   });
+
+Object.assign(openapi.paths, {
+  "/api/v1/organizations/{organizationId}/workshop/locations": {
+    get: get("List authorized active Workshop locations", [orgId]),
+  },
+  "/api/v1/organizations/{organizationId}/workshop/orders": {
+    get: get("List exact-granted location-scoped Workshop orders", [orgId]),
+    post: idempotent(
+      "Create Workshop draft with organization and exact vehicle authorization",
+      [orgId],
+    ),
+  },
+  "/api/v1/organizations/{organizationId}/workshop/orders/{orderId}": {
+    get: get("Read authorized Workshop order and transition history", [
+      orgId,
+      { name: "orderId", in: "path", required: true, schema: id },
+    ]),
+  },
+  "/api/v1/organizations/{organizationId}/workshop/locations/{locationId}/vehicles":
+    {
+      get: get("List vehicles granted for Workshop write at this location", [
+        orgId,
+        { name: "locationId", in: "path", required: true, schema: id },
+      ]),
+    },
+  "/api/v1/admin/workshop/orders": {
+    get: get("Inspect Workshop operations with staff permission and MFA"),
+  },
+});
+for (const action of ["update", "transition"])
+  Object.assign(openapi.paths, {
+    ["/api/v1/organizations/{organizationId}/workshop/orders/{orderId}/" +
+    action]: {
+      post: idempotent("Versioned Workshop " + action, [
+        orgId,
+        { name: "orderId", in: "path", required: true, schema: id },
+      ]),
+    },
+  });
+
+Object.assign(openapi.paths, {
+  "/api/v1/organizations/{organizationId}/workshop/orders/{orderId}/files": {
+    get: get("List scoped private Workshop evidence", [
+      orgId,
+      { name: "orderId", in: "path", required: true, schema: id },
+    ]),
+    post: idempotent(
+      "Attach owned ACTIVE evidence to a mutable Workshop order",
+      [orgId, { name: "orderId", in: "path", required: true, schema: id }],
+    ),
+  },
+  "/api/v1/organizations/{organizationId}/workshop/orders/{orderId}/files/{fileId}":
+    {
+      get: get(
+        "Download ACTIVE private evidence through current Workshop authorization",
+        [
+          orgId,
+          { name: "orderId", in: "path", required: true, schema: id },
+          { name: "fileId", in: "path", required: true, schema: id },
+        ],
+      ),
+    },
+});

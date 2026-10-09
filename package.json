@@ -71,6 +71,7 @@
     "@motorbaldi/organizations": "workspace:*",
     "@motorbaldi/professional": "workspace:*",
     "@motorbaldi/crm": "workspace:*",
-    "@motorbaldi/vehicles": "workspace:*"
+    "@motorbaldi/vehicles": "workspace:*",
+    "@motorbaldi/workshops": "workspace:*"
   }
 }

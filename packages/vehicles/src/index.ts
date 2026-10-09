@@ -6,6 +6,7 @@ export async function hasVehiclePermission(
   actor: VehicleActor,
   vehicleId: string,
   permissionCode: string,
+  resourceContext?: { organizationId: string; locationId: string | null },
 ): Promise<boolean> {
   const row = await db
     .prepare(
@@ -19,6 +20,7 @@ export async function hasVehiclePermission(
              AND g.granted_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now')
              AND g.revoked_at IS NULL
              AND (g.expires_at IS NULL OR g.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+             AND (? IS NULL OR g.person_id=p.id OR (g.organization_id=? AND (g.location_id IS NULL OR g.location_id IS ?)))
              AND (
                g.person_id=p.id
                OR (
@@ -53,7 +55,15 @@ export async function hasVehiclePermission(
          )
        LIMIT 1`,
     )
-    .bind(actor.accountId, actor.personId, vehicleId, permissionCode)
+    .bind(
+      actor.accountId,
+      actor.personId,
+      vehicleId,
+      permissionCode,
+      resourceContext?.organizationId ?? null,
+      resourceContext?.organizationId ?? null,
+      resourceContext?.locationId ?? null,
+    )
     .first<{ allowed: number }>();
   return row?.allowed === 1;
 }

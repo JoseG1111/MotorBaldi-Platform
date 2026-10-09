@@ -33,6 +33,8 @@ export const vehiclePermissions = [
   "vehicle.odometer.write",
   "vehicle.record.read",
   "vehicle.record.write",
+  "vehicle.workshop.read",
+  "vehicle.workshop.write",
 ] as const;
 export const vehicleCommandInputs = {
   "vehicle.create": z
@@ -223,6 +225,16 @@ export async function authorizeVehicleCommand(
     const locationId =
       record?.location_id ??
       (typeof body.locationId === "string" ? body.locationId : undefined);
+    if (
+      !(await hasVehiclePermission(
+        db,
+        actor,
+        vehicleId,
+        "vehicle.record.write",
+        { organizationId: orgId, locationId: locationId ?? null },
+      ))
+    )
+      throw new Problem(404, "RECORD_NOT_FOUND", "Record not found");
     await requireOrganizationPermission(
       db,
       actor,

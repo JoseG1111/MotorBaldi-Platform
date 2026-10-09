@@ -12,3 +12,11 @@ One concise entry per newly verified checkpoint or major architectural state tra
 - 2026-10-09 — Operator delegated implementation choices; adopted the bounded staff-reviewed Vehicle issuance/claim policy, preserving explicit grants, verified organization context and MFA. Prior policy blocker resolved; MB-P2-004 remains IN PROGRESS pending verification.
 
 - 2026-10-09 — MB-P2-004 VERIFIED: staff-reviewed Vehicle commands and Portal/Admin workflows pass the gate (25 unit/80 Worker tests); migration 0007 and all four Development deployments completed. New commands atomically persist changes/audit/outbox/replay; generic financial idempotency debt remains. GitHub CI run 37963005598 passed for `d910e2d`. MB-P2-005 remote authentication requires a fresh operator password/TOTP session; anonymous remote checks pass.
+
+- 2026-10-09 — MB-P2-005 VERIFIED: authenticated remote Vehicle lifecycle, negative access, replay/CAS and immutable professional history passed; 34 Vehicle audit/replay/event receipts match and all 41 outbox events are PROCESSED with no unresolved dead letters. Live API structured health log observed; Phase 1 counts/environment isolation preserved. CI 37966439869 passed.
+
+- 2026-10-09 — MB-P3-001 VERIFIED: explicitly delegated bounded Workshop operational contract and six-state transition policy documented; 27 unit tests, typecheck and workspace boundaries pass. Assignment, final-record completion, MFA closure and terminal immutability are tested.
+
+- 2026-10-09 — MB-P3-002 VERIFIED: immutable-scoped Workshop order/history schema and exact grant plus organization/location authorization pass the gate (27 unit/86 Worker tests); migration 0008 applied in Development with prior counts/identity preserved. Professional record reads/writes/amendments also enforce the grant resource location.
+
+- 2026-10-09 — MB-P3-003 VERIFIED: atomic scoped Workshop commands, Portal operations, Admin reads and OpenAPI pass the gate (29 unit/88 Worker tests). All four Development apps deployed and authenticated remote operational progression/replay/CAS/assignment/scope/immutable closure smoke passed. File integration and full Phase 3 remote closeout remain separate.

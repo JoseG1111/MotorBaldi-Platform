@@ -1,3 +1,4 @@
+import { workshopRoutes } from "./workshop-routes.js";
 import { authentication, allowedAuthPaths } from "@motorbaldi/auth";
 import { apiConfig, type ApiBindings } from "@motorbaldi/config";
 import { Problem } from "@motorbaldi/contracts";
@@ -448,6 +449,26 @@ async function route(
       throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
     return principal as typeof principal & { personId: string };
   };
+  const workshopResponse = await workshopRoutes(
+    request,
+    env.DB,
+    env.PRIVATE_BUCKET,
+    businessPrincipal,
+    async (operation, body, organizationId) =>
+      idempotentCommand(
+        env,
+        request.headers,
+        operation,
+        (await businessPrincipal()).accountId,
+        body,
+        requestId,
+        requiredKey(request),
+        organizationId,
+      ),
+    () => boundedJson(request),
+    cors,
+  );
+  if (workshopResponse) return workshopResponse;
   const vehicleResponse = await vehicleRoutes(
     request,
     env.DB,

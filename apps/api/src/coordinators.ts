@@ -1,3 +1,10 @@
+import {
+  authorizeWorkshopCommand,
+  parseWorkshopCommand,
+  prepareWorkshopCommand,
+  workshopReplayAudit,
+  type WorkshopOperation,
+} from "@motorbaldi/workshops";
 import { DurableObject } from "cloudflare:workers";
 import type { ApiBindings } from "@motorbaldi/config";
 import {
@@ -266,6 +273,36 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         vehicleBody,
       );
     }
+    let workshopActor: BusinessPrincipal | null = null;
+    let workshopBody: Record<string, Json> | null = null;
+    if (input.scope.operation.startsWith("workshop.")) {
+      const assurance = input.sessionId
+        ? await assessAuthenticatedSession(
+            this.env.DB,
+            input.scope.accountId,
+            input.sessionId,
+          )
+        : null;
+      if (!assurance)
+        throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
+      const account = await ensureMotorBaldiAccount(
+        this.env.DB,
+        input.scope.accountId,
+        input.requestId,
+      );
+      workshopActor = {
+        accountId: input.scope.accountId,
+        personId: account.personId,
+        mfaEnabled: assurance.mfaEnabled,
+      };
+      workshopBody = parseWorkshopCommand(input.scope.operation, input.request);
+      await authorizeWorkshopCommand(
+        this.env.DB,
+        workshopActor,
+        input.scope.operation as WorkshopOperation,
+        workshopBody,
+      );
+    }
     const replay = await readReplay<Json>(
       this.env.DB,
       input.scope,
@@ -277,6 +314,59 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         ...(replay.response as Record<string, Json>),
         replayed: true,
       });
+    if (workshopActor && workshopBody) {
+      const command = await prepareWorkshopCommand(
+        this.env.DB,
+        workshopActor,
+        input.scope.operation as WorkshopOperation,
+        workshopBody,
+        input.requestId,
+      );
+      const replayStatement = await prepareReplayStatement(
+        this.env.DB,
+        input.scope,
+        input.key,
+        input.request,
+        command.response,
+      );
+      try {
+        await this.env.DB.batch([
+          replayStatement,
+          workshopReplayAudit(
+            this.env.DB,
+            workshopActor,
+            command.orderId,
+            input.requestId,
+          ),
+          ...command.statements,
+        ]);
+      } catch (error) {
+        if (
+          String(error).includes(
+            "NOT NULL constraint failed: workshop_order_events.to_status",
+          ) ||
+          String(error).includes(
+            "NOT NULL constraint failed: governance_audit_events.resource_id",
+          )
+        )
+          throw new Problem(
+            409,
+            "VERSION_CONFLICT",
+            "Workshop state changed; refresh and retry",
+          );
+        if (
+          String(error).includes("WORKSHOP_") ||
+          String(error).includes("constraint failed")
+        )
+          throw new Problem(
+            409,
+            "WORKSHOP_COMMAND_CONFLICT",
+            "Workshop command conflicts with current state",
+          );
+        throw error;
+      }
+      return Response.json({ ...command.response, replayed: false });
+    }
     if (vehicleActor && vehicleBody) {
       const command = await prepareVehicleCommand(
         this.env.DB,

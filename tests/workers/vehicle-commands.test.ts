@@ -87,6 +87,13 @@ async function totp(secret: string) {
 import vehicleCore from "../../migrations/0004_vehicle_core.sql?raw";
 import vehicleAccess from "../../migrations/0005_vehicle_access.sql?raw";
 import vehicleHistory from "../../migrations/0006_vehicle_history.sql?raw";
+import workshopFilesMigration from "../../migrations/0009_workshop_files.sql?raw";
+import {
+  files,
+  deterministicTestScanner,
+  unavailableScanner,
+} from "@motorbaldi/storage";
+import workshopMigration from "../../migrations/0008_workshop_operations.sql?raw";
 import vehicleCommands from "../../migrations/0007_vehicle_commands.sql?raw";
 import { newId } from "@motorbaldi/shared";
 import { authorizeVehicleCommand } from "@motorbaldi/vehicles";
@@ -101,6 +108,8 @@ beforeAll(async () => {
     vehicleAccess,
     vehicleHistory,
     vehicleCommands,
+    workshopMigration,
+    workshopFilesMigration,
   ])
     await db.exec(sql.replace(/\n/g, " "));
   await db
@@ -437,5 +446,452 @@ describe("Vehicle command runtime", () => {
         })
       ).status,
     ).toBe(403);
+  });
+  it("keeps professional record reads, amendments and writes inside a location-scoped vehicle grant", async () => {
+    await db
+      .prepare(
+        "UPDATE org_organizations SET verification_status='VERIFIED',version=version+1 WHERE id=?",
+      )
+      .bind(organizationId)
+      .run();
+    const vehicleId = await createVehicle();
+    const writeGrant = await grant(vehicleId, "vehicle.record.write");
+    const locations = [newId(), newId()];
+    for (const locationId of locations)
+      await db
+        .prepare(
+          "INSERT INTO org_locations(id,organization_id,name,location_type,country_code,administrative_area,city,address_line_1) VALUES(?,?,'Test Site','BRANCH','CO','Test','Test','Synthetic')",
+        )
+        .bind(locationId, organizationId)
+        .run();
+    const recordIds = [];
+    for (const locationId of locations) {
+      const created = await command("/vehicles/" + vehicleId + "/records", {
+        organizationId,
+        locationId,
+        recordType: "SERVICE",
+        content: { summary: "Location-scoped record" },
+      });
+      expect(created.status).toBe(200);
+      const recordId = ((await created.json()) as { recordId: string })
+        .recordId;
+      recordIds.push(recordId);
+      expect(
+        (
+          await command(
+            "/vehicles/" + vehicleId + "/records/" + recordId + "/finalize",
+            { version: 1 },
+          )
+        ).status,
+      ).toBe(200);
+    }
+    expect(
+      (
+        await command(
+          "/vehicles/" + vehicleId + "/records/" + recordIds[1] + "/amend",
+          {
+            reason: "Second-location correction",
+            content: { summary: "Private second-location amendment" },
+          },
+        )
+      ).status,
+    ).toBe(200);
+    for (const permissionCode of [
+      "vehicle.record.read",
+      "vehicle.record.write",
+    ])
+      expect(
+        (
+          await command("/admin/vehicles/" + vehicleId + "/grants", {
+            organizationId,
+            locationId: locations[0],
+            permissionCode,
+            reason: "First-location permission only",
+          })
+        ).status,
+      ).toBe(200);
+    const response = await request("/vehicles/" + vehicleId + "/records");
+    expect(response.status).toBe(200);
+    const visible = (await response.json()) as {
+      items: { id: string }[];
+      amendments: unknown[];
+    };
+    expect(visible.items.map((r) => r.id)).toEqual([recordIds[0]]);
+    expect(visible.amendments).toEqual([]);
+    expect(
+      (
+        await command(
+          "/admin/vehicles/" + vehicleId + "/grants/" + writeGrant + "/revoke",
+          { reason: "End unrestricted test write" },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await command("/vehicles/" + vehicleId + "/records", {
+          organizationId,
+          locationId: locations[1],
+          recordType: "SERVICE",
+          content: {},
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await command("/vehicles/" + vehicleId + "/records", {
+          organizationId,
+          locationId: locations[0],
+          recordType: "SERVICE",
+          content: {},
+        })
+      ).status,
+    ).toBe(200);
+  });
+});
+
+async function workshopFixture() {
+  await db
+    .prepare(
+      "UPDATE org_organizations SET verification_status='VERIFIED',version=version+1 WHERE id=?",
+    )
+    .bind(organizationId)
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO org_capabilities(organization_id,code) VALUES(?,'GENERAL_MAINTENANCE') ON CONFLICT DO NOTHING",
+    )
+    .bind(organizationId)
+    .run();
+  const locationId = newId();
+  await db
+    .prepare(
+      "INSERT INTO org_locations(id,organization_id,name,location_type,country_code,administrative_area,city,address_line_1) VALUES(?,?,'Test Site','BRANCH','CO','Test','Test','Synthetic')",
+    )
+    .bind(locationId, organizationId)
+    .run();
+  const vehicleId = await createVehicle();
+  await grant(vehicleId, "vehicle.workshop.read");
+  const writeGrantId = await grant(vehicleId, "vehicle.workshop.write");
+  return {
+    locationId,
+    vehicleId,
+    writeGrantId,
+    path: "/organizations/" + organizationId + "/workshop/orders",
+  };
+}
+describe("Workshop command runtime", () => {
+  it("performs versioned operational progression with atomic replay/history and immutable completion", async () => {
+    const fixture = await workshopFixture();
+    const { locationId, vehicleId, path } = fixture;
+    const locations = await request(
+      "/organizations/" + organizationId + "/workshop/locations",
+    );
+    expect(locations.status).toBe(200);
+    expect(await locations.json()).toMatchObject({ canManage: true });
+    const input = {
+      locationId,
+      vehicleId,
+      description: "Synthetic operational validation",
+      assignedPersonId: personId,
+      reason: "Worker validation creation",
+    };
+    const key = newId();
+    const created = await command(path, input, key);
+    expect(created.status).toBe(200);
+    const receipt = (await created.json()) as { orderId: string };
+    const orderId = receipt.orderId;
+    expect(await (await command(path, input, key)).json()).toMatchObject({
+      ...receipt,
+      replayed: true,
+    });
+    const detail = await request(path + "/" + orderId);
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({
+      order: { status: "DRAFT", version: 1 },
+      history: [{ to_status: "DRAFT", version: 1 }],
+      canManage: true,
+      canExecute: true,
+    });
+    expect(
+      (
+        await command(path + "/" + orderId + "/transition", {
+          version: 1,
+          toStatus: "IN_PROGRESS",
+          reason: "Invalid skipped transition",
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await command(path + "/" + orderId + "/update", {
+          version: 1,
+          description: "Reviewed operational request",
+          assignedPersonId: personId,
+          reason: "Reviewed description",
+        })
+      ).status,
+    ).toBe(200);
+    const staleKey = newId();
+    expect(
+      (
+        await command(
+          path + "/" + orderId + "/update",
+          {
+            version: 1,
+            description: "Stale operational request",
+            assignedPersonId: personId,
+            reason: "Stale update rejection",
+          },
+          staleKey,
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      await db
+        .prepare("SELECT 1 FROM governance_idempotency_records WHERE key=?")
+        .bind(staleKey)
+        .first(),
+    ).toBeNull();
+    expect(
+      (
+        await command(path + "/" + orderId + "/transition", {
+          version: 2,
+          toStatus: "OPEN",
+          reason: "Admit operational request",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await command(path + "/" + orderId + "/transition", {
+          version: 3,
+          toStatus: "IN_PROGRESS",
+          reason: "Assigned executor started work",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await command(path + "/" + orderId + "/transition", {
+          version: 4,
+          toStatus: "COMPLETED",
+          finalRecordId: newId(),
+          reason: "Unmatched completion record",
+        })
+      ).status,
+    ).toBe(409);
+    await grant(vehicleId, "vehicle.record.write");
+    const record = await command("/vehicles/" + vehicleId + "/records", {
+      organizationId,
+      locationId,
+      recordType: "SERVICE",
+      content: { summary: "Operational completion" },
+    });
+    expect(record.status).toBe(200);
+    const recordId = ((await record.json()) as { recordId: string }).recordId;
+    expect(
+      (
+        await command(
+          "/vehicles/" + vehicleId + "/records/" + recordId + "/finalize",
+          { version: 1 },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await command(path + "/" + orderId + "/transition", {
+          version: 4,
+          toStatus: "COMPLETED",
+          finalRecordId: recordId,
+          reason: "Immutable completion evidence",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await command(path + "/" + orderId + "/transition", {
+          version: 5,
+          toStatus: "CLOSED",
+          reason: "MFA assured operational closure",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await command(path + "/" + orderId + "/update", {
+          version: 6,
+          description: "Rewrite closed order",
+          assignedPersonId: personId,
+          reason: "Attempt terminal mutation",
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await db
+          .prepare(
+            "SELECT count(*) AS n FROM workshop_order_events WHERE order_id=?",
+          )
+          .bind(orderId)
+          .first<{ n: number }>()
+      )?.n,
+    ).toBe(6);
+    expect((await request("/admin/workshop/orders")).status).toBe(200);
+  });
+  it("denies wrong organization/location and revoked command replay without granting access through assignment", async () => {
+    const { locationId, vehicleId, path, writeGrantId } =
+      await workshopFixture();
+    const key = newId();
+    const input = {
+      locationId,
+      vehicleId,
+      description: "Access denial validation",
+      assignedPersonId: personId,
+      reason: "Worker access validation",
+    };
+    const created = await command(path, input, key);
+    expect(created.status).toBe(200);
+    const { orderId } = (await created.json()) as { orderId: string };
+    expect(
+      (
+        await request(
+          "/organizations/" + newId() + "/workshop/orders/" + orderId,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (await command(path, { ...input, locationId: newId() })).status,
+    ).toBe(404);
+    expect(
+      (await command(path, { ...input, assignedPersonId: newId() })).status,
+    ).toBe(400);
+    expect(
+      (
+        await command(
+          "/admin/vehicles/" +
+            vehicleId +
+            "/grants/" +
+            writeGrantId +
+            "/revoke",
+          { reason: "End operational test write" },
+        )
+      ).status,
+    ).toBe(200);
+    expect((await command(path, input, key)).status).toBe(404);
+    expect((await request(path + "/" + orderId)).status).toBe(200);
+  });
+  it("keeps unavailable scans quarantined and attaches only owned ACTIVE evidence atomically", async () => {
+    const { locationId, vehicleId, path } = await workshopFixture();
+    const created = await command(path, {
+      locationId,
+      vehicleId,
+      description: "Private evidence validation",
+      assignedPersonId: personId,
+      reason: "Synthetic private evidence",
+    });
+    expect(created.status).toBe(200);
+    const orderId = ((await created.json()) as { orderId: string }).orderId;
+    const bytes = Uint8Array.from(
+      atob(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      ),
+      (c) => c.charCodeAt(0),
+    );
+    const quarantine = files(
+      db,
+      (env as unknown as ApiBindings).PRIVATE_BUCKET,
+      { scanner: unavailableScanner },
+    );
+    const upload = await quarantine.requestUpload(
+      accountId,
+      "image/png",
+      bytes.length,
+      "file-upload-test",
+    );
+    await quarantine.putQuarantineObject(upload.id, bytes, "image/png");
+    expect(await quarantine.scan(upload.id, "unavailable-scan-test")).toBe(
+      "QUARANTINED",
+    );
+    const body = {
+      fileId: upload.id,
+      version: 1,
+      reason: "Synthetic evidence attachment",
+    };
+    const rejectedKey = newId();
+    expect(
+      (await command(path + "/" + orderId + "/files", body, rejectedKey))
+        .status,
+    ).toBe(409);
+    expect(
+      await db
+        .prepare("SELECT 1 FROM governance_idempotency_records WHERE key=?")
+        .bind(rejectedKey)
+        .first(),
+    ).toBeNull();
+    const scanner = files(db, (env as unknown as ApiBindings).PRIVATE_BUCKET, {
+      scanner: deterministicTestScanner,
+    });
+    expect(await scanner.scan(upload.id, "local-only-clean-scan")).toBe(
+      "ACTIVE",
+    );
+    const key = newId();
+    const attached = await command(path + "/" + orderId + "/files", body, key);
+    expect(attached.status).toBe(200);
+    expect(await attached.json()).toMatchObject({ version: 2 });
+    expect(
+      await (await command(path + "/" + orderId + "/files", body, key)).json(),
+    ).toMatchObject({ version: 2, replayed: true });
+    expect(
+      (await command(path + "/" + orderId + "/files", { ...body, version: 2 }))
+        .status,
+    ).toBe(409);
+    expect(
+      (
+        await db
+          .prepare("SELECT version FROM workshop_orders WHERE id=?")
+          .bind(orderId)
+          .first<{ version: number }>()
+      )?.version,
+    ).toBe(2);
+    const download = await request(
+      path + "/" + orderId + "/files/" + upload.id,
+    );
+    expect(download.status).toBe(200);
+    expect(download.headers.get("content-disposition")).toBe("attachment");
+    expect(new Uint8Array(await download.arrayBuffer())).toEqual(bytes);
+    expect(
+      (
+        await request(
+          "/organizations/" +
+            newId() +
+            "/workshop/orders/" +
+            orderId +
+            "/files/" +
+            upload.id,
+        )
+      ).status,
+    ).toBe(404);
+    await expect(
+      db
+        .prepare("DELETE FROM workshop_order_files WHERE order_id=?")
+        .bind(orderId)
+        .run(),
+    ).rejects.toThrow();
+    const grantIds = (
+      await db
+        .prepare(
+          "SELECT id FROM vehicle_access_grants WHERE vehicle_id=? AND permission_code='vehicle.workshop.read' AND revoked_at IS NULL",
+        )
+        .bind(vehicleId)
+        .all<{ id: string }>()
+    ).results;
+    for (const g of grantIds)
+      await command(
+        "/admin/vehicles/" + vehicleId + "/grants/" + g.id + "/revoke",
+        { reason: "Revoke evidence read validation" },
+      );
+    expect(
+      (await request(path + "/" + orderId + "/files/" + upload.id)).status,
+    ).toBe(404);
   });
 });

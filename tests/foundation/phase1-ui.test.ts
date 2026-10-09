@@ -497,3 +497,76 @@ describe("Vehicle browser workflows", () => {
     ).toBe(false);
   });
 });
+
+describe("Workshop browser controls", () => {
+  it("requires MFA to show operational closure and never shows terminal mutation controls", async () => {
+    for (const [status, mfaEnabled, expectedClose] of [
+      ["COMPLETED", false, false],
+      ["COMPLETED", true, true],
+      ["CLOSED", true, false],
+    ] as const) {
+      const { context, nodes } = browserHarness(portalScript, async (path) =>
+        path.endsWith("/files")
+          ? Response.json({ items: [] })
+          : path === "/api/v1/me/evidence-files"
+            ? Response.json([])
+            : path.includes("/workshop/orders/")
+              ? Response.json({
+                  order: {
+                    id: "order-test",
+                    description: "Synthetic work",
+                    status,
+                    version: 5,
+                  },
+                  history: [],
+                  canManage: true,
+                  canExecute: true,
+                  mfaEnabled,
+                })
+              : Response.json({ code: "UNAUTHENTICATED" }, { status: 401 }),
+      );
+      await runInContext(
+        "workshopOrg='organization-test';openWorkshopOrder('order-test')",
+        context,
+      );
+      const titles = nodes
+        .get("workshop-detail")!
+        .children.map((node) => node.textContent);
+      expect(titles.includes("Cerrar orden")).toBe(expectedClose);
+      expect(titles.includes("Actualizar orden")).toBe(false);
+      expect(titles.includes("Cancelar orden")).toBe(false);
+    }
+  });
+  it("shows assigned execution separately from manager actions", async () => {
+    const { context, nodes } = browserHarness(portalScript, async (path) =>
+      path.endsWith("/files")
+        ? Response.json({ items: [] })
+        : path === "/api/v1/me/evidence-files"
+          ? Response.json([])
+          : path.includes("/workshop/orders/")
+            ? Response.json({
+                order: {
+                  id: "order-test",
+                  description: "Synthetic work",
+                  status: "OPEN",
+                  version: 2,
+                },
+                history: [],
+                canManage: false,
+                canExecute: true,
+                mfaEnabled: false,
+              })
+            : Response.json({ code: "UNAUTHENTICATED" }, { status: 401 }),
+    );
+    await runInContext(
+      "workshopOrg='organization-test';openWorkshopOrder('order-test')",
+      context,
+    );
+    const titles = nodes
+      .get("workshop-detail")!
+      .children.map((node) => node.textContent);
+    expect(titles).toContain("Iniciar trabajo");
+    expect(titles).not.toContain("Actualizar orden");
+    expect(titles).not.toContain("Cancelar orden");
+  });
+});

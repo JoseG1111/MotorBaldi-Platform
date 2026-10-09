@@ -317,7 +317,7 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 
 ### MB-P2-005 — Vehicle Core remote Development validation
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P2-004
 - **Objective:** Verify Vehicle Core across Development services.
 - **Scope / required work:** Run `scripts/vehicles/development-smoke.mjs` with an existing MFA-assured Development session, inspect audit/outbox/Queue processing and preserved environment isolation. Anonymous remote protection and Vehicle UI asset checks already pass.
@@ -327,23 +327,27 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 - **Completion criteria:** Vehicle Core remotely verified.
 - **Human-action conditions:** Sign in to Development Admin with the existing account and TOTP when no usable assured browser session is available. The available saved session expired on 2026-10-09 and authenticated `/me` returned 401; never mint a session or bypass MFA to unblock verification.
 
+- **Evidence:** On 2026-10-09 authenticated Development smoke passed creation/replay/body conflicts, exact grants, garage, claim review, identifier retirement, stale-version rejection, odometer corrections, finalization/amendment immutability and revocation. D1 has 34 completed Vehicle replays, 34 command audit receipts and 34 matching Vehicle events with no mismatched receipts; all 41 total outbox events are PROCESSED with zero unresolved dead letters. One account and three Phase 1 leads remain, the synthetic professional record is FINAL at version 3 with one amendment, Development environment identity matches and migrations are current. Live API tail captured a structured dependency-health HTTP 200 event. GitHub CI run [37966439869](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/37966439869) passed for `7b0565c`; the runner correction preserves the established organization-submit HTTP 202 contract. Existing code gate passed 25 unit/80 Worker tests. Synthetic history is retained, and no secrets were recorded.
+
 ## Phase 3 — Workshop Operations
 
 ### MB-P3-001 — Workshop workflow/state-machine contract
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P2-005
 - **Objective:** Derive exact workflow states, transitions, roles, and invariants from repository; unknown rules require decision.
 - **Scope / required work:** Derive exact workflow states, transitions, roles, and invariants from repository; unknown rules require decision.
 - **Relevant files/systems:** Architecture/contracts docs, workshop package
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Contract review and transition tests
-- **Completion criteria:** No invented business transitions.
+- **Completion criteria:** No undocumented business transitions; bounded initial operational choices are explicitly attributed to operator delegation.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
+
+- **Evidence:** The explicitly delegated initial operational contract is documented in `phase-3-workshop-operations.md`; `@motorbaldi/workshops` defines six states and bounded transitions. Two focused contract tests cover allowed progress, terminal immutability, assignment, final-record completion and MFA closure. 27 unit tests, typecheck and workspace boundary checks passed on 2026-10-09. Financial/legal/service policy details are not invented by this operational model.
 
 ### MB-P3-002 — Persistence + authorization
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P3-001
 - **Objective:** Persist workshop operations with location and membership context.
 - **Scope / required work:** Persist workshop operations with location and membership context.
@@ -353,9 +357,11 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 - **Completion criteria:** State and permissions enforced.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Migration `0008_workshop_operations.sql` adds immutable-scoped orders, enforced state/version/final-record invariants and append-only operational history. Five Worker tests cover exact grants, organization/location isolation (including all-location membership with a location-limited grant), illegal transitions, terminal immutability and final-record completion. Professional record/amendment access now also honors the resource organization/location, with an additional API regression test. `pnpm gate` passed 27 unit/86 Worker tests. The additive Development migration applied on 2026-10-09; both tables exist, order count is zero, one account/three leads and Development identity remain intact.
+
 ### MB-P3-003 — APIs + Portal/Admin workflows
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P3-002
 - **Objective:** Expose authorized workshop flows.
 - **Scope / required work:** Expose authorized workshop flows.
@@ -365,9 +371,11 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 - **Completion criteria:** Approved workflows work end to end.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Create/update/transition commands commit order/history/audit/outbox/replay atomically and recheck current scoped authority before replay. API, Spanish Portal operations, staff Admin reads and OpenAPI pass 29 unit/88 Worker tests, including full password/TOTP operational progression, replay conflicts, stale-CAS rollback, assignment/scope negatives, immutable completion and MFA UI closure. Additive migration 0008 is applied. Development API `9134c18a-b134-43c5-b3b8-96fae1715868`, Worker `61677149-9037-454e-8b81-5c190ad81409`, Portal `dbf7414c-5518-44fa-a536-d671cabc17a0`, Admin `c1be7145-2e9c-4b55-b4d5-30bd56e0e831` deployed. Authenticated Workshop core smoke passed on 2026-10-09, including organization/location-specific grants, CORS rejection, terminal immutability and revoked replay denial. Synthetic organization/location/order history is retained; file integration and full remote closeout remain MB-P3-004/005.
+
 ### MB-P3-004 — Async/files/audit integration
 
-- **Status:** NOT STARTED
+- **Status:** IN PROGRESS
 - **Dependencies:** MB-P3-003
 - **Objective:** Connect outbox, Queue, private R2, and append-only audit.
 - **Scope / required work:** Connect outbox, Queue, private R2, and append-only audit.
