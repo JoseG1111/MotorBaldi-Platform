@@ -375,27 +375,29 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 
 ### MB-P3-004 — Async/files/audit integration
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P3-003
 - **Objective:** Connect outbox, Queue, private R2, and append-only audit.
 - **Scope / required work:** Connect outbox, Queue, private R2, and append-only audit.
 - **Relevant files/systems:** Workshop, messaging, storage, audit
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
-- **Verification:** Retry/idempotency and file security tests
+- **Verification:** Retry/idempotency and file security tests; authenticated remote quarantine rejection and D1 receipt inspection. Real positive remote scanning remains MB-P3-005.
 - **Completion criteria:** Events and files remain private and traceable.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** On 2026-10-09, `pnpm gate` passed 29 unit/89 Worker tests and GitHub CI [37970578056](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/37970578056) passed for `17e2d80`. Migration 0009 and Development API/Worker/Portal file integration deployed. Local tests verify owned ACTIVE attachment, atomic replay/CAS rollback, append-only association and scoped private download/revocation; the deterministic scanner is local-only. Authenticated Development smoke verifies upload 202, private QUARANTINED status, attachment 409, download 404 and unchanged order version. D1 has 13 matching Workshop command replays, command receipts, operation audits, history rows and outbox events; all 70 total outbox events PROCESSED (13 Workshop), zero missing receipts or unresolved dead letters. No positive real remote scan is claimed.
+
 ### MB-P3-005 — Remote validation
 
-- **Status:** NOT STARTED
+- **Status:** HUMAN ACTION REQUIRED
 - **Dependencies:** MB-P3-004
 - **Objective:** Validate workshop operations in Development.
-- **Scope / required work:** Validate workshop operations in Development.
+- **Scope / required work:** Core operational and negative file smoke passed. Integrate a real private malware scanner using its approved protocol, securely provision any required Worker secret, verify CLEAN promotion/attachment/download and rejection/unavailability, then rerun full smoke/gate/CI.
 - **Relevant files/systems:** All Development apps/resources
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote smoke, negative tests, gate
 - **Completion criteria:** Workflow remotely verified.
-- **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
+- **Human-action conditions:** No approved real private malware provider/protocol or credential exists in the repository/Development Worker. Supply provider name/documentation or endpoint; credentials must be installed securely as Worker secrets, never pasted into repository/continuity docs. Remote deterministic/no-op scanning is forbidden by existing config and ADR 0017.
 
 ## Phase 4 — Inspections / Peritaje
 
