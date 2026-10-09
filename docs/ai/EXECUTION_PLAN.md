@@ -479,11 +479,11 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 
 ## Phase 5 — Billing + Wompi
 
-The lead-specific atomic D1 batch does **not** fix generic `IdempotencyCoordinator` crash behavior. MB-P5-000 is mandatory before financially sensitive Wompi operations. See [ADR 0019](../adr/0019-durable-object-coordination.md).
+The historical lead-specific atomic D1 batch did **not** fix generic `IdempotencyCoordinator` crash behavior. MB-P5-000 separately closes the generic D1 crash window and is mandatory before financially sensitive Wompi operations. See [ADR 0019](../adr/0019-durable-object-coordination.md).
 
 ### MB-P5-000 — Financial-grade generic idempotency hardening
 
-- **Status:** IMPLEMENTED — NOT VERIFIED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P4-005
 - **Objective:** Close generic coordinator crash window between business effect and replay persistence before financial commands.
 - **Scope / required work:** Prepared domain commands; atomic D1 replay claim/receipt/business/audit/outbox; collision/CAS guards, current authority before replay and invitation token redaction; remove unsupported registry entry and cross-store test fixture.
@@ -493,17 +493,19 @@ The lead-specific atomic D1 batch does **not** fix generic `IdempotencyCoordinat
 - **Completion criteria:** Generic financial command cannot duplicate a committed effect after crash.
 - **Human-action conditions:** Global stop rule; otherwise none.
 
+- **Evidence:** 2026-10-09: generic prepared-command atomic D1 transaction passes rollback/collision/CAS, current-authority/suspension and token-redaction tests across Organization/CRM/Identity families. Integrated revision 735fc5e passes full CI [37985406024](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/37985406024) (37 unit/115 Worker); four additional Organization branch failure tests pass focused (119 total Worker). Development API 282c8212-6c47-4baa-9144-f6fa5f8eff55 synthetic invitation has one replay/command receipt/invitation and zero stored tokens; creation feature restriction, one account and zero ACTIVE files preserved. External financial exactly-once execution is not claimed.
+
 ### MB-P5-001 — Billing/subscription domain
 
-- **Status:** NOT STARTED
+- **Status:** HUMAN ACTION REQUIRED
 - **Dependencies:** MB-P5-000
 - **Objective:** Define money-safe billing and subscriptions with integer minor units/currency.
-- **Scope / required work:** Define money-safe billing and subscriptions with integer minor units/currency.
+- **Scope / required work:** Establish the billing business contract before money-safe persistence: payer (person/organization), charge subject (subscription/services/both), currency, plans/prices/cadence, entitlements, trial/proration/cancellation/refunds and tax treatment. UNKNOWN — VERIFY FROM REPOSITORY; repository search found only the generic payment-provider interface and money invariant, not those rules.
 - **Relevant files/systems:** Payments package, contracts, D1
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Financial invariant and migration tests
 - **Completion criteria:** Ledger/state constraints established.
-- **Human-action conditions:** Global stop rule; otherwise none.
+- **Human-action conditions:** Owner supplies or identifies authoritative billing business rules. A concise clarification was requested; no secrets/provider credentials are requested. Do not invent pricing, obligations or charge semantics.
 
 ### MB-P5-002 — Wompi integration
 
