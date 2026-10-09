@@ -6,6 +6,8 @@ import {
 } from "@motorbaldi/authz";
 import {
   auditStatement,
+  commitPreparedCommand,
+  type PreparedCommand,
   guardedBatch,
   outboxStatement,
   type EventRegistry,
@@ -179,12 +181,18 @@ async function validateScope(
   }
   return parsed;
 }
-export async function createOrganization(
+export async function prepareCreateOrganization(
   db: D1Database,
   actor: BusinessPrincipal,
   input: z.infer<typeof organizationInput>,
   requestId: string,
-) {
+): Promise<
+  PreparedCommand<{
+    organizationId: string;
+    locationId: string | null;
+    membershipId: string;
+  }>
+> {
   const c = organizationInput.parse(input);
   const organizationId = newId();
   const locationId = c.initialLocation ? newId() : null;
@@ -253,9 +261,20 @@ export async function createOrganization(
       requestId,
     ),
   );
-  await db.batch(statements);
-  return { organizationId, locationId, membershipId };
+  return { statements, response: { organizationId, locationId, membershipId } };
 }
+export async function createOrganization(
+  db: D1Database,
+  actor: BusinessPrincipal,
+  input: z.infer<typeof organizationInput>,
+  requestId: string,
+) {
+  return await commitPreparedCommand(
+    db,
+    await prepareCreateOrganization(db, actor, input, requestId),
+  );
+}
+
 export async function workspaces(db: D1Database, personId: string) {
   const rows = await db
     .prepare(
@@ -370,7 +389,7 @@ function randomToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return [...bytes].map((v) => v.toString(16).padStart(2, "0")).join("");
 }
-export async function createInvitation(
+export async function prepareCreateInvitation(
   db: D1Database,
   actor: BusinessPrincipal,
   organizationId: string,
@@ -378,7 +397,9 @@ export async function createInvitation(
   roles: string[],
   scope: z.infer<typeof locationScope>,
   requestId: string,
-) {
+): Promise<
+  PreparedCommand<{ invitationId: string; token: string; expiresAt: string }>
+> {
   await requireOrganizationPermission(
     db,
     actor,
@@ -407,7 +428,7 @@ export async function createInvitation(
     hash = await sha256Hex(token),
     invitationId = newId();
   const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
-  await db.batch([
+  const statements = [
     db
       .prepare(
         "INSERT INTO org_invitations(id,organization_id,target_email,proposed_roles_json,location_scope_type,proposed_locations_json,token_hash,created_by_person_id,expires_at) VALUES(?,?,?,?,?,?,?,?,?)",
@@ -438,15 +459,42 @@ export async function createInvitation(
       { organizationId, invitationId },
       requestId,
     ),
-  ]);
-  return { invitationId, token, expiresAt };
+  ];
+  return {
+    statements,
+    response: { invitationId, token, expiresAt },
+    storedResponse: { invitationId, expiresAt },
+  };
 }
-export async function acceptInvitation(
+export async function createInvitation(
+  db: D1Database,
+  actor: BusinessPrincipal,
+  organizationId: string,
+  targetEmail: string,
+  roles: string[],
+  scope: z.infer<typeof locationScope>,
+  requestId: string,
+) {
+  return await commitPreparedCommand(
+    db,
+    await prepareCreateInvitation(
+      db,
+      actor,
+      organizationId,
+      targetEmail,
+      roles,
+      scope,
+      requestId,
+    ),
+  );
+}
+
+export async function prepareAcceptInvitation(
   db: D1Database,
   actor: BusinessPrincipal,
   token: string,
   requestId: string,
-) {
+): Promise<PreparedCommand<{ invitationId: string; accepted: boolean }>> {
   if (!/^[0-9a-f]{64}$/.test(token))
     throw new Problem(400, "INVITATION_INVALID", "Invitation unavailable");
   const hash = await sha256Hex(token);
@@ -470,7 +518,10 @@ export async function acceptInvitation(
     invitation.status === "ACCEPTED" &&
     invitation.accepted_by_person_id === actor.personId
   )
-    return { invitationId: invitation.id, accepted: true };
+    return {
+      statements: [],
+      response: { invitationId: invitation.id, accepted: true },
+    };
   if (invitation.status !== "PENDING")
     throw new Problem(400, "INVITATION_INVALID", "Invitation unavailable");
   if (invitation.expires_at <= utcNow())
@@ -547,20 +598,35 @@ export async function acceptInvitation(
         .bind(membershipId, invitation.organization_id, locationId),
     ),
   ];
-  try {
-    await guardedBatch(db, statements, {
+  return {
+    statements,
+    response: { invitationId: invitation.id, accepted: true },
+    recover: async (error) => {
+      if (error instanceof Problem) throw error;
+      throw new Problem(409, "INVITATION_INVALID", "Invitation unavailable");
+    },
+    guard: {
       table: "governance_audit_events",
       column: "resource_id",
       code: "INVITATION_INVALID",
       message: "Invitation unavailable",
-    });
-  } catch (error) {
-    if (error instanceof Problem) throw error;
-    throw new Problem(409, "INVITATION_INVALID", "Invitation unavailable");
-  }
-  return { invitationId: invitation.id, accepted: true };
+    },
+  };
 }
-export async function createMembershipRequest(
+
+export async function acceptInvitation(
+  db: D1Database,
+  actor: BusinessPrincipal,
+  token: string,
+  requestId: string,
+) {
+  return await commitPreparedCommand(
+    db,
+    await prepareAcceptInvitation(db, actor, token, requestId),
+  );
+}
+
+export async function prepareCreateMembershipRequest(
   db: D1Database,
   actor: BusinessPrincipal,
   organizationId: string,
@@ -568,7 +634,7 @@ export async function createMembershipRequest(
   scope: z.infer<typeof locationScope>,
   message: string | undefined,
   requestId: string,
-) {
+): Promise<PreparedCommand<{ membershipRequestId: string }>> {
   const parsedRoles = memberRoles.parse(roles);
   if (parsedRoles.some((role) => role !== "MECHANIC" && role !== "INSPECTOR"))
     throw new Problem(
@@ -596,7 +662,7 @@ export async function createMembershipRequest(
   if (member)
     throw new Problem(409, "MEMBERSHIP_ALREADY_EXISTS", "Membership exists");
   const requestIdValue = newId();
-  await db.batch([
+  const statements = [
     db
       .prepare(
         "INSERT INTO org_membership_requests(id,organization_id,person_id,requested_roles_json,location_scope_type,requested_locations_json,message,expires_at) VALUES(?,?,?,?,?,?,?,?)",
@@ -618,16 +684,41 @@ export async function createMembershipRequest(
       { organizationId, requestId: requestIdValue },
       requestId,
     ),
-  ]);
-  return requestIdValue;
+  ];
+  return { statements, response: { membershipRequestId: requestIdValue } };
 }
-export async function approveMembershipRequest(
+export async function createMembershipRequest(
+  db: D1Database,
+  actor: BusinessPrincipal,
+  organizationId: string,
+  roles: string[],
+  scope: z.infer<typeof locationScope>,
+  message: string | undefined,
+  requestId: string,
+) {
+  return (
+    await commitPreparedCommand(
+      db,
+      await prepareCreateMembershipRequest(
+        db,
+        actor,
+        organizationId,
+        roles,
+        scope,
+        message,
+        requestId,
+      ),
+    )
+  ).membershipRequestId;
+}
+
+export async function prepareApproveMembershipRequest(
   db: D1Database,
   actor: BusinessPrincipal,
   organizationId: string,
   membershipRequestId: string,
   requestId: string,
-) {
+): Promise<PreparedCommand<{ approved: boolean }>> {
   await requireOrganizationPermission(
     db,
     actor,
@@ -660,7 +751,8 @@ export async function approveMembershipRequest(
       "MEMBERSHIP_REQUEST_NOT_FOUND",
       "Request unavailable",
     );
-  if (row.status === "APPROVED") return;
+  if (row.status === "APPROVED")
+    return { statements: [], response: { approved: true } };
   if (row.status !== "PENDING" || row.expires_at <= utcNow())
     throw new Problem(
       409,
@@ -675,69 +767,88 @@ export async function approveMembershipRequest(
     locationIds: JSON.parse(row.requested_locations_json),
   });
   const membershipId = newId();
-  try {
-    await guardedBatch(
-      db,
-      [
+  return {
+    statements: [
+      db
+        .prepare(
+          "UPDATE org_membership_requests SET status='APPROVED',reviewed_by_person_id=?,reviewed_at=? WHERE id=? AND organization_id=? AND status='PENDING' AND expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')",
+        )
+        .bind(actor.personId, utcNow(), row.id, organizationId),
+      db
+        .prepare(
+          "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,organization_id,request_id) VALUES(?,?,'organization.membership.request.approved','organization_membership_request',CASE WHEN changes()=1 THEN ? ELSE NULL END,?,?)",
+        )
+        .bind(newId(), actor.accountId, row.id, organizationId, requestId),
+      db
+        .prepare(
+          "INSERT INTO org_memberships(id,organization_id,person_id,location_scope_type) VALUES(?,?,?,?)",
+        )
+        .bind(membershipId, organizationId, row.person_id, scope.type),
+      ...roles.map((role) =>
         db
           .prepare(
-            "UPDATE org_membership_requests SET status='APPROVED',reviewed_by_person_id=?,reviewed_at=? WHERE id=? AND organization_id=? AND status='PENDING' AND expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')",
+            "INSERT INTO org_membership_roles(membership_id,role_id) SELECT ?,id FROM authz_roles WHERE scope='ORGANIZATION' AND code=?",
           )
-          .bind(actor.personId, utcNow(), row.id, organizationId),
+          .bind(membershipId, role),
+      ),
+      ...scope.locationIds.map((locationId) =>
         db
           .prepare(
-            "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,organization_id,request_id) VALUES(?,?,'organization.membership.request.approved','organization_membership_request',CASE WHEN changes()=1 THEN ? ELSE NULL END,?,?)",
+            "INSERT INTO org_membership_locations(membership_id,organization_id,location_id) VALUES(?,?,?)",
           )
-          .bind(newId(), actor.accountId, row.id, organizationId, requestId),
-        db
-          .prepare(
-            "INSERT INTO org_memberships(id,organization_id,person_id,location_scope_type) VALUES(?,?,?,?)",
-          )
-          .bind(membershipId, organizationId, row.person_id, scope.type),
-        ...roles.map((role) =>
-          db
-            .prepare(
-              "INSERT INTO org_membership_roles(membership_id,role_id) SELECT ?,id FROM authz_roles WHERE scope='ORGANIZATION' AND code=?",
-            )
-            .bind(membershipId, role),
-        ),
-        ...scope.locationIds.map((locationId) =>
-          db
-            .prepare(
-              "INSERT INTO org_membership_locations(membership_id,organization_id,location_id) VALUES(?,?,?)",
-            )
-            .bind(membershipId, organizationId, locationId),
-        ),
-        event(
-          db,
-          organizationId,
-          "organization.membership.approved.v1",
-          { organizationId, requestId: row.id },
-          requestId,
-        ),
-      ],
-      {
-        table: "governance_audit_events",
-        column: "resource_id",
-        code: "MEMBERSHIP_REQUEST_INVALID_STATE",
-        message: "Request unavailable",
-      },
-    );
-  } catch (error) {
-    if (error instanceof Problem) throw error;
-    throw new Problem(
-      409,
-      "MEMBERSHIP_REQUEST_INVALID_STATE",
-      "Request unavailable",
-    );
-  }
+          .bind(membershipId, organizationId, locationId),
+      ),
+      event(
+        db,
+        organizationId,
+        "organization.membership.approved.v1",
+        { organizationId, requestId: row.id },
+        requestId,
+      ),
+    ],
+    response: { approved: true },
+    recover: async (error) => {
+      if (error instanceof Problem) throw error;
+      throw new Problem(
+        409,
+        "MEMBERSHIP_REQUEST_INVALID_STATE",
+        "Request unavailable",
+      );
+    },
+    guard: {
+      table: "governance_audit_events",
+      column: "resource_id",
+      code: "MEMBERSHIP_REQUEST_INVALID_STATE",
+      message: "Request unavailable",
+    },
+  };
 }
-export async function submitVerification(
+
+export async function approveMembershipRequest(
+  db: D1Database,
+  actor: BusinessPrincipal,
+  organizationId: string,
+  membershipRequestId: string,
+  requestId: string,
+) {
+  await commitPreparedCommand(
+    db,
+    await prepareApproveMembershipRequest(
+      db,
+      actor,
+      organizationId,
+      membershipRequestId,
+      requestId,
+    ),
+  );
+}
+
+export async function prepareSubmitVerification(
   db: D1Database,
   actor: BusinessPrincipal,
   organizationId: string,
   requestId: string,
-) {
+): Promise<PreparedCommand<{ caseId: string }>> {
   await requireOrganizationPermission(
     db,
     actor,
@@ -745,9 +856,8 @@ export async function submitVerification(
     "org.verification.submit",
   );
   const caseId = newId();
-  const result = await guardedBatch(
-    db,
-    [
+  return {
+    statements: [
       db
         .prepare(
           "UPDATE org_organizations SET verification_status='PENDING_VERIFICATION',updated_at=?,version=version+1 WHERE id=? AND verification_status IN ('DRAFT','NEEDS_INFORMATION','REJECTED') AND status='ACTIVE'",
@@ -774,22 +884,31 @@ export async function submitVerification(
         requestId,
       ),
     ],
-    {
+    response: { caseId },
+    guard: {
       table: "org_verification_cases",
       column: "status",
       code: "ORGANIZATION_VERIFICATION_INVALID_STATE",
       message: "Invalid verification transition",
     },
-  );
-  if ((result[0]?.meta.changes ?? 0) !== 1)
-    throw new Problem(
-      409,
-      "ORGANIZATION_VERIFICATION_INVALID_STATE",
-      "Invalid verification transition",
-    );
-  return caseId;
+  };
 }
-export async function decideVerification(
+
+export async function submitVerification(
+  db: D1Database,
+  actor: BusinessPrincipal,
+  organizationId: string,
+  requestId: string,
+) {
+  return (
+    await commitPreparedCommand(
+      db,
+      await prepareSubmitVerification(db, actor, organizationId, requestId),
+    )
+  ).caseId;
+}
+
+export async function prepareDecideVerification(
   db: D1Database,
   actor: BusinessPrincipal,
   organizationId: string,
@@ -797,7 +916,7 @@ export async function decideVerification(
   decision: "VERIFIED" | "REJECTED",
   reason: string,
   requestId: string,
-) {
+): Promise<PreparedCommand<{ reviewed: boolean }>> {
   await requirePlatformPermission(db, actor, "platform.organization.verify", {
     mfa: true,
   });
@@ -815,9 +934,8 @@ export async function decideVerification(
       "ORGANIZATION_VERIFICATION_INVALID_STATE",
       "Invalid verification transition",
     );
-  await guardedBatch(
-    db,
-    [
+  return {
+    statements: [
       db
         .prepare(
           "UPDATE org_verification_cases SET status=?,reviewed_by_person_id=?,decision_at=?,decision_reason=?,updated_at=? WHERE id=? AND organization_id=? AND status='UNDER_REVIEW'",
@@ -870,14 +988,38 @@ export async function decideVerification(
         requestId,
       ),
     ],
-    {
+    response: { reviewed: true },
+    guard: {
       table: "org_verification_case_events",
       column: "to_status",
       code: "ORGANIZATION_VERIFICATION_INVALID_STATE",
       message: "Invalid verification transition",
     },
+  };
+}
+export async function decideVerification(
+  db: D1Database,
+  actor: BusinessPrincipal,
+  organizationId: string,
+  caseId: string,
+  decision: "VERIFIED" | "REJECTED",
+  reason: string,
+  requestId: string,
+) {
+  await commitPreparedCommand(
+    db,
+    await prepareDecideVerification(
+      db,
+      actor,
+      organizationId,
+      caseId,
+      decision,
+      reason,
+      requestId,
+    ),
   );
 }
+
 export async function startVerificationReview(
   db: D1Database,
   actor: BusinessPrincipal,

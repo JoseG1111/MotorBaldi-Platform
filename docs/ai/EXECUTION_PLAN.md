@@ -465,15 +465,17 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 
 ### MB-P4-005 — Remote validation
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P4-004
 - **Objective:** Validate inspections in Development.
 - **Scope / required work:** Validate independent Inspection report workflow without media: scoped creation/read/update/finalization/amendments, MFA, replay/CAS/revocation, Portal/Admin, Queue/audit consistency and CI. Exercise trusted file upload/private quarantine rejection. Positive real scan/ACTIVE remote delivery remains explicitly deferred under ADR 0024 and MB-P3-005.
 - **Relevant files/systems:** All Development apps/resources
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote smoke, negative tests, gate
-- **Completion criteria:** Inspection phase remotely verified.
+- **Completion criteria:** Independent no-file report workflow and private quarantine negatives remotely verified with receipts/Queue/CI; real scan/remote ACTIVE media and public file release remain owner-deferred, not verified.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
+
+- **Evidence:** Final authenticated Development smoke passed on 2026-10-09: no-file report creation/replay/conflict, exact location grants, origin rejection, schema/CAS/final immutability/amendments/staff reads, revoked write replay denial, private trusted upload QUARANTINED/attachment 409/download 404/no mutation. D1 preserves two FINAL/two DRAFT Inspection fixtures and two amendments, zero real ACTIVE associations, one account/three leads; 68 Vehicle-path replays/command receipts/events match, all 88 outbox events PROCESSED and no unresolved dead letters. Full gate passed 37 unit/96 Worker tests plus state fixtures; CI [37983831325](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/37983831325) passed for `cdd86dd`. Latest Development API `2768fd5f-180d-4e01-9ced-256d5a4e2d61`, Portal `17760b09-2a9e-4e69-ac41-b4112a150657`, Admin `da955846-f31a-4d02-ab36-87626fd6b455`, Worker `d9f61b80-734c-43f8-ba77-067071bfd65c` deployed. This verifies the documented independent report/quarantine scope only; real antimalware/remote ACTIVE media/public file release remain owner-deferred.
 
 ## Phase 5 — Billing + Wompi
 
@@ -481,13 +483,13 @@ The lead-specific atomic D1 batch does **not** fix generic `IdempotencyCoordinat
 
 ### MB-P5-000 — Financial-grade generic idempotency hardening
 
-- **Status:** NOT STARTED
+- **Status:** IMPLEMENTED — NOT VERIFIED
 - **Dependencies:** MB-P4-005
 - **Objective:** Close generic coordinator crash window between business effect and replay persistence before financial commands.
-- **Scope / required work:** Close generic coordinator crash window between business effect and replay persistence before financial commands.
+- **Scope / required work:** Prepared domain commands; atomic D1 replay claim/receipt/business/audit/outbox; collision/CAS guards, current authority before replay and invitation token redaction; remove unsupported registry entry and cross-store test fixture.
 - **Relevant files/systems:** `apps/api/src/coordinators.ts`, `packages/db/src/idempotency.ts`, D1
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
-- **Verification:** Failure-injection crash/retry tests across registered command types
+- **Verification:** Real D1 failure-injection/retry tests across generic command families; authority revocation, account suspension, replay redaction and collision tests; gate, CI and synthetic Development receipt verification.
 - **Completion criteria:** Generic financial command cannot duplicate a committed effect after crash.
 - **Human-action conditions:** Global stop rule; otherwise none.
 

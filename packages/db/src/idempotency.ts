@@ -27,7 +27,6 @@ export const idempotencyOperationRegistry = {
   "vehicle.record.finalize": 604800,
   "vehicle.record.amend": 604800,
 
-  "identity.account.ensure": 86400,
   "identity.person.merge": 604800,
   "organization.create": 86400,
   "organization.invitation.create": 86400,

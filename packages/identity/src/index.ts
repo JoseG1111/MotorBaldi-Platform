@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { Problem, type Principal } from "@motorbaldi/contracts";
-import { auditStatement, guardedBatch } from "@motorbaldi/db";
+import {
+  auditStatement,
+  guardedBatch,
+  commitPreparedCommand,
+  type PreparedCommand,
+} from "@motorbaldi/db";
 import { newId, utcNow } from "@motorbaldi/shared";
 import { requirePlatformPermission } from "@motorbaldi/authz";
 
@@ -374,14 +379,14 @@ export async function resolveDuplicateCandidate(
       "Candidate unavailable",
     );
 }
-export async function mergePeople(
+export async function prepareMergePeople(
   db: D1Database,
   sourceId: string,
   destinationId: string,
   actor: Principal & { personId: string },
   reason: string,
   requestId: string,
-) {
+): Promise<PreparedCommand<{ merged: true }>> {
   await requirePlatformPermission(db, actor, "platform.people.merge", {
     mfa: true,
   });
@@ -407,7 +412,7 @@ export async function mergePeople(
     source?.status === "MERGED" &&
     source.merged_into_person_id === destinationId
   )
-    return;
+    return { statements: [], response: { merged: true } };
   if (
     !source ||
     !destination ||
@@ -529,25 +534,50 @@ export async function mergePeople(
         requestId,
       ),
   ];
-  try {
-    await guardedBatch(db, statements, {
+  return {
+    statements,
+    response: { merged: true },
+    guard: {
       table: "governance_audit_events",
       column: "resource_id",
       code: "INVALID_PERSON_MERGE",
       message: "Merge unavailable",
-    });
-  } catch (error) {
-    if (error instanceof Problem && error.code === "INVALID_PERSON_MERGE") {
-      const winner = await db
-        .prepare(
-          "SELECT merged_into_person_id FROM iam_people WHERE id=? AND status='MERGED'",
-        )
-        .bind(sourceId)
-        .first<{ merged_into_person_id: string }>();
-      if (winner?.merged_into_person_id === destinationId) return;
-    }
-    throw error;
-  }
+    },
+    recover: async (error) => {
+      if (error instanceof Problem && error.code === "INVALID_PERSON_MERGE") {
+        const winner = await db
+          .prepare(
+            "SELECT merged_into_person_id FROM iam_people WHERE id=? AND status='MERGED'",
+          )
+          .bind(sourceId)
+          .first<{ merged_into_person_id: string }>();
+        if (winner?.merged_into_person_id === destinationId)
+          return { statements: [], response: { merged: true } };
+      }
+      return null;
+    },
+  };
+}
+
+export async function mergePeople(
+  db: D1Database,
+  sourceId: string,
+  destinationId: string,
+  actor: Principal & { personId: string },
+  reason: string,
+  requestId: string,
+) {
+  await commitPreparedCommand(
+    db,
+    await prepareMergePeople(
+      db,
+      sourceId,
+      destinationId,
+      actor,
+      reason,
+      requestId,
+    ),
+  );
 }
 
 export async function suspendAccount(

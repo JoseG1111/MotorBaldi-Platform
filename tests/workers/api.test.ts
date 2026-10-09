@@ -979,11 +979,18 @@ describe("idempotency coordinator", () => {
           response.json() as Promise<{
             replayed: boolean;
             effectNumber: number;
+            requestId: string;
           }>,
       ),
     );
     expect(payloads.filter((value) => !value.replayed)).toHaveLength(1);
     expect(new Set(payloads.map((value) => value.effectNumber)).size).toBe(1);
+    const receipt = await testEnv.DB.prepare(
+      "SELECT count(*) AS n FROM governance_audit_events WHERE action='command.accepted' AND resource_id=?",
+    )
+      .bind(payloads[0]!.requestId)
+      .first<{ n: number }>();
+    expect(receipt?.n).toBe(1);
   });
 
   it("rejects conflicts, unknown operations, and oversized responses", async () => {

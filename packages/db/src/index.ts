@@ -17,3 +17,5 @@ export * from "./guarded-batch.js";
 export * from "./environment.js";
 export * from "./idempotency.js";
 export * from "./outbox.js";
+
+export * from "./commands.js";

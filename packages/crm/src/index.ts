@@ -3,6 +3,8 @@ import { Problem, type Principal } from "@motorbaldi/contracts";
 import { requirePlatformPermission } from "@motorbaldi/authz";
 import {
   auditStatement,
+  commitPreparedCommand,
+  type PreparedCommand,
   guardedBatch,
   outboxStatement,
   type EventRegistry,
@@ -273,7 +275,7 @@ export async function createPersonFromLead(
   });
   return personId;
 }
-export async function convertLead(
+export async function prepareConvertLead(
   db: D1Database,
   leadId: string,
   actor: StaffPrincipal,
@@ -281,7 +283,7 @@ export async function convertLead(
   stageId: string,
   title: string,
   requestId: string,
-) {
+): Promise<PreparedCommand<{ opportunityId: string }>> {
   await requireCrmManager(db, actor);
   const lead = await db
     .prepare(
@@ -298,85 +300,109 @@ export async function convertLead(
       .prepare("SELECT id FROM crm_opportunities WHERE lead_intake_id=?")
       .bind(leadId)
       .first<{ id: string }>();
-    if (existing) return existing.id;
+    if (existing)
+      return { statements: [], response: { opportunityId: existing.id } };
   }
   if (!lead || !["RECEIVED", "TRIAGED"].includes(lead.status) || !title.trim())
     throw new Problem(409, "CRM_LEAD_INVALID_STATE", "Lead unavailable");
   const opportunityId = newId();
-  try {
-    await guardedBatch(
-      db,
-      [
-        db
-          .prepare(
-            "UPDATE crm_lead_intakes SET status='CONVERTED',converted_at=?,version=version+1 WHERE id=? AND status IN ('RECEIVED','TRIAGED')",
-          )
-          .bind(utcNow(), leadId),
-        db
-          .prepare(
-            "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,request_id) VALUES(?,?,'crm.lead.converted','crm_lead',CASE WHEN changes()=1 THEN ? ELSE NULL END,?)",
-          )
-          .bind(newId(), actor.personId, leadId, requestId),
-        db
-          .prepare(
-            "INSERT INTO crm_opportunities(id,pipeline_id,stage_id,person_id,organization_id,lead_intake_id,title,owner_person_id) VALUES(?,?,?,?,?,?,?,?)",
-          )
-          .bind(
-            opportunityId,
-            pipelineId,
-            stageId,
-            lead.person_id,
-            lead.organization_id,
-            leadId,
-            title.trim(),
-            actor.personId,
-          ),
-        db
-          .prepare(
-            "INSERT INTO crm_activities(id,type,person_id,organization_id,opportunity_id,actor_person_id,occurred_at,summary) VALUES(?,'SYSTEM_EVENT',?,?,?,?,?,'Lead converted')",
-          )
-          .bind(
-            newId(),
-            lead.person_id,
-            lead.organization_id,
-            opportunityId,
-            actor.personId,
-            utcNow(),
-          ),
-        event(
-          db,
-          leadId,
-          "crm.lead.converted.v1",
-          { leadId, opportunityId },
-          requestId,
-        ),
-      ],
-      {
-        table: "governance_audit_events",
-        column: "resource_id",
-        code: "CRM_LEAD_INVALID_STATE",
-        message: "Lead unavailable",
-      },
-    );
-  } catch (error) {
-    const lostClaim =
-      (error instanceof Problem && error.code === "CRM_LEAD_INVALID_STATE") ||
-      String(error).includes(
-        "UNIQUE constraint failed: crm_opportunities.lead_intake_id",
-      );
-    if (lostClaim) {
-      const existing = await db
+  return {
+    response: { opportunityId },
+    statements: [
+      db
         .prepare(
-          "SELECT o.id FROM crm_opportunities o JOIN crm_lead_intakes l ON l.id=o.lead_intake_id WHERE o.lead_intake_id=? AND l.status='CONVERTED'",
+          "UPDATE crm_lead_intakes SET status='CONVERTED',converted_at=?,version=version+1 WHERE id=? AND status IN ('RECEIVED','TRIAGED')",
         )
-        .bind(leadId)
-        .first<{ id: string }>();
-      if (existing) return existing.id;
-      throw new Problem(409, "CRM_LEAD_INVALID_STATE", "Lead unavailable");
-    }
-    throw error;
-  }
-  return opportunityId;
+        .bind(utcNow(), leadId),
+      db
+        .prepare(
+          "INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,request_id) VALUES(?,?,'crm.lead.converted','crm_lead',CASE WHEN changes()=1 THEN ? ELSE NULL END,?)",
+        )
+        .bind(newId(), actor.personId, leadId, requestId),
+      db
+        .prepare(
+          "INSERT INTO crm_opportunities(id,pipeline_id,stage_id,person_id,organization_id,lead_intake_id,title,owner_person_id) VALUES(?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          opportunityId,
+          pipelineId,
+          stageId,
+          lead.person_id,
+          lead.organization_id,
+          leadId,
+          title.trim(),
+          actor.personId,
+        ),
+      db
+        .prepare(
+          "INSERT INTO crm_activities(id,type,person_id,organization_id,opportunity_id,actor_person_id,occurred_at,summary) VALUES(?,'SYSTEM_EVENT',?,?,?,?,?,'Lead converted')",
+        )
+        .bind(
+          newId(),
+          lead.person_id,
+          lead.organization_id,
+          opportunityId,
+          actor.personId,
+          utcNow(),
+        ),
+      event(
+        db,
+        leadId,
+        "crm.lead.converted.v1",
+        { leadId, opportunityId },
+        requestId,
+      ),
+    ],
+    guard: {
+      table: "governance_audit_events",
+      column: "resource_id",
+      code: "CRM_LEAD_INVALID_STATE",
+      message: "Lead unavailable",
+    },
+    recover: async (error) => {
+      const lostClaim =
+        (error instanceof Problem && error.code === "CRM_LEAD_INVALID_STATE") ||
+        String(error).includes(
+          "UNIQUE constraint failed: crm_opportunities.lead_intake_id",
+        );
+      if (lostClaim) {
+        const existing = await db
+          .prepare(
+            "SELECT o.id FROM crm_opportunities o JOIN crm_lead_intakes l ON l.id=o.lead_intake_id WHERE o.lead_intake_id=? AND l.status='CONVERTED'",
+          )
+          .bind(leadId)
+          .first<{ id: string }>();
+        if (existing)
+          return { statements: [], response: { opportunityId: existing.id } };
+        throw new Problem(409, "CRM_LEAD_INVALID_STATE", "Lead unavailable");
+      }
+      return null;
+    },
+  };
+}
+
+export async function convertLead(
+  db: D1Database,
+  leadId: string,
+  actor: StaffPrincipal,
+  pipelineId: string,
+  stageId: string,
+  title: string,
+  requestId: string,
+) {
+  const response = await commitPreparedCommand(
+    db,
+    await prepareConvertLead(
+      db,
+      leadId,
+      actor,
+      pipelineId,
+      stageId,
+      title,
+      requestId,
+    ),
+  );
+  return response.opportunityId;
 }
 export async function moveOpportunityStage(
   db: D1Database,
