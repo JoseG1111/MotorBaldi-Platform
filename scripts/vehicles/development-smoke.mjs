@@ -169,7 +169,13 @@ async function main() {
     );
     const caseId =
       pending?.id ??
-      (await call(`/organizations/${org.id}/verification/submit`, {})).caseId;
+      (
+        await call(
+          `/organizations/${org.id}/verification/submit`,
+          {},
+          { status: 202 },
+        )
+      ).caseId;
     if (pending?.status !== "UNDER_REVIEW")
       await call(
         `/admin/organizations/${org.id}/verification/${caseId}/start-review`,

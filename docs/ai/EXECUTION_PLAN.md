@@ -317,7 +317,7 @@ The initiating operator supplied a completed-checkpoint history. Repository code
 
 ### MB-P2-005 — Vehicle Core remote Development validation
 
-- **Status:** HUMAN ACTION REQUIRED
+- **Status:** IN PROGRESS
 - **Dependencies:** MB-P2-004
 - **Objective:** Verify Vehicle Core across Development services.
 - **Scope / required work:** Run `scripts/vehicles/development-smoke.mjs` with an existing MFA-assured Development session, inspect audit/outbox/Queue processing and preserved environment isolation. Anonymous remote protection and Vehicle UI asset checks already pass.
