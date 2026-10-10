@@ -711,6 +711,8 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 - **Evidence:** Migration 0017 applied to Development (four Parts tables/13 guards). API 5b20a4be-9b7f-4cd5-9613-33cb9c7558c4, Worker 7b69a7e4-d991-4e57-8e7e-083837d0eafd, Portal c4b44910-7afb-439c-983a-b25bb58438d8 and Admin f79fd789-7c13-4657-9e66-35932842a1c1 deployed. Anonymous private routes/Parts assets PASS; D1 identitydevelopment, zero Parts records/events, all 133 existing outboxeventsPROCESSED, zero unresolved dead letters/FKviolations. Positive consistency probe correctly fails PARTS_EVENTS_REQUIRED; baseline is not remote closeout. Implementation da2752d passed CI 38082933560 (558 tests/artifact/history checks). Secure smoke and aggregate consistency regressions added; authenticated Parts mutations/replay/source history and positive Parts Queue convergence remain required. No current assured MotorBaldi session is available to this process, and the named synthetic Workshop lacks PARTS capability. No next-phase dependency is satisfied.
 
+- **Final local/CI closeout:** Full gate passes 570 tests (126 unit/444 Worker), including eight smoke and four consistency regressions. Harness/closeout commit 4e1c37e passed [CI 38083420131](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38083420131), including artifact and Git history secret checks. Read-only fixture confirmation finds one verified synthetic Workshop/one active named site but zero PARTS capability. Authenticated mutations and positive Parts Queue evidence remain absent; HUMAN ACTION REQUIRED is unchanged.
+
 ## Phase 8 — Marketplace
 
 ### MB-P8-001 — Marketplace business contract
