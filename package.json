@@ -25,7 +25,7 @@
     "d1:init:staging": "node scripts/foundation/d1-init.mjs staging",
     "d1:init:production": "node scripts/foundation/d1-init.mjs production",
     "test": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:workers && pnpm openapi:check && pnpm boundaries:check && pnpm security:check",
-    "test:unit": "vitest run tests/foundation/unit.test.ts tests/foundation/migrations.test.ts tests/foundation/phase1-ui.test.ts tests/foundation/bootstrap-development-account.test.ts tests/foundation/support-ui.test.ts tests/foundation/communications-smoke.test.ts tests/foundation/parts-contract.test.ts tests/foundation/parts-ui.test.ts",
+    "test:unit": "vitest run tests/foundation/unit.test.ts tests/foundation/migrations.test.ts tests/foundation/phase1-ui.test.ts tests/foundation/bootstrap-development-account.test.ts tests/foundation/support-ui.test.ts tests/foundation/communications-smoke.test.ts tests/foundation/parts-contract.test.ts tests/foundation/parts-ui.test.ts tests/foundation/parts-smoke.test.ts tests/foundation/parts-consistency.test.ts",
     "test:workers": "vitest run --config vitest.workers.config.ts",
     "openapi:check": "tsx scripts/foundation/openapi.ts",
     "security:check": "node scripts/foundation/security.mjs && node scripts/foundation/security-fixtures.mjs",
