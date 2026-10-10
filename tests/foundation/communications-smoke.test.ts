@@ -5,6 +5,7 @@ const { runSmoke, formatSmokeFailure } = await import(runtimePath);
 type Mode =
   | "normal"
   | "http"
+  | "session-expired"
   | "malformed"
   | "ambiguous"
   | "concurrent"
@@ -39,6 +40,11 @@ function harness(mode: Mode, reversed = false) {
     if (path === "/health") return json({ ok: true });
     if (!(init.headers as Record<string, string>).cookie)
       return json({ code: "UNAUTHORIZED" }, 401);
+    if (path === "/api/v1/me" && mode === "session-expired")
+      return json(
+        { code: "UNAUTHENTICATED", detail: "secret-cookie private-person" },
+        401,
+      );
     if (path === "/api/v1/me")
       return json({ mfaEnabled: true, personId: "private-person" });
     if (path.endsWith("notification-preferences")) {
@@ -127,6 +133,11 @@ function harness(mode: Mode, reversed = false) {
 }
 
 describe("Development communication smoke safe diagnostics and restoration", () => {
+  it("reports the real expired-session code without response detail", async () => {
+    const result = await harness("session-expired").failure();
+    expect(result).toContain("status=401 code=UNAUTHENTICATED");
+    expect(result).not.toMatch(/secret-cookie|private-person/);
+  });
   it("imports CLI without reading stdin or running network calls", async () => {
     const cliPath = "../../scripts/communications/development-smoke.mjs";
     expect((await import(cliPath)).cli).toBeTypeOf("function");

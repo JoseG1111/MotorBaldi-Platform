@@ -5,6 +5,8 @@ const apiHost = "motorbaldi-api-development.josegbarrios2.workers.dev";
 const portalHost = "motorbaldi-portal-development.josegbarrios2.workers.dev";
 const apiCodes = new Set([
   "UNAUTHORIZED",
+  "UNAUTHENTICATED",
+  "INVALID_IDEMPOTENCY_KEY",
   "FORBIDDEN",
   "MFA_REQUIRED",
   "VALIDATION_ERROR",
