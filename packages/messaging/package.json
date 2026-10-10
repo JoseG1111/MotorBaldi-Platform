@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@motorbaldi/db": "workspace:*",
-    "@motorbaldi/shared": "workspace:*"
+    "@motorbaldi/shared": "workspace:*",
+    "zod": "^4.3.0"
   }
 }

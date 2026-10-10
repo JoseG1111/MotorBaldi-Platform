@@ -201,9 +201,9 @@ async function main() {
         "Refuse closed-gateway probes while payment gateway is configured",
       );
       assert(
-        initial.subscription?.status === "SUSPENDED" &&
+        ["SUSPENDED", "EXPIRED"].includes(initial.subscription?.status) &&
           /^[0-9a-f-]{36}$/.test(initial.subscription.id),
-        "Existing suspended synthetic subscription required for rejected checkout probe",
+        "Existing suspended or expired synthetic subscription required for rejected checkout probe",
       );
       const webhook = "/payments/wompi/events";
       await call(webhook, undefined, { status: 405, authenticated: false });

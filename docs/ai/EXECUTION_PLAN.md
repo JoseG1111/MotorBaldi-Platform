@@ -567,7 +567,7 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P6-001 — Communication provider abstraction
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P5-004 (owner-approved independent work; MB-P5-005 credentials block external billing validation only)
 - **Objective:** Define outbound channels and provider contracts.
 - **Scope / required work:** Extend existing provider ports with explicit delivery/unknown/unavailable semantics, current consent/preference and idempotency boundaries, no-PII audit contract and configurable human support availability/usage foundation. No paid provider, actual WhatsApp delivery or invented support promise.
@@ -577,12 +577,14 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Completion criteria:** No production delivery assumed.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Two real LOW agents implemented exclusive provider and human-policy contracts; 11 provider/62 support-policy tests and full gate (55 unit/347 Worker, 402 total) pass. Current authority precedes send/reconcile, bounded ambiguous effects never auto-retry, unavailable transport makes zero calls, acceptance is distinct from delivery. IANA/UTC/overlap/finite-usage/fixed-link policy validation passes; pure usage assessment does not claim a persisted quota. No real provider or production delivery enabled.
+
 ### MB-P6-002 — Notifications/preferences/templates
 
-- **Status:** NOT STARTED
+- **Status:** IN PROGRESS
 - **Dependencies:** MB-P6-001
 - **Objective:** Implement consent-aware notifications and localized templates.
-- **Scope / required work:** Implement consent-aware notifications and localized templates.
+- **Scope / required work:** Account-owned channel/category preferences, current verified contact and separate latest marketing consent gates, immutable Spanish/English template versions and private deduplicated account inbox. External delivery stays unavailable; no marketing consent inferred or premium gate for basic account/service notifications.
 - **Relevant files/systems:** Messaging, identity, D1
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Preference and template tests

@@ -33,7 +33,7 @@ Boundaries:
 - Internal workspace dependencies use `workspace:*`.
 - Business/domain code stays behind infrastructure interfaces and does not receive Cloudflare bindings directly unless it is infrastructure code.
 
-Future phases remain:
+Roadmap modules (completion is tracked in `docs/ai/EXECUTION_PLAN.md`):
 
 1. Identity + CRM + Organizations
 2. Vehicle Core
@@ -46,3 +46,5 @@ Future phases remain:
 9. Intelligence
 
 The original CF-0 foundation was followed by Phase 1 identity, CRM, and organization implementation. See the [Phase 1 design](phase-1-identity-crm-organizations.md) and [current execution state](../ai/PROJECT_STATE.md).
+
+The approved customer membership and separate partner commission business foundation is documented in [Phase 5](phase-5-membership-billing.md). Independent consent-aware communications and configurable human assistance extend the existing Messaging ports in [Phase 6](phase-6-communications-support.md); unavailable external providers are never represented as delivery.
