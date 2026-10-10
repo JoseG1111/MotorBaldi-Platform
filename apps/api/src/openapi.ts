@@ -898,3 +898,96 @@ Object.assign(openapi.paths, {
     },
   },
 });
+
+Object.assign(openapi.paths, {
+  "/api/v1/me/notification-preferences": {
+    get: {
+      responses: {
+        "200": {
+          description: "Owned preferences; external delivery unavailable",
+        },
+        "401": problem,
+      },
+    },
+    post: idempotent(
+      "Strict account-owned channel preference CAS; marketing consent and verified contact are separate gates",
+      [],
+    ),
+  },
+  "/api/v1/me/notifications": {
+    get: {
+      parameters: [
+        { name: "cursor", in: "query", schema: id },
+        {
+          name: "limit",
+          in: "query",
+          schema: { type: "integer", minimum: 1, maximum: 50 },
+        },
+      ],
+      responses: {
+        "200": {
+          description:
+            "Private account inbox, bounded cursor pagination, no premium gate",
+        },
+        "401": problem,
+      },
+    },
+  },
+  "/api/v1/me/notifications/{notificationId}/read": {
+    post: idempotent(
+      "Read-only acknowledgement of owned inbox record with current version",
+      [{ name: "notificationId", in: "path", required: true, schema: id }],
+    ),
+  },
+});
+
+for (const scope of ["me", "admin"]) {
+  const root = `/api/v1/${scope}/support-cases`;
+  Object.assign(openapi.paths, {
+    [root]: {
+      get: get(
+        "Private support cases; exact platform role and assured MFA for staff",
+        [
+          { name: "cursor", in: "query", schema: id },
+          {
+            name: "limit",
+            in: "query",
+            schema: { type: "integer", minimum: 1, maximum: 50 },
+          },
+        ],
+      ),
+      ...(scope === "me"
+        ? {
+            post: idempotent(
+              "Create own general support case; premium assistance disabled",
+            ),
+          }
+        : {}),
+    },
+    [`${root}/{caseId}`]: {
+      get: get("Private support case and immutable history", [caseId]),
+    },
+    [`${root}/{caseId}/reply`]: {
+      post: idempotent(
+        "Append support reply with current version; closed cases are terminal",
+        [caseId],
+      ),
+    },
+    [`${root}/{caseId}/close`]: {
+      post: idempotent(
+        "Close support case preserving actor, time and optional resolution",
+        [caseId],
+      ),
+    },
+    ...(scope === "admin"
+      ? {
+          [`${root}/{caseId}/assign`]: {
+            post: idempotent(
+              "Assured support staff assign eligible staff with current version",
+              [caseId],
+            ),
+          },
+        }
+      : {}),
+  });
+}

@@ -29,3 +29,11 @@ Support cases may record customer requests, authorized staff assignment, respons
 ## Validation and release
 
 Provider contract tests must exercise invalid recipients/templates, authority denial/revocation, unavailable transport, abort/timeout/unknown effects, permanent rejection, safe references and absence of retries/PII exposure. Notification/support persistence requires ownership/MFA where privileged, current consent/preference checks, CAS, atomic audit/outbox/replay and regression coverage. Development smoke uses existing resources and trusted synthetic data; it cannot claim external delivery without a real approved provider. No paid provider or production operation is activated by this foundation.
+
+## Approved support workflow — 2026-10-10
+
+The owner explicitly approved this policy on 2026-10-10. The implemented contract is a general account support inbox, available without membership, with OPEN, ASSIGNED and CLOSED cases. An active customer may create and read only their own cases, append replies to an open/assigned case and close it. An explicit PLATFORM SUPPORT_AGENT or PLATFORM_SUPERADMIN role plus a current verified MFA/privileged-assured session is required to view the staff queue, assign an eligible staff member, respond or close; an organization role alone gives no support access. Closed cases and messages remain immutable; further contact creates a new case rather than silently reopening it. There is no public case lookup.
+
+Messages and case subjects are private, bounded text. Audit/outbox records carry internal references only; CAS and atomic command receipts protect mutations. Initial cases carry no file attachments or vehicle/workshop links, so this proposal grants no new access to professional records, customer data or quarantined evidence. Future contextual links require explicit current resource authorization.
+
+This proposal supplies no response-time commitment, staffing hours, mechanical diagnosis or third-party contact sharing. Premium human guidance remains disabled until separately approved readiness, schedule and durable usage quotas exist. Retention/deletion policy remains unset and disabled. The owner approval authorizes bounded general-support implementation; no paid provider or premium contact service is enabled. Closing preserves actor, timestamp and optional resolution metadata.

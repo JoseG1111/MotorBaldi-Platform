@@ -1,3 +1,5 @@
+import { supportRoutes } from "./support-routes.js";
+import { notificationRoutes } from "./notification-routes.js";
 import {
   buildHostedCheckout,
   reconcilePaymentWebhook,
@@ -526,6 +528,42 @@ async function route(
       { headers: { ...cors, "cache-control": "no-store" } },
     );
   }
+  const supportResponse = await supportRoutes(
+    request,
+    env.DB,
+    businessPrincipal,
+    async (operation, body) =>
+      idempotentCommand(
+        env,
+        request.headers,
+        operation,
+        (await businessPrincipal()).accountId,
+        body,
+        requestId,
+        requiredKey(request),
+      ),
+    () => boundedJson(request),
+    cors,
+  );
+  if (supportResponse) return supportResponse;
+  const notificationResponse = await notificationRoutes(
+    request,
+    env.DB,
+    businessPrincipal,
+    async (operation, body) =>
+      idempotentCommand(
+        env,
+        request.headers,
+        operation,
+        (await businessPrincipal()).accountId,
+        body,
+        requestId,
+        requiredKey(request),
+      ),
+    () => boundedJson(request),
+    cors,
+  );
+  if (notificationResponse) return notificationResponse;
   const billingResponse = await billingRoutes(
     request,
     env.DB,

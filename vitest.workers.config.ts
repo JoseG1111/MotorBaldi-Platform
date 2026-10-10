@@ -4,6 +4,8 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["tests/workers/**/*.test.ts"],
+    // Bound isolate startup contention as the real D1/API suite grows.
+    maxWorkers: 4,
     pool: cloudflarePool({
       wrangler: { configPath: "apps/api/wrangler.jsonc" },
       miniflare: {
@@ -11,9 +13,11 @@ export default defineConfig({
         bindings: {
           ENVIRONMENT: "local",
           AUTH_BASE_URL: "https://api.test",
-          CORS_ORIGINS: "https://api.test,https://portal.test,https://admin.test",
+          CORS_ORIGINS:
+            "https://api.test,https://portal.test,https://admin.test",
           AUTH_SECRET: "local-test-auth-secret-that-is-long-enough",
-          AUTH_SECRETS: '[{"version":1,"value":"local-test-auth-rotation-secret-long-enough"}]',
+          AUTH_SECRETS:
+            '[{"version":1,"value":"local-test-auth-rotation-secret-long-enough"}]',
           EMAIL_PROVIDER: "DEVELOPMENT_SINK",
           MALWARE_SCANNER_PROVIDER: "DETERMINISTIC_TEST",
         },

@@ -1193,3 +1193,281 @@ describe("Membership browser controls", () => {
     expect(nodes.get("commissions-detail")?.children).toHaveLength(0);
   });
 });
+
+describe("private notification inbox and preferences", () => {
+  const flatten = (node: FakeNode): FakeNode[] => [
+    node,
+    ...node.children.flatMap(flatten),
+  ];
+  const contents = (node: FakeNode) =>
+    flatten(node)
+      .map((item) => item.textContent)
+      .join("\n");
+  it("renders hostile inbox content as text, reads current version, and keeps external delivery unavailable", async () => {
+    const writes: { path: string; init: RequestInit }[] = [];
+    let read = false;
+    const { context, nodes } = browserHarness(
+      portalScript,
+      async (path, init) => {
+        if (init?.method === "POST") {
+          writes.push({ path, init });
+          read = true;
+          return Response.json({ version: 5 });
+        }
+        if (path === "/api/v1/me/notification-preferences")
+          return Response.json({ items: [], externalDeliveryAvailable: false });
+        if (path === "/api/v1/me/notifications")
+          return Response.json({
+            items: [
+              {
+                id: "notification-1",
+                version: read ? 5 : 4,
+                title: "<img src=x onerror=alert(1)>",
+                body: "<script>alert(1)</script>",
+                readAt: read ? "2026-10-10T00:00:00Z" : null,
+                createdAt: "2026-10-09T00:00:00Z",
+              },
+            ],
+            nextCursor: null,
+          });
+        return Response.json({}, { status: 401 });
+      },
+    );
+    await runInContext("refreshNotifications()", context);
+    const inbox = nodes.get("notification-inbox")!;
+    expect(contents(inbox)).toContain("<img src=x onerror=alert(1)>");
+    expect(contents(inbox)).toContain("<script>alert(1)</script>");
+    expect(
+      flatten(inbox).every(
+        (node) => !(node as FakeNode & { innerHTML?: string }).innerHTML,
+      ),
+    ).toBe(true);
+    expect(contents(inbox)).toContain("Sin leer");
+    expect(contents(nodes.get("notification-preferences")!)).toContain(
+      "correo, SMS y WhatsApp todavía no está disponible",
+    );
+    const button = flatten(inbox).find(
+      (node) => node.textContent === "Marcar como leída",
+    )!;
+    await button.onclick!();
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.path).toBe(
+      "/api/v1/me/notifications/notification-1/read",
+    );
+    expect(JSON.parse(String(writes[0]?.init.body))).toEqual({ version: 4 });
+    expect(
+      new Headers(writes[0]?.init.headers).get("idempotency-key"),
+    ).toBeTruthy();
+    expect(contents(inbox)).toContain("Leída");
+    expect(contents(inbox)).not.toContain("Marcar como leída");
+    expect(portalPage).toContain('data-panel="notifications"');
+    expect(portalPage).toContain("acceso básico gratuito");
+  });
+
+  it("defaults in-app preferences on and preserves the idempotency key across failed saves", async () => {
+    const writes: RequestInit[] = [];
+    let enabled = true;
+    const { context, nodes } = browserHarness(
+      portalScript,
+      async (path, init) => {
+        if (init?.method === "POST") {
+          writes.push(init);
+          if (writes.length === 1)
+            return Response.json({ code: "CONFLICT" }, { status: 409 });
+          enabled = false;
+          return Response.json({ version: 1 });
+        }
+        if (path === "/api/v1/me/notification-preferences")
+          return Response.json({
+            items: enabled
+              ? []
+              : [
+                  {
+                    id: "preference-1",
+                    category: "SUPPORT",
+                    channel: "IN_APP",
+                    enabled,
+                    contactMethodId: null,
+                    version: 1,
+                  },
+                ],
+            externalDeliveryAvailable: false,
+          });
+        if (path === "/api/v1/me/notifications")
+          return Response.json({ items: [], nextCursor: null });
+        return Response.json({}, { status: 401 });
+      },
+    );
+    await runInContext("refreshNotifications()", context);
+    const preferences = nodes.get("notification-preferences")!;
+    expect(contents(preferences)).toContain("Activados");
+    expect(contents(nodes.get("notification-inbox")!)).toContain(
+      "No tienes notificaciones",
+    );
+    const button = flatten(preferences).find(
+      (node) => node.textContent === "Desactivar avisos de soporte",
+    )!;
+    await button.onclick!();
+    await button.onclick!();
+    expect(writes).toHaveLength(2);
+    expect(JSON.parse(String(writes[0]?.body))).toEqual({
+      category: "SUPPORT",
+      channel: "IN_APP",
+      enabled: false,
+      contactMethodId: null,
+      version: 0,
+    });
+    expect(new Headers(writes[0]?.headers).get("idempotency-key")).toBe(
+      new Headers(writes[1]?.headers).get("idempotency-key"),
+    );
+    expect(contents(preferences)).toContain("Desactivados");
+    expect(contents(preferences)).toContain("Activar avisos de soporte");
+    expect(contents(preferences)).not.toContain("MARKETING");
+  });
+
+  it("appends older pages once, retries failed loads, and resets pagination on refresh", async () => {
+    const cursor = "older-page";
+    const calls: string[] = [];
+    let release: ((response: Response) => void) | undefined;
+    let pageAttempts = 0;
+    const item = (id: string) => ({
+      id,
+      version: 1,
+      title: id,
+      body: "Aviso de cuenta",
+      readAt: "2026-10-10T00:00:00Z",
+    });
+    const { context, nodes } = browserHarness(portalScript, async (path) => {
+      calls.push(path);
+      if (path === "/api/v1/me/notification-preferences")
+        return Response.json({ items: [] });
+      if (path === "/api/v1/me/notifications")
+        return Response.json({
+          items: [item("Aviso reciente")],
+          nextCursor: cursor,
+        });
+      if (path === "/api/v1/me/notifications?cursor=" + cursor) {
+        pageAttempts++;
+        if (pageAttempts === 1)
+          return Response.json({ code: "UNAVAILABLE" }, { status: 503 });
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      }
+      return Response.json({}, { status: 401 });
+    });
+    await runInContext("refreshNotifications()", context);
+    const inbox = nodes.get("notification-inbox")!;
+    const button = flatten(inbox).find(
+      (node) => node.textContent === "Cargar notificaciones anteriores",
+    )! as FakeNode & { disabled: boolean };
+    await button.onclick!();
+    expect(button.disabled).toBe(false);
+    expect(contents(inbox)).toContain("Aviso reciente");
+    expect(nodes.get("notifications-status")!.textContent).toBeTruthy();
+    const pending = button.onclick!();
+    expect(button.disabled).toBe(true);
+    expect(nodes.get("notifications-status")!.textContent).toContain(
+      "Cargando notificaciones anteriores",
+    );
+    await button.onclick!();
+    expect(pageAttempts).toBe(2);
+    release!(
+      Response.json({ items: [item("Aviso anterior")], nextCursor: null }),
+    );
+    await pending;
+    expect(contents(inbox)).toContain("Aviso reciente");
+    expect(contents(inbox)).toContain("Aviso anterior");
+    expect(contents(inbox)).not.toContain("Cargar notificaciones anteriores");
+    expect(nodes.get("notifications-status")!.textContent).toBe(
+      "Notificaciones anteriores cargadas.",
+    );
+    await runInContext("refreshNotifications()", context);
+    expect(contents(inbox)).not.toContain("Aviso anterior");
+    expect(contents(inbox)).toContain("Cargar notificaciones anteriores");
+    expect(
+      calls.filter((path) => path === "/api/v1/me/notifications"),
+    ).toHaveLength(2);
+    const refreshedButton = flatten(inbox).find(
+      (node) => node.textContent === "Cargar notificaciones anteriores",
+    )!;
+    const stalePage = refreshedButton.onclick!();
+    await runInContext("refreshNotifications()", context);
+    release!(
+      Response.json({ items: [item("Aviso obsoleto")], nextCursor: null }),
+    );
+    await stalePage;
+    expect(contents(inbox)).not.toContain("Aviso obsoleto");
+    expect(contents(inbox)).toContain("Cargar notificaciones anteriores");
+  });
+
+  it("retains unread state and a stable retry key after a read failure", async () => {
+    const writes: RequestInit[] = [];
+    let read = false;
+    const { context, nodes } = browserHarness(
+      portalScript,
+      async (path, init) => {
+        if (init?.method === "POST") {
+          writes.push(init);
+          if (writes.length === 1)
+            return Response.json({ code: "CONFLICT" }, { status: 409 });
+          read = true;
+          return Response.json({ version: 3 });
+        }
+        if (path === "/api/v1/me/notification-preferences")
+          return Response.json({ items: [], externalDeliveryAvailable: false });
+        if (path === "/api/v1/me/notifications")
+          return Response.json({
+            items: [
+              {
+                id: "read-retry",
+                version: read ? 3 : 2,
+                title: "Actualización",
+                body: "Revisa tu cuenta",
+                readAt: read ? "2026-10-10T00:00:00Z" : null,
+              },
+            ],
+            nextCursor: null,
+          });
+        return Response.json({}, { status: 401 });
+      },
+    );
+    await runInContext("refreshNotifications()", context);
+    const inbox = nodes.get("notification-inbox")!;
+    const button = flatten(inbox).find(
+      (node) => node.textContent === "Marcar como leída",
+    )! as FakeNode & { disabled: boolean };
+    await button.onclick!();
+    expect(button.disabled).toBe(false);
+    expect(contents(inbox)).toContain("Sin leer");
+    expect(nodes.get("notifications-status")!.textContent).toBeTruthy();
+    await button.onclick!();
+    expect(writes).toHaveLength(2);
+    expect(JSON.parse(String(writes[1]!.body))).toEqual({ version: 2 });
+    expect(new Headers(writes[0]!.headers).get("idempotency-key")).toBe(
+      new Headers(writes[1]!.headers).get("idempotency-key"),
+    );
+    expect(contents(inbox)).not.toContain("Sin leer");
+    expect(contents(inbox)).not.toContain("Marcar como leída");
+  });
+
+  it("contains a notification API failure within the section and keeps successful inbox content", async () => {
+    const { context, nodes } = browserHarness(portalScript, async (path) => {
+      if (path === "/api/v1/me/notification-preferences")
+        return Response.json({ code: "UNAVAILABLE" }, { status: 503 });
+      if (path === "/api/v1/me/notifications")
+        return Response.json({ items: [], nextCursor: null });
+      return Response.json({}, { status: 401 });
+    });
+    runInContext('notice("Existing account status")', context);
+    await runInContext("refreshNotifications()", context);
+    expect(contents(nodes.get("notification-preferences")!)).toContain(
+      "No fue posible consultar tus preferencias",
+    );
+    expect(contents(nodes.get("notification-inbox")!)).toContain(
+      "No tienes notificaciones",
+    );
+    expect(nodes.get("notifications-status")!.textContent).toBeTruthy();
+    expect(nodes.get("notice")!.textContent).toBe("Existing account status");
+  });
+});

@@ -581,7 +581,7 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P6-002 — Notifications/preferences/templates
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P6-001
 - **Objective:** Implement consent-aware notifications and localized templates.
 - **Scope / required work:** Account-owned channel/category preferences, current verified contact and separate latest marketing consent gates, immutable Spanish/English template versions and private deduplicated account inbox. External delivery stays unavailable; no marketing consent inferred or premium gate for basic account/service notifications.
@@ -591,9 +591,11 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Completion criteria:** Preferences govern delivery.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** 2026-10-10 full gate passed 60 unit/396 Worker tests (456 total), including real verified non-MFA notification API sessions, replay/CAS/origin/account ownership, current contact/marketing consent, mutation-time revocation rollback, immutable bilingual templates, deduplicated atomic membership inbox and paginated Portal retry/stale-response tests. Development migration 0014 applied; API bb7e3326-bdac-43ac-a657-d733ac158b7b, Worker 6e7de33c-dfd7-45cb-a586-509534932d0f and Portal 37de9729-98de-4e28-bbd2-220450bca364 deployed. Remote D1 confirms development identity, two templates, external_delivery_enabled=0 and zero pre-existing inbox/preferences; API health 200, anonymous preference/inbox 401 and deployed pagination asset verified. Authenticated remote notification/Queue smoke and current-revision CI are not claimed; they remain remote closeout work. Two real review agents ran; runtime metadata shows domain reviewer MEDIUM and UI reviewer LOW (initial all-history fork inherited effort). External provider delivery remains unavailable.
+
 ### MB-P6-003 — Support workflows
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P6-002
 - **Objective:** Define support cases and permissions from established requirements.
 - **Scope / required work:** Define support cases and permissions from established requirements.
@@ -601,11 +603,13 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Workflow and auth tests
 - **Completion criteria:** Support lifecycle approved and enforced.
-- **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
+- **Human-action conditions:** None for the owner-approved general-support workflow (2026-10-10); premium assistance remains disabled pending its separate readiness/business configuration. Global stop rule still applies.
+
+- **Evidence:** Owner approved exact account ownership, SUPPORT_AGENT/PLATFORM_SUPERADMIN assured MFA authority and OPEN/ASSIGNED/CLOSED terminal policy on 2026-10-10. Full gate passes 65 unit/408 Worker tests (473 total); real local sessions exercise customer/staff API, origin, ownership, eligible assignment, CAS/replay/revocation and atomic audit/outbox. Spanish Portal/Admin supports creation, replies, assignment, closure, pagination and immutable bounded history/closing metadata. Additional focused 12-test gate verifies migration 0016 prevents appending a second CLOSE receipt to terminal history; Development migrations 0015/0016 applied. No premium provider, staffing/SLA promise or authenticated remote support closeout claimed. Three actual gpt-6.1-sol LOW agents confirmed in runtime metadata.
 
 ### MB-P6-004 — Queue delivery/retry/audit
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P6-003
 - **Objective:** Integrate async retries, idempotency and audit.
 - **Scope / required work:** Integrate async retries, idempotency and audit.
@@ -615,17 +619,21 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Completion criteria:** No duplicate effects or silent loss.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Full gate passes 65 unit/414 Worker tests (479 total) after bounding test isolate concurrency to four; prior full-suite cold-start timeouts in existing coordinator environment test reproduce only under unrestricted contention and pass focused/bounded runs. Six real-D1 support Queue tests cover concurrent duplicate claim, persisted case/account/audit references, forgery/permanent failures, retry convergence, bounded abort timeout, sanitized exhausted dead letters and historical events after suspension without transport calls. Support commands atomically retain audit/history/outbox/replay; handlers process internal references only, never claim delivery. All four Development apps deployed; remote anonymous routes deny access and assets contain support functionality. Authenticated remote closeout remains MB-P6-005.
+
 ### MB-P6-005 — Remote validation
 
-- **Status:** NOT STARTED
+- **Status:** HUMAN ACTION REQUIRED
 - **Dependencies:** MB-P6-004
 - **Objective:** Validate communication/support in Development.
-- **Scope / required work:** Validate communication/support in Development.
+- **Scope / required work:** Validate internal account notifications/preferences and owner-approved general support in Development; confirm unavailable external channels and premium guidance remain disabled. No real email/SMS/WhatsApp delivery or staffing promise is claimed.
 - **Relevant files/systems:** Development apps/resources
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote smoke and gate
-- **Completion criteria:** Channels and support verified.
-- **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
+- **Completion criteria:** Authenticated internal notification materialization/read, preferences, customer/staff support and Queue/audit consistency pass with current code CI. External transport and premium guidance remain disabled.
+- **Human-action conditions:** Execute the prepared authenticated smoke with an existing authorized, assured Development Admin session through the hidden local stdin prompt in the [Communications runbook](../runbooks/communications-development.md); never provide a cookie in chat/files/logs. D1 has one eligible assured session, but targeted accessible browser stores contain no Development cookie and no other authorized session source is available. A normal account-holder browser sign-in/MFA is required only if that session expires. This is the execution plan credential/interactive-login boundary, not another support-policy approval. Positive inbox materialization remains outstanding when explicitly skipped; the bounded existing billing smoke can supply genuine synthetic events.
+
+- **Evidence:** Development migrations through 0016 current; all four apps deployed. Remote anonymous smoke passes 9 reads/asset checks with zero mutations. Remote aggregate checks confirm development identity, two templates, exact support grants and disabled transport; no support/inbox fixtures yet. Full local gate 479 tests and CLI syntax/focused lint pass. Authenticated case/preference/inbox/Queue checks remain unverified. CI is being run against the integrated revision; no success inferred yet.
 
 ## Phase 7 — Partners + Parts + Assistance
 

@@ -341,6 +341,9 @@ importers:
 
   packages/messaging:
     dependencies:
+      '@motorbaldi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@motorbaldi/db':
         specifier: workspace:*
         version: link:../db

@@ -1,4 +1,16 @@
 import {
+  parseSupportCommand,
+  authorizeSupportCommand,
+  prepareSupportCommand,
+  type SupportOperation,
+} from "@motorbaldi/messaging";
+import {
+  parseNotificationCommand,
+  authorizeNotificationCommand,
+  prepareNotificationCommand,
+  type NotificationOperation,
+} from "@motorbaldi/messaging";
+import {
   checkoutInput,
   authorizeCheckout,
   prepareCheckout,
@@ -79,6 +91,22 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ): Promise<PreparedCommand<Json>> {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation.startsWith("support."))
+      return prepareSupportCommand(
+        db,
+        actor!,
+        operation as SupportOperation,
+        parseSupportCommand(operation, request),
+        requestId,
+      );
+    if (operation.startsWith("notification."))
+      return prepareNotificationCommand(
+        db,
+        actor!,
+        operation as NotificationOperation,
+        parseNotificationCommand(operation, request),
+        requestId,
+      );
     if (operation === "billing.checkout.create")
       return prepareCheckout(
         db,
@@ -212,6 +240,20 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ) {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation.startsWith("support."))
+      await authorizeSupportCommand(
+        db,
+        actor,
+        operation as SupportOperation,
+        parseSupportCommand(operation, request),
+      );
+    if (operation.startsWith("notification."))
+      await authorizeNotificationCommand(
+        db,
+        actor,
+        operation as NotificationOperation,
+        parseNotificationCommand(operation, request),
+      );
     if (operation === "billing.checkout.create")
       await authorizeCheckout(db, actor, checkoutInput.parse(request));
     else if (operation.startsWith("billing."))

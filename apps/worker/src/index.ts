@@ -1,4 +1,13 @@
 import {
+  supportCommandEventRegistry,
+  supportEventHandlers,
+  createMembershipNotification,
+  membershipNotificationEventRegistry,
+  notificationCommandEventRegistry,
+  type Handler,
+} from "@motorbaldi/messaging";
+import type { EventContract } from "@motorbaldi/db";
+import {
   backgroundWorkerConfig,
   type BackgroundWorkerBindings,
   type QueueMessage,
@@ -156,7 +165,7 @@ const eventContracts = [
     z.object({ leadId: uuid, opportunityId: uuid }).strict(),
   ],
 ] as const;
-const registry = new Map(
+const registry = new Map<string, EventContract>(
   eventContracts.map(([name, aggregateType, payload]) => [
     `${name}:1`,
     {
@@ -167,7 +176,13 @@ const registry = new Map(
     },
   ]),
 );
-const handlers = new Map(
+for (const [key, contract] of [
+  ...supportCommandEventRegistry,
+  ...membershipNotificationEventRegistry,
+  ...notificationCommandEventRegistry,
+])
+  registry.set(key, contract);
+const handlers = new Map<string, Handler>(
   eventContracts.map(([name]) => [name, async () => {}]),
 );
 
@@ -182,11 +197,22 @@ export default {
   ) {
     const c = backgroundWorkerConfig(env);
     await assertDatabaseEnvironment(env.DB, c.environment);
+    const scopedHandlers = new Map(handlers);
+    for (const [key, handler] of supportEventHandlers(env.DB))
+      scopedHandlers.set(key, handler);
+    for (const key of [
+      ...membershipNotificationEventRegistry.keys(),
+      ...notificationCommandEventRegistry.keys(),
+    ])
+      scopedHandlers.set(key.split(":")[0]!, async () => {});
+    scopedHandlers.set("billing.subscription.changed.v1", async (event) => {
+      await createMembershipNotification(env.DB, event);
+    });
     for (const message of batch.messages) {
       const result = await processEvent(
         env.DB,
         message.body.eventId,
-        handlers,
+        scopedHandlers,
         registry,
       );
       if (result === "retry") message.retry();
