@@ -623,7 +623,7 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P6-005 — Remote validation
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P6-004
 - **Objective:** Validate communication/support in Development.
 - **Scope / required work:** Validate internal account notifications/preferences and owner-approved general support in Development; confirm unavailable external channels and premium guidance remain disabled. No real email/SMS/WhatsApp delivery or staffing promise is claimed.
@@ -633,13 +633,13 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Completion criteria:** Authenticated internal notification materialization/read, preferences, customer/staff support and Queue/audit consistency pass with current code CI. External transport and premium guidance remain disabled.
 - **Human-action conditions:** No current credential boundary: the existing owner-supplied assured session passed remote tests using process-memory stdin only. If a fresh session is needed, its account holder must complete normal Development sign-in/MFA and use the exact hidden local command in the [Communications runbook](../runbooks/communications-development.md); never request credentials in chat or manufacture sessions. Positive inbox skip never satisfies completion.
 
-- **Evidence:** 2026-10-10 recovery: initial D1 baseline had zero Communications effects from the reported failed run. Original and revised full mutation retries passed; one diagnostic retry observed a client TypeError before health, so the historical failure is not assigned a fabricated API root cause. Confirmed harness defects fixed: masked transport/shape errors, property-order-sensitive replay, ambiguous write/restoration recovery and primary-error masking by cleanup. Final authenticated smoke PASS (44 requests/21 mutations), including genuine populated-inbox read/replay; preference restored enabled/version6. D1 confirms six CLOSED cases with closure metadata, 12 messages/21 history records, three genuine membership-source inbox items/one read, matching command/domain/creation audits and replay records, zero bad/duplicate references or unresolved dead letters. All billing test entitlements/coverage/renewal disabled after prerequisite cleanup; its full billing smoke assertion failed and is not claimed PASS. Full local gate passes 96 unit/414 Worker tests (510 total), including 31 harness regressions. Earlier existing API upload timeout passed focused and subsequent full rerun. Only local harness/tests/docs changed, so no redeployment needed. All 132 outbox events are PROCESSED, including all 31 notification/support events; zero pending/processing/dead events or unresolved dead letters. Current-revision CI remains the final required verification, so MB-P6-005 stays IN PROGRESS. Implementation c0a8993 passed CI 38079585511; follow-up expired-session diagnostic regression also passes the local gate.
+- **Evidence:** 2026-10-10 recovery: initial D1 baseline had zero Communications effects from the reported failed run. Original and revised full mutation retries passed; one diagnostic retry observed a client TypeError before health, so the historical failure is not assigned a fabricated API root cause. Confirmed harness defects fixed: masked transport/shape errors, property-order-sensitive replay, ambiguous write/restoration recovery and primary-error masking by cleanup. Final authenticated smoke PASS (44 requests/21 mutations), including genuine populated-inbox read/replay; preference restored enabled/version6. D1 confirms six CLOSED cases with closure metadata, 12 messages/21 history records, three genuine membership-source inbox items/one read, matching command/domain/creation audits and replay records, zero bad/duplicate references or unresolved dead letters. All billing test entitlements/coverage/renewal disabled after prerequisite cleanup; its full billing smoke assertion failed and is not claimed PASS. Full local gate passes 96 unit/414 Worker tests (510 total), including 31 harness regressions. Earlier existing API upload timeout passed focused and subsequent full rerun. Only local harness/tests/docs changed, so no redeployment needed. All 132 outbox events are PROCESSED, including all 31 notification/support events; zero pending/processing/dead events or unresolved dead letters. Current revision 3a1aac1 passed [CI 38079787670](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38079787670), including all tests, artifact checks and history secret scan. Implementation c0a8993 also passed CI 38079585511. Authenticated mutations, genuine materialization and D1/Queue closeout all pass; VERIFIED for internal Communications/general-support scope only.
 
 ## Phase 7 — Partners + Parts + Assistance
 
 ### MB-P7-001 — Partner capability/relationship model
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P6-005
 - **Objective:** Represent partner as capability/relationship, not exclusive org type.
 - **Scope / required work:** Represent partner as capability/relationship, not exclusive org type.
@@ -649,9 +649,11 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Completion criteria:** Multi-capability organizations supported.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Existing organization/type/capability and commission-agreement relationship model documented in [Phase 7 contract](../architecture/phase-7-partners-parts-assistance.md). Four new real-D1 regressions pass all 16 migrations: WORKSHOP holds PARTS/TOWING/INSPECTION without type change or automatic agreement; outsiders/suspended membership denied; invalid/duplicate replacement preserves prior capability/audit state; capability changes do not alter existing commercial relationships. Full gate passes 96 unit/418 Worker tests (514 total). No schema/domain/deployment changes or commercial/assistance availability added. This verifies the model, not future Parts/Assistance API workflows; current capability PUT lacks CAS/replay and unknown-code failures remain an API-hardening concern for MB-P7-004.
+
 ### MB-P7-002 — Parts domain contract
 
-- **Status:** NOT STARTED
+- **Status:** HUMAN ACTION REQUIRED
 - **Dependencies:** MB-P7-001
 - **Objective:** Derive parts catalog/inventory business rules from repository.
 - **Scope / required work:** Derive parts catalog/inventory business rules from repository.
@@ -659,7 +661,9 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Domain tests
 - **Completion criteria:** No invented commerce rules.
-- **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
+- **Human-action conditions:** Owner must approve or correct the concrete [Parts proposal](../architecture/phase-7-partners-parts-assistance.md#parts-contract--owner-decision-outstanding): informational catalog only; active organization OWNER/ADMIN manage own items; publication requires ACTIVE verified organization plus PARTS; authenticated ACTIVE accounts browse. No stock, prices, ordering, reservation, fitment guarantee, fulfillment or warranty. If internal inventory is requested, approve location/quantity/adjustment authority and rules before implementing it. This is the execution plan unresolved-business-choice boundary; repository has only capability/future benefit, not an approved catalog/inventory contract.
+
+- **Evidence:** Canonical architecture/Phase 1/Phase 3/Phase 5/ADR 0025 and repository schema/domain inspection establish PARTS capability and configurable relationships but no item visibility, stock/order or fulfillment contract. Prepared concrete owner proposal after completing all eligible partner-model verification (four regressions/full 514-test gate). No Parts domain/schema/API mutation or fabricated commerce policy. Existing support policy remains accepted and premium assistance disabled; this boundary does not request renewed support approval. Owner policy question presented while finishing documentation/CI.
 
 ### MB-P7-003 — Assistance domain contract
 

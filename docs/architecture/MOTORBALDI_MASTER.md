@@ -48,3 +48,5 @@ Roadmap modules (completion is tracked in `docs/ai/EXECUTION_PLAN.md`):
 The original CF-0 foundation was followed by Phase 1 identity, CRM, and organization implementation. See the [Phase 1 design](phase-1-identity-crm-organizations.md) and [current execution state](../ai/PROJECT_STATE.md).
 
 The approved customer membership and separate partner commission business foundation is documented in [Phase 5](phase-5-membership-billing.md). Independent consent-aware communications and configurable human assistance extend the existing Messaging ports in [Phase 6](phase-6-communications-support.md); unavailable external providers are never represented as delivery.
+
+The existing organization multi-capability and versioned commercial relationship model is documented in [Phase 7](phase-7-partners-parts-assistance.md). Parts catalog/inventory and assistance fulfillment proposals remain separate business decisions; capabilities do not establish service or commerce readiness.
