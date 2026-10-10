@@ -10,8 +10,13 @@ const checker = join(
   "execution-state.mjs",
 );
 const root = mkdtempSync(join(tmpdir(), "motorbaldi-execution-state-"));
-const checkpoint = (id, status, dependencies) =>
-  `### ${id} — Fixture\n\n- **Status:** ${status}\n- **Dependencies:** ${dependencies}\n\n`;
+const checkpoint = (
+  id,
+  status,
+  dependencies,
+  conditions = "Provide approved credentials through secure provider setup.",
+) =>
+  `### ${id} — Fixture\n\n- **Status:** ${status}\n- **Dependencies:** ${dependencies}\n- **Human-action conditions:** ${conditions}\n\n`;
 const base = () => [
   checkpoint("MB-P1-001", "VERIFIED", "None"),
   checkpoint("MB-P1-002", "DEFERRED — OWNER APPROVED", "MB-P1-001"),
@@ -196,8 +201,97 @@ try {
     "DEFERRED — OWNER APPROVED",
   );
   rejects(complete, /VERIFIED terminal checkpoint/, "MB-P2-001", "READY");
+  const parked = [
+    checkpoint("MB-P1-001", "VERIFIED", "None"),
+    checkpoint("MB-P1-002", "HUMAN ACTION REQUIRED", "MB-P1-001"),
+    checkpoint("MB-P1-003", "BLOCKED", "MB-P1-001"),
+    checkpoint("MB-P2-001", "IN PROGRESS", "MB-P1-001"),
+  ];
+  assert.equal(
+    run(parked).status,
+    0,
+    "multiple parked boundaries must allow independent engineering progress",
+  );
+  const boundariesOnly = parked.slice(0, 3);
+  assert.equal(
+    run(boundariesOnly, "MB-P1-002", "HUMAN ACTION REQUIRED").status,
+    0,
+    "cursor may select a defined human boundary when engineering is exhausted",
+  );
+  assert.equal(
+    run(boundariesOnly, "MB-P1-003", "BLOCKED").status,
+    0,
+    "cursor may select a defined technical boundary when engineering is exhausted",
+  );
+  assert.equal(
+    run(
+      [...boundariesOnly, checkpoint("MB-P2-001", "NOT STARTED", "MB-P1-002")],
+      "MB-P1-002",
+      "HUMAN ACTION REQUIRED",
+    ).status,
+    0,
+    "future dependencies on parked boundaries remain unresolved at a genuine boundary",
+  );
+  rejects(
+    parked,
+    /checkpoint\/status mismatch/,
+    "MB-P1-002",
+    "HUMAN ACTION REQUIRED",
+  );
+  rejects(
+    [...boundariesOnly, checkpoint("MB-P2-001", "NOT STARTED", "MB-P1-001")],
+    /earliest eligible/,
+    "MB-P1-002",
+    "HUMAN ACTION REQUIRED",
+  );
+  rejects(
+    boundariesOnly,
+    /checkpoint\/status mismatch/,
+    "MB-P1-001",
+    "VERIFIED",
+  );
+  rejects(
+    [...boundariesOnly, checkpoint("MB-P2-001", "VERIFIED", "MB-P1-002")],
+    /prerequisite is not VERIFIED/,
+    "MB-P1-002",
+    "HUMAN ACTION REQUIRED",
+  );
+  rejects(
+    parked.map((part, index) =>
+      index === 2 ? checkpoint("MB-P1-003", "BLOCKED", "MB-P1-002") : part,
+    ),
+    /prerequisite is not VERIFIED/,
+  );
+  rejects(
+    parked.map((part, index) =>
+      index === 1
+        ? checkpoint("MB-P1-002", "HUMAN ACTION REQUIRED", "MB-P1-001", "")
+        : part,
+    ),
+    /requires human-action conditions/,
+  );
+  rejects(
+    parked.map((part, index) =>
+      index === 1
+        ? part.replace(/^- \*\*Human-action conditions:\*\* .*\n/m, "")
+        : part,
+    ),
+    /expected one Human-action conditions field/,
+  );
+  rejects(
+    parked.map((part, index) =>
+      index === 2
+        ? checkpoint("MB-P1-003", "BLOCKED", "MB-P1-001", "None")
+        : part,
+    ),
+    /requires human-action conditions/,
+  );
+  rejects(
+    [...parked, checkpoint("MB-P2-002", "READY", "MB-P1-001")],
+    /exactly one active\/boundary/,
+  );
   console.log(
-    "Execution state fixtures passed (deferral/boundary/completion states and 21 rejection scenarios).",
+    "Execution state fixtures passed (deferral/parked-boundary/completion states and 30 rejection scenarios).",
   );
 } finally {
   rmSync(root, { recursive: true, force: true });

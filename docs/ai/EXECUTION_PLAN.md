@@ -6,10 +6,10 @@ This file is the checkpoint registry. `CURRENT_CHECKPOINT.md` is the recovery cu
 
 1. Read applicable `AGENTS.md`, then `CURRENT_CHECKPOINT.md`; load only relevant sections of `PROJECT_STATE.md`, `ARCHITECTURE_DECISIONS.md`, and this plan.
 2. Inspect code, tests, git state, and any safely accessible target environment. Reconcile discrepancies before work. Record the evidence source and its limit; historical operator evidence may be retained when corroborated and uncontradicted, but do not invent live verification.
-3. Find the earliest checkpoint whose dependencies are `VERIFIED`. `VERIFIED` means its stated completion evidence exists. If a dependency has lost evidence or reality contradicts it, correct its status and move the cursor there. Only one checkpoint may be `IN PROGRESS`.
+3. Find the earliest checkpoint whose dependencies are `VERIFIED`. `VERIFIED` means its stated completion evidence exists. If a dependency has lost evidence or reality contradicts it, correct its status and move the cursor there. Only one checkpoint may be `IN PROGRESS`; `READY`/`IMPLEMENTED — NOT VERIFIED` likewise occupy the sole engineering cursor. Multiple documented external/human boundaries may be parked without representing concurrent engineering.
 4. Mark the eligible checkpoint `IN PROGRESS` in this file and update `CURRENT_CHECKPOINT.md` before substantive work. Implement, run its verification, diagnose failures, fix safely, and rerun. Persist the cursor after meaningful recovery boundaries: diagnosis, implementation, failed gate, deployment, or newly found blocker.
 5. If implementation exists but verification is incomplete, use `IMPLEMENTED — NOT VERIFIED`. On success, mark `VERIFIED` with concise evidence and add one `WORK_LOG.md` entry. Advance the cursor and continue automatically to the next eligible checkpoint. Phase 2 requires MB-CF-015 `VERIFIED`.
-6. Stop only at a genuine human-action boundary. Mark `HUMAN ACTION REQUIRED` when a specific human action is necessary; `BLOCKED` is for a technical/external impediment with an identified retry condition. Resume automatically when it clears. Use `SKIPPED — WITH REASON` only for an explicit, justified non-applicable checkpoint and adjust dependents deliberately.
+6. Reconcile parked `BLOCKED`/`HUMAN ACTION REQUIRED` entries on every resume; when their stated condition clears, restore the earliest to `READY`. A parked boundary never satisfies a dependency. Continue independent checkpoints with verified prerequisites, keeping exactly one engineering cursor; stop only when no eligible engineering work remains. Mark `HUMAN ACTION REQUIRED` when a specific human action is necessary; `BLOCKED` is for a technical/external impediment with an identified retry condition. Resume automatically when it clears. Use `SKIPPED — WITH REASON` only for an explicit, justified non-applicable checkpoint and adjust dependents deliberately.
 
 Allowed statuses, exactly: `NOT STARTED`, `READY`, `IN PROGRESS`, `IMPLEMENTED — NOT VERIFIED`, `VERIFIED`, `BLOCKED`, `HUMAN ACTION REQUIRED`, `SKIPPED — WITH REASON`, `DEFERRED — OWNER APPROVED`. `READY` means dependencies are verified and no work has begun. Do not use `VERIFIED` to mean “coded” or “reported complete.”
 
@@ -497,7 +497,7 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P5-001 — Billing/subscription domain
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P5-000
 - **Objective:** Define money-safe billing and subscriptions with integer minor units/currency.
 - **Scope / required work:** Implement owner-approved account subscription plans/lifecycle, finite administrative grants, entitlement/vehicle-limit foundation, period/payment ledger constraints and separate configurable partner agreement/referral/commission/adjustment/manual-settlement foundation; scoped APIs and Spanish Portal/Admin. See [Phase 5 contract](../architecture/phase-5-membership-billing.md) and [ADR 0025](../adr/0025-membership-billing-commercial-boundaries.md).
@@ -507,45 +507,53 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Completion criteria:** Ledger/state constraints established.
 - **Human-action conditions:** No blocker for independently testable Development foundation. Production financial activation needs approved tax/refund/grace/retry/final-vehicle-limit/recurring/settlement policies; no automatic partner charge/payout.
 
+- **Evidence:** CI 38011067893 passed revision a0144b7 with all integrated tests/security/format/type/boundary/OpenAPI/audit/artifact/history checks. Development migrations 0012/0013 applied; membership smoke verifies pending/replay/conflict, finite MFA grant, coverage add/remove, cancellation cutoff and free access. Eight membership events PROCESSED with zero errors; cleanup leaves synthetic subscription SUSPENDED, renewal off and no covered vehicles. Remote three-fixture limit scenario explicitly skipped; local two-vehicle-limit regression passed. Commission financial scenarios are locally verified, not claimed remotely exercised.
+
 ### MB-P5-002 — Wompi integration
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P5-001
 - **Objective:** Implement provider adapter with deterministic keys and safe secrets.
-- **Scope / required work:** Implement provider adapter with deterministic keys and safe secrets.
+- **Scope / required work:** Official-protocol sandbox adapter, CARD/NEQUI reusable-source capability, single-use PSE boundary, acceptance documents, hosted checkout/server integrity and fail-closed secret/environment controls. Automatic source charging remains unavailable; real merchant validation belongs to MB-P5-005.
 - **Relevant files/systems:** Payments package, API config
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
-- **Verification:** Sandbox tests and provider contract checks
-- **Completion criteria:** No financially sensitive operation enabled before MB-P5-000 verified.
-- **Human-action conditions:** Provider credentials/manual onboarding if needed; never store secrets in repo.
+- **Verification:** Local official-sandbox-protocol fixtures and provider contract/security checks, integrated CI and closed-gateway Development negatives. These do not claim a real merchant payment.
+- **Completion criteria:** Tested adapter/checkout uses permanent ledger references, server prices and fixed sandbox endpoints; missing credentials/production fail closed. MB-P5-000 remains verified.
+- **Human-action conditions:** None for local technical contract. Real credential/onboarding validation is retained in MB-P5-005; production policies remain release conditions.
+
+- **Evidence:** 42 provider and 27 gateway fixtures plus 16 checkout D1 scenarios pass, integrated CI 38011067893/a0144b7 succeeds. Official Wompi docs checked; current-ledger signing and source/environment/unknown-outcome guards are covered. Development API 2890a34d-20a2-4489-8107-02ccbc524d39 rejects absent-secret checkout/webhook with 503, retains browser origin/auth checks and financial snapshots unchanged. No external payment/charge or working credentials claimed.
 
 ### MB-P5-003 — Webhooks + renewals + reconciliation
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P5-002
 - **Objective:** Verify signatures, dedupe events, renewals and reconciliation.
-- **Scope / required work:** Verify signatures, dedupe events, renewals and reconciliation.
+- **Scope / required work:** Bounded sandbox webhook validation/private-provider reconciliation, permanent observation deduplication, atomic verified activation, explicit manual calendar renewals/cancellation cutoff and scheduled expiry. Automated recurring charges remain unavailable until commercial authorization and separate verification.
 - **Relevant files/systems:** API, Worker, messaging, payments
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
-- **Verification:** Replay, ordering and reconciliation tests
+- **Verification:** Local signed-provider transport fixtures and D1 replay/ordering/ownership/MFA/atomicity/cadence tests, integrated CI, Development closed-gateway rejection. Real external provider convergence remains MB-P5-005.
 - **Completion criteria:** At-least-once events converge safely.
 - **Human-action conditions:** Global stop rule; otherwise none.
 
+- **Evidence:** CI 38011067893/a0144b7 passes 27 gateway and 14 lifecycle scenarios, including concurrent duplicate convergence, rollback, signed/provider mismatches, manual MFA reconciliation/revocation, late/early renewal, cancellation and actual calendar clamping. Development Worker 79104b99-a231-4495-aeb2-2336bab4572e includes expiry/event contracts. Missing-secret hooks cannot activate access; real sandbox payments are not claimed.
+
 ### MB-P5-004 — Failure/retry/refund lifecycle
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P5-003
 - **Objective:** Define and implement failure, retry and refund controls.
-- **Scope / required work:** Define and implement failure, retry and refund controls.
+- **Scope / required work:** Explicit pending/terminal/unknown outcome controls, no blind retry or automatic refund/proration, verified VOIDED evidence revocation, immutable manual commission adjustments/reversals/disputes and settlement reconciliation. Unapproved refund/retry policies remain disabled; this scope does not execute provider refunds.
 - **Relevant files/systems:** Payments package, Worker, audit
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
-- **Verification:** Failure and refund state tests
+- **Verification:** Ambiguous/terminal/stale/VOIDED provider-state and no-retry tests, financial atomicity, cancellation cutoff, commission reversal/dispute/manual settlement and immutable evidence tests.
 - **Completion criteria:** Money states traceable and idempotent.
 - **Human-action conditions:** Global stop rule; otherwise none.
 
+- **Evidence:** 75 focused provider/lifecycle/commission tests pass and integrated CI 38011067893/a0144b7 succeeds. Unknown external outcomes are not retried, terminal evidence cannot spuriously activate, verified VOIDED removes payment-derived entitlement, cancellation retains paid cutoff, and commission corrections/disputes/manual reconciliation retain immutable audit. No automated refund/proration/retry/settlement executor exists or is enabled; live policies/provider-refund activation remain unapproved release conditions.
+
 ### MB-P5-005 — Remote validation
 
-- **Status:** NOT STARTED
+- **Status:** HUMAN ACTION REQUIRED
 - **Dependencies:** MB-P5-004
 - **Objective:** Validate billing/Wompi in Development sandbox.
 - **Scope / required work:** Validate billing/Wompi in Development sandbox.
@@ -553,19 +561,19 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote financial scenario matrix and gate
 - **Completion criteria:** Financial flows and reconciliation pass.
-- **Human-action conditions:** Global stop rule; otherwise none.
+- **Human-action conditions:** Supply authorized Wompi Sandbox merchant credentials directly as Development API Worker secrets (WOMPI_PUBLIC_KEY, WOMPI_PRIVATE_KEY, WOMPI_INTEGRITY_SECRET, WOMPI_EVENTS_SECRET) and configure the sandbox event URL. Names-only inventory finds none and no authorized merchant browser session exists. See [Wompi Development runbook](../runbooks/wompi-development.md). No keys in files/chat/logs, no real-money test. Local protocol fixtures/closed-gateway negatives are not external merchant verification. This parked boundary does not block independent Communications implementation.
 
 ## Phase 6 — Communications + Notifications + Support
 
 ### MB-P6-001 — Communication provider abstraction
 
-- **Status:** NOT STARTED
-- **Dependencies:** MB-P5-005
+- **Status:** IN PROGRESS
+- **Dependencies:** MB-P5-004 (owner-approved independent work; MB-P5-005 credentials block external billing validation only)
 - **Objective:** Define outbound channels and provider contracts.
-- **Scope / required work:** Define outbound channels and provider contracts.
+- **Scope / required work:** Extend existing provider ports with explicit delivery/unknown/unavailable semantics, current consent/preference and idempotency boundaries, no-PII audit contract and configurable human support availability/usage foundation. No paid provider, actual WhatsApp delivery or invented support promise.
 - **Relevant files/systems:** Messaging package, config
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
-- **Verification:** Provider contract tests
+- **Verification:** Provider contract/configuration/timeout/unknown/no-auto-retry/privacy tests and repository gates.
 - **Completion criteria:** No production delivery assumed.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 

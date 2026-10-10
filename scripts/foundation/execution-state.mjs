@@ -17,9 +17,8 @@ const activeStatuses = new Set([
   "READY",
   "IN PROGRESS",
   "IMPLEMENTED — NOT VERIFIED",
-  "BLOCKED",
-  "HUMAN ACTION REQUIRED",
 ]);
+const boundaryStatuses = new Set(["BLOCKED", "HUMAN ACTION REQUIRED"]);
 const errors = [];
 const fail = (message) => errors.push(message);
 // Read only structural fields; never echo arbitrary document contents.
@@ -47,6 +46,11 @@ try {
     );
     const status = field(body, "Status", id);
     if (!statuses.has(status)) fail(`${id}: unsupported status`);
+    if (boundaryStatuses.has(status)) {
+      const conditions = field(body, "Human-action conditions", id);
+      if (!conditions || conditions === "None")
+        fail(`${id}: parked checkpoint requires human-action conditions`);
+    }
     // Parenthetical explanations can mention other checkpoints without declaring dependencies.
     const dependencyField = field(body, "Dependencies", id)
       .split("(")[0]
@@ -76,7 +80,8 @@ try {
           fail(`${checkpoint.id}: backward dependency progression`);
         if (
           (checkpoint.status === "VERIFIED" ||
-            activeStatuses.has(checkpoint.status)) &&
+            activeStatuses.has(checkpoint.status) ||
+            boundaryStatuses.has(checkpoint.status)) &&
           prerequisite.status !== "VERIFIED"
         ) {
           fail(`${checkpoint.id}: prerequisite is not VERIFIED`);
@@ -115,6 +120,17 @@ try {
   const active = checkpoints.filter((checkpoint) =>
     activeStatuses.has(checkpoint.status),
   );
+  const boundaries = checkpoints.filter((checkpoint) =>
+    boundaryStatuses.has(checkpoint.status),
+  );
+  const earliestEligible = checkpoints.find(
+    (checkpoint) =>
+      (checkpoint.status === "NOT STARTED" ||
+        activeStatuses.has(checkpoint.status)) &&
+      checkpoint.dependencies.every(
+        (dependency) => byId.get(dependency)?.status === "VERIFIED",
+      ),
+  );
   const completed =
     active.length === 0 &&
     checkpoints.length > 0 &&
@@ -125,7 +141,9 @@ try {
         "DEFERRED — OWNER APPROVED",
       ].includes(checkpoint.status),
     );
-  if (active.length !== 1 && !completed)
+  const boundaryCursorAllowed =
+    active.length === 0 && !earliestEligible && boundaries.length > 0;
+  if (active.length !== 1 && !completed && !boundaryCursorAllowed)
     fail("registry: expected exactly one active/boundary checkpoint");
   if (!currentId || !byId.has(currentId)) fail("cursor: unknown checkpoint");
   else if (completed) {
@@ -139,19 +157,17 @@ try {
       fail(
         "cursor: completed registry requires a VERIFIED terminal checkpoint",
       );
+  } else if (boundaryCursorAllowed) {
+    if (
+      !boundaryStatuses.has(byId.get(currentId).status) ||
+      byId.get(currentId).status !== cursorStatus
+    )
+      fail("cursor: checkpoint/status mismatch");
   } else if (
     active[0]?.id !== currentId ||
     byId.get(currentId).status !== cursorStatus
   )
     fail("cursor: checkpoint/status mismatch");
-  const earliestEligible = checkpoints.find(
-    (checkpoint) =>
-      (checkpoint.status === "NOT STARTED" ||
-        activeStatuses.has(checkpoint.status)) &&
-      checkpoint.dependencies.every(
-        (dependency) => byId.get(dependency)?.status === "VERIFIED",
-      ),
-  );
   if (earliestEligible && earliestEligible.id !== currentId)
     fail("cursor: not the earliest eligible checkpoint");
 } catch {
