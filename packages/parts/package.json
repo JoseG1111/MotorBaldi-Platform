@@ -1,0 +1,18 @@
+{
+  "name": "@motorbaldi/parts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@motorbaldi/contracts": "workspace:*",
+    "@motorbaldi/db": "workspace:*",
+    "@motorbaldi/shared": "workspace:*",
+    "@motorbaldi/workshops": "workspace:*",
+    "@motorbaldi/vehicles": "workspace:*",
+    "@motorbaldi/messaging": "workspace:*",
+    "zod": "^4.3.0"
+  }
+}

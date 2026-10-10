@@ -991,3 +991,259 @@ for (const scope of ["me", "admin"]) {
       : {}),
   });
 }
+
+// Parts commands accept only editable data; all resource scope comes from the path.
+const partsPage = [
+  { name: "cursor", in: "query", schema: id },
+  {
+    name: "limit",
+    in: "query",
+    schema: { type: "integer", minimum: 1, maximum: 50, default: 20 },
+  },
+];
+const partsLocation = { name: "locationId", in: "query", schema: id };
+const partsIdentity = ["brand", "manufacturerReference"].map((name) => ({
+  name,
+  in: "query",
+  required: true,
+  schema: { type: "string", minLength: 1, maxLength: 160 },
+}));
+const partsFields = {
+  name: { type: "string", minLength: 1, maxLength: 200 },
+  category: { type: "string", minLength: 1, maxLength: 100 },
+  brand: { type: "string", minLength: 1, maxLength: 160 },
+  manufacturerReference: { type: "string", minLength: 1, maxLength: 160 },
+  description: { type: "string", maxLength: 2000, default: "" },
+  unit: { type: "string", minLength: 1, maxLength: 40 },
+  compatibility: {
+    type: "array",
+    maxItems: 30,
+    default: [],
+    items: {
+      type: "object",
+      additionalProperties: false,
+      required: ["vehicleKind"],
+      properties: {
+        vehicleKind: { type: "string", minLength: 1, maxLength: 40 },
+        brand: { type: "string", minLength: 1, maxLength: 80 },
+        model: { type: "string", minLength: 1, maxLength: 80 },
+        note: { type: "string", minLength: 1, maxLength: 300 },
+        verified: { type: "boolean", enum: [false], default: false },
+      },
+    },
+  },
+};
+const partsRequired = [
+  "name",
+  "category",
+  "brand",
+  "manufacturerReference",
+  "unit",
+  "reason",
+];
+const partsReason = { type: "string", minLength: 5, maxLength: 1000 };
+const partsVersion = {
+  type: "integer",
+  minimum: 1,
+  maximum: Number.MAX_SAFE_INTEGER - 1,
+};
+const partsOfferingFields = {
+  ...partsFields,
+  locationId: { ...id, nullable: true, default: null },
+  canonicalPartId: { ...id, nullable: true, default: null },
+  partnerSku: {
+    type: "string",
+    minLength: 1,
+    maxLength: 160,
+    nullable: true,
+    default: null,
+  },
+  priceMinor: {
+    type: "integer",
+    minimum: 0,
+    maximum: Number.MAX_SAFE_INTEGER,
+    nullable: true,
+    default: null,
+  },
+  currency: { type: "string", enum: ["COP"], default: "COP" },
+  availability: {
+    type: "string",
+    enum: ["UNKNOWN", "AVAILABLE", "UNAVAILABLE"],
+    default: "UNKNOWN",
+  },
+};
+const partsBody = (
+  properties: Record<string, unknown>,
+  required: string[],
+) => ({
+  required: true,
+  content: {
+    "application/json": {
+      schema: {
+        type: "object",
+        additionalProperties: false,
+        required,
+        properties,
+      },
+    },
+  },
+});
+const partsPost = (
+  summary: string,
+  parameters: unknown[],
+  properties: Record<string, unknown>,
+  required: string[],
+) => ({
+  ...idempotent(summary, parameters),
+  requestBody: partsBody(properties, required),
+});
+const partsPartId = { name: "partId", in: "path", required: true, schema: id };
+const partsOfferingId = {
+  name: "offeringId",
+  in: "path",
+  required: true,
+  schema: id,
+};
+const partsOrderId = {
+  name: "orderId",
+  in: "path",
+  required: true,
+  schema: id,
+};
+Object.assign(openapi.paths, {
+  "/api/v1/admin/parts": {
+    get: get("Exact catalog staff and assured MFA canonical references", [
+      ...partsPage,
+      {
+        name: "status",
+        in: "query",
+        schema: { type: "string", enum: ["DRAFT", "ACTIVE", "ARCHIVED"] },
+      },
+    ]),
+    post: partsPost(
+      "Create reviewed canonical DRAFT with reason",
+      [],
+      {
+        ...partsFields,
+        reason: partsReason,
+        status: { type: "string", enum: ["DRAFT"], default: "DRAFT" },
+      },
+      partsRequired,
+    ),
+  },
+  "/api/v1/admin/parts/match": {
+    get: get(
+      "Strong brand/manufacturer reference match; no name matching",
+      partsIdentity,
+    ),
+  },
+  "/api/v1/admin/parts/{partId}": {
+    get: get("Read exact staff-authorized canonical reference", [partsPartId]),
+  },
+  "/api/v1/admin/parts/{partId}/update": {
+    post: partsPost(
+      "Reasoned full canonical data update with current version",
+      [partsPartId],
+      { ...partsFields, version: partsVersion, reason: partsReason },
+      [...partsRequired, "version"],
+    ),
+  },
+  "/api/v1/admin/parts/{partId}/transition": {
+    post: partsPost(
+      "Reasoned audited canonical lifecycle transition",
+      [partsPartId],
+      {
+        version: partsVersion,
+        reason: partsReason,
+        toStatus: { type: "string", enum: ["DRAFT", "ACTIVE", "ARCHIVED"] },
+      },
+      ["version", "reason", "toStatus"],
+    ),
+  },
+  "/api/v1/organizations/{organizationId}/parts-offerings": {
+    get: get(
+      "Own verified PARTS organization and authorized location offerings",
+      [
+        orgId,
+        ...partsPage,
+        partsLocation,
+        {
+          name: "status",
+          in: "query",
+          schema: { type: "string", enum: ["DRAFT", "ACTIVE", "INACTIVE"] },
+        },
+      ],
+    ),
+    post: partsPost(
+      "Create own organization DRAFT offering with reason",
+      [orgId],
+      {
+        ...partsOfferingFields,
+        reason: partsReason,
+        status: { type: "string", enum: ["DRAFT"], default: "DRAFT" },
+      },
+      partsRequired,
+    ),
+  },
+  "/api/v1/organizations/{organizationId}/parts-offerings/{offeringId}": {
+    get: get("Read offering in current organization/location scope", [
+      orgId,
+      partsOfferingId,
+    ]),
+  },
+  "/api/v1/organizations/{organizationId}/parts-offerings/{offeringId}/update":
+    {
+      post: partsPost(
+        "Full own offering update; previous and new location scope checked",
+        [orgId, partsOfferingId],
+        { ...partsOfferingFields, version: partsVersion, reason: partsReason },
+        [...partsRequired, "version"],
+      ),
+    },
+  "/api/v1/organizations/{organizationId}/parts-offerings/{offeringId}/transition":
+    {
+      post: partsPost(
+        "Reasoned own offering lifecycle transition",
+        [orgId, partsOfferingId],
+        {
+          version: partsVersion,
+          reason: partsReason,
+          toStatus: { type: "string", enum: ["DRAFT", "ACTIVE", "INACTIVE"] },
+        },
+        ["version", "reason", "toStatus"],
+      ),
+    },
+  "/api/v1/organizations/{organizationId}/parts-catalog": {
+    get: get("Scoped ACTIVE canonical reference lookup for offering managers", [
+      orgId,
+      ...partsPage,
+      partsLocation,
+    ]),
+  },
+  "/api/v1/organizations/{organizationId}/parts-catalog/match": {
+    get: get("Scoped ACTIVE strong canonical reference matching", [
+      orgId,
+      ...partsIdentity,
+      partsLocation,
+    ]),
+  },
+  "/api/v1/organizations/{organizationId}/workshop/orders/{orderId}/parts": {
+    get: get(
+      "Immutable snapshots under existing Workshop and vehicle authorization",
+      [orgId, partsOrderId, ...partsPage],
+    ),
+    post: partsPost(
+      "Attach own applicable ACTIVE offering snapshot to mutable Workshop order",
+      [orgId, partsOrderId],
+      { offeringId: id, version: partsVersion, reason: partsReason },
+      ["offeringId", "version", "reason"],
+    ),
+  },
+  "/api/v1/organizations/{organizationId}/workshop/orders/{orderId}/parts/offerings":
+    {
+      get: get(
+        "Safe own ACTIVE offerings applicable to this authorized Workshop order",
+        [orgId, partsOrderId, ...partsPage],
+      ),
+    },
+});

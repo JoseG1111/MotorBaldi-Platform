@@ -653,52 +653,60 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P7-002 — Parts domain contract
 
-- **Status:** HUMAN ACTION REQUIRED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P7-001
 - **Objective:** Derive parts catalog/inventory business rules from repository.
-- **Scope / required work:** Derive parts catalog/inventory business rules from repository.
+- **Scope / required work:** Implement owner-approved canonical reference catalog, verified organization/location offerings, controlled reference matching, optional COP pricing/informational availability, audited lifecycles and immutable service part snapshots. No inventory reservation/deduction, checkout, payment, public marketplace or sourcing assistance.
 - **Relevant files/systems:** Parts package/contracts
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Domain tests
 - **Completion criteria:** No invented commerce rules.
-- **Human-action conditions:** Owner must approve or correct the concrete [Parts proposal](../architecture/phase-7-partners-parts-assistance.md#parts-contract--owner-decision-outstanding): informational catalog only; active organization OWNER/ADMIN manage own items; publication requires ACTIVE verified organization plus PARTS; authenticated ACTIVE accounts browse. No stock, prices, ordering, reservation, fitment guarantee, fulfillment or warranty. If internal inventory is requested, approve location/quantity/adjustment authority and rules before implementing it. This is the execution plan unresolved-business-choice boundary; repository has only capability/future benefit, not an approved catalog/inventory contract.
+- **Human-action conditions:** None for the owner-approved Parts baseline (2026-10-10). Public marketplace/checkout/new commission rules and sourcing assistance require separate approval; actual credentials/production/spend boundaries persist.
 
 - **Evidence:** Canonical architecture/Phase 1/Phase 3/Phase 5/ADR 0025 and repository schema/domain inspection establish PARTS capability and configurable relationships but no item visibility, stock/order or fulfillment contract. Prepared concrete owner proposal after completing all eligible partner-model verification (four regressions/full 514-test gate). No Parts domain/schema/API mutation or fabricated commerce policy. Existing support policy remains accepted and premium assistance disabled; this boundary does not request renewed support approval. Owner policy question presented while finishing documentation/CI.
 
+- **Recovery:** Owner approved canonical/partner/location/catalog policy on 2026-10-10. Prior informational-only proposal is superseded; optional prices and optional locations are authorized, public discovery and inventory remain excluded. MB-P6-005 remains VERIFIED and incomplete billing smoke remains separately recorded.
+
+- **Completion evidence:** 2026-10-10 full local gate passes 104 unit/433 Worker tests (537 total), including eight strict Parts contract tests and 15 real-D1 regressions across all 17 migrations. Exact staff/organization/location/MFA/current permissions, controlled matching, replay/CAS, mutation-time revocation/rollback, immutable history and Workshop snapshots, changed canonical reference denial and persisted event validation pass. Migration 0017 is additive and locally applied by fixtures only; remote deployment/closeout remains MB-P7-005.
+
 ### MB-P7-003 — Assistance domain contract
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P7-002
-- **Objective:** Derive assistance request/service rules from repository.
-- **Scope / required work:** Derive assistance request/service rules from repository.
+- **Objective:** Preserve owner-approved disabled sourcing/premium assistance and existing general-support scope.
+- **Scope / required work:** Preserve owner-approved disabled sourcing/premium assistance and existing general-support scope.
 - **Relevant files/systems:** Assistance package/contracts
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Domain tests
-- **Completion criteria:** State and scope approved.
-- **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
+- **Completion criteria:** Disabled assistance remains enforced; no new dispatch, diagnosis or SLA promise.
+- **Human-action conditions:** None for disabled assistance. New dispatch/sourcing/fulfillment or staffed premium readiness requires separate authorization.
+
+- **Evidence:** Owner-approved disabled assistance boundary is explicit in ADR 0026/Phase 7 design. Eight strict Parts contract tests keep sourcing/stock/payment/discovery unavailable; 62 existing support-policy tests pass disabled defaults, bounded hours/usage, immutable policies, no around-the-clock/diagnosis/SLA promises and no provider readiness. Existing general-support authorization/lifecycle remains MB-P6-003; no new assistance service-request or dispatch is enabled.
 
 ### MB-P7-004 — APIs/workflows/authorization
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P7-003
-- **Objective:** Expose partner, parts and assistance operations.
-- **Scope / required work:** Expose partner, parts and assistance operations.
+- **Objective:** Expose approved scoped Parts management and immutable Workshop part snapshots; assistance remains disabled.
+- **Scope / required work:** Expose approved scoped Parts management and immutable Workshop part snapshots; assistance remains disabled.
 - **Relevant files/systems:** API, Portal, Admin, authz
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** API/UI/auth tests
 - **Completion criteria:** Scoped workflows work.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** 2026-10-10 full gate passes 114 unit/444 Worker tests (558 total). Scoped canonical/organization catalog/offerings and existing Workshop snapshot APIs, strict body/path/query boundaries and OpenAPI are integrated with existing assured coordinator, atomic idempotency and Parts Worker handlers. Ten real API/Queue tests cover actual MFA/old sessions, origin, exact roles, scoped locations, revocation before replay, CAS, immutable service prices, duplicate processing, forged evidence and sanitized dead letters; 16 domain tests include JSON-forgery rejection at DB boundaries. Ten UI regressions verify safe Spanish rendering, field-based informational compatibility, retries/stale responses, pagination and historical snapshots. Unknown organization capability codes now return sanitized400 before mutation. Legacy capability replacement PUT is still atomic permission-scoped replacement without CAS/replay; it does not grant Parts data authority, and Parts commands independently recheck current capability/role/MFA at commit. No public commerce/provider/media capability enabled. Development deployment/remote authenticated closeout remains MB-P7-005.
+
 ### MB-P7-005 — Remote validation
 
-- **Status:** NOT STARTED
+- **Status:** IN PROGRESS
 - **Dependencies:** MB-P7-004
 - **Objective:** Validate phase in Development.
 - **Scope / required work:** Validate phase in Development.
 - **Relevant files/systems:** Development apps/resources
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote smoke and gate
-- **Completion criteria:** Partner/parts/assistance verified.
+- **Completion criteria:** Approved canonical/own-organization/service snapshots pass authenticated mutation/replay and Development D1/Queue consistency; assistance stays disabled.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
 ## Phase 8 — Marketplace

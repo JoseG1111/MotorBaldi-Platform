@@ -5,6 +5,14 @@ export const maxIdempotencyResponseBytes = 8192;
 
 export const idempotencyOperationRegistry = {
   "foundation.test": 3600,
+  "parts.canonical.create": 604800,
+  "parts.canonical.update": 604800,
+  "parts.canonical.transition": 604800,
+  "parts.offering.create": 604800,
+  "parts.offering.update": 604800,
+  "parts.offering.transition": 604800,
+  "parts.workshop.snapshot.add": 604800,
+
   "support.case.create": 604800,
   "support.case.reply": 604800,
   "support.case.assign": 604800,

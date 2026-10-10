@@ -1,4 +1,8 @@
 import {
+  partsCommandEventRegistry,
+  partsEventHandlers,
+} from "@motorbaldi/parts";
+import {
   supportCommandEventRegistry,
   supportEventHandlers,
   createMembershipNotification,
@@ -177,6 +181,7 @@ const registry = new Map<string, EventContract>(
   ]),
 );
 for (const [key, contract] of [
+  ...partsCommandEventRegistry,
   ...supportCommandEventRegistry,
   ...membershipNotificationEventRegistry,
   ...notificationCommandEventRegistry,
@@ -198,6 +203,8 @@ export default {
     const c = backgroundWorkerConfig(env);
     await assertDatabaseEnvironment(env.DB, c.environment);
     const scopedHandlers = new Map(handlers);
+    for (const [key, handler] of partsEventHandlers(env.DB))
+      scopedHandlers.set(key, handler);
     for (const [key, handler] of supportEventHandlers(env.DB))
       scopedHandlers.set(key, handler);
     for (const key of [

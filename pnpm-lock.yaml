@@ -52,6 +52,9 @@ importers:
       '@motorbaldi/organizations':
         specifier: workspace:*
         version: link:packages/organizations
+      '@motorbaldi/parts':
+        specifier: workspace:*
+        version: link:packages/parts
       '@motorbaldi/payments':
         specifier: workspace:*
         version: link:packages/payments
@@ -161,6 +164,9 @@ importers:
       '@motorbaldi/organizations':
         specifier: workspace:*
         version: link:../../packages/organizations
+      '@motorbaldi/parts':
+        specifier: workspace:*
+        version: link:../../packages/parts
       '@motorbaldi/payments':
         specifier: workspace:*
         version: link:../../packages/payments
@@ -206,6 +212,9 @@ importers:
       '@motorbaldi/organizations':
         specifier: workspace:*
         version: link:../../packages/organizations
+      '@motorbaldi/parts':
+        specifier: workspace:*
+        version: link:../../packages/parts
       '@motorbaldi/payments':
         specifier: workspace:*
         version: link:../../packages/payments
@@ -370,6 +379,30 @@ importers:
       '@motorbaldi/shared':
         specifier: workspace:*
         version: link:../shared
+      zod:
+        specifier: ^4.3.0
+        version: 4.6.5
+
+  packages/parts:
+    dependencies:
+      '@motorbaldi/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@motorbaldi/db':
+        specifier: workspace:*
+        version: link:../db
+      '@motorbaldi/messaging':
+        specifier: workspace:*
+        version: link:../messaging
+      '@motorbaldi/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@motorbaldi/vehicles':
+        specifier: workspace:*
+        version: link:../vehicles
+      '@motorbaldi/workshops':
+        specifier: workspace:*
+        version: link:../workshops
       zod:
         specifier: ^4.3.0
         version: 4.6.5

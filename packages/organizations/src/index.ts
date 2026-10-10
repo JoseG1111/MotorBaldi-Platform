@@ -360,6 +360,16 @@ export async function setCapabilities(
   );
   if (codes.length > 20 || new Set(codes).size !== codes.length)
     throw new Problem(400, "INVALID_CAPABILITIES", "Invalid capabilities");
+  if (codes.length) {
+    const registered = await db
+      .prepare(
+        `SELECT code FROM org_capability_codes WHERE code IN (${codes.map(() => "?").join(",")})`,
+      )
+      .bind(...codes)
+      .all<{ code: string }>();
+    if (registered.results.length !== codes.length)
+      throw new Problem(400, "INVALID_CAPABILITIES", "Unknown capability");
+  }
   const statements = [
     db
       .prepare("DELETE FROM org_capabilities WHERE organization_id=?")

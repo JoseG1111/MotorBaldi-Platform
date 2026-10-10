@@ -1,4 +1,10 @@
 import {
+  parsePartsCommand,
+  authorizePartsCommand,
+  preparePartsCommand,
+  type PartsOperation,
+} from "@motorbaldi/parts";
+import {
   parseSupportCommand,
   authorizeSupportCommand,
   prepareSupportCommand,
@@ -91,6 +97,14 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ): Promise<PreparedCommand<Json>> {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation.startsWith("parts."))
+      return preparePartsCommand(
+        db,
+        actor!,
+        operation as PartsOperation,
+        parsePartsCommand(operation, request),
+        requestId,
+      );
     if (operation.startsWith("support."))
       return prepareSupportCommand(
         db,
@@ -240,6 +254,13 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ) {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation.startsWith("parts."))
+      await authorizePartsCommand(
+        db,
+        actor,
+        operation as PartsOperation,
+        parsePartsCommand(operation, request),
+      );
     if (operation.startsWith("support."))
       await authorizeSupportCommand(
         db,

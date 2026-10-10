@@ -1,3 +1,4 @@
+import { partsRoutes } from "./parts-routes.js";
 import { supportRoutes } from "./support-routes.js";
 import { notificationRoutes } from "./notification-routes.js";
 import {
@@ -528,6 +529,25 @@ async function route(
       { headers: { ...cors, "cache-control": "no-store" } },
     );
   }
+  const partsResponse = await partsRoutes(
+    request,
+    env.DB,
+    businessPrincipal,
+    async (operation, body, organizationId) =>
+      idempotentCommand(
+        env,
+        request.headers,
+        operation,
+        (await businessPrincipal()).accountId,
+        body,
+        requestId,
+        requiredKey(request),
+        organizationId,
+      ),
+    () => boundedJson(request),
+    cors,
+  );
+  if (partsResponse) return partsResponse;
   const supportResponse = await supportRoutes(
     request,
     env.DB,
