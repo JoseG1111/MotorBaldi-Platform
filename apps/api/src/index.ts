@@ -1,3 +1,11 @@
+import {
+  buildHostedCheckout,
+  reconcilePaymentWebhook,
+  reconcileStoredPayment,
+  paymentGatewayCapabilities,
+  sandboxPaymentsConfigured,
+} from "./payment-gateway.js";
+import { billingRoutes } from "./billing-routes.js";
 import { inspectionRoutes } from "./inspection-routes.js";
 import { workshopRoutes } from "./workshop-routes.js";
 import { authentication, allowedAuthPaths } from "@motorbaldi/auth";
@@ -137,6 +145,7 @@ function requireTrustedMutationOrigin(
     pathname.startsWith("/api/v1/") &&
     !pathname.startsWith("/api/v1/auth/") &&
     pathname !== "/api/v1/public/leads" &&
+    pathname !== "/api/v1/payments/wompi/events" &&
     pathname !== "/api/v1/foundation/idempotency-test" &&
     !trustedOrigins.includes(request.headers.get("origin") ?? "")
   )
@@ -375,6 +384,17 @@ async function route(
   }
 
   await assertDatabaseEnvironment(env.DB, c.environment);
+  if (url.pathname === "/api/v1/payments/wompi/events") {
+    requireMethod("POST");
+    await reconcilePaymentWebhook(env, await boundedJson(request), requestId, {
+      checksumHeader: request.headers.get("x-event-checksum") ?? undefined,
+      signal: AbortSignal.timeout(10_000),
+    });
+    return json(
+      { accepted: true },
+      { status: 202, headers: { "cache-control": "no-store" } },
+    );
+  }
   if (url.pathname === "/health/dependencies") {
     requireMethod("GET");
     const d1 = await env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
@@ -450,6 +470,81 @@ async function route(
       throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
     return principal as typeof principal & { personId: string };
   };
+  if (url.pathname === "/api/v1/billing/payment-capabilities") {
+    requireMethod("GET");
+    await businessPrincipal();
+    return json(paymentGatewayCapabilities(env), {
+      headers: { ...cors, "cache-control": "no-store" },
+    });
+  }
+  const reconcilePath = url.pathname.match(
+    /^\/api\/v1\/admin\/billing\/payments\/([0-9a-f-]{36})\/reconcile$/,
+  );
+  if (reconcilePath) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    z.object({})
+      .strict()
+      .parse(await boundedJson(request));
+    return json(
+      await reconcileStoredPayment(env, actor, reconcilePath[1]!, requestId, {
+        signal: AbortSignal.timeout(10_000),
+      }),
+      { headers: { ...cors, "cache-control": "no-store" } },
+    );
+  }
+  const checkoutPath = url.pathname.match(
+    /^\/api\/v1\/billing\/subscriptions\/([0-9a-f-]{36})\/checkout$/,
+  );
+  if (checkoutPath) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    if (!sandboxPaymentsConfigured(env))
+      throw new Problem(
+        503,
+        "PAYMENTS_UNAVAILABLE",
+        "Sandbox payment gateway unavailable",
+      );
+    z.object({})
+      .strict()
+      .parse(await boundedJson(request));
+    const subscriptionId = checkoutPath[1]!;
+    const reserved = (await idempotentCommand(
+      env,
+      request.headers,
+      "billing.checkout.create",
+      actor.accountId,
+      { subscriptionId },
+      requestId,
+      requiredKey(request),
+    )) as { paymentId: string };
+    return json(
+      await buildHostedCheckout(env, actor, {
+        subscriptionId,
+        paymentId: reserved.paymentId,
+      }),
+      { headers: { ...cors, "cache-control": "no-store" } },
+    );
+  }
+  const billingResponse = await billingRoutes(
+    request,
+    env.DB,
+    businessPrincipal,
+    async (operation, body) =>
+      idempotentCommand(
+        env,
+        request.headers,
+        operation,
+        (await businessPrincipal()).accountId,
+        body,
+        requestId,
+        requiredKey(request),
+      ),
+    () => boundedJson(request),
+    cors,
+    sandboxPaymentsConfigured(env),
+  );
+  if (billingResponse) return billingResponse;
   const inspectionResponse = await inspectionRoutes(
     request,
     env.DB,

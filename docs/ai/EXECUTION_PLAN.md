@@ -25,7 +25,7 @@ Checkpoint constraints below add to these global rules. If a future checkpoint n
 
 ## Approved parallel execution
 
-The owner authorized real concurrent gpt-6.1-sol/low subagents on 2026-10-09 and subsequently removed the fixed two-agent policy; `.codex/config.toml` records these defaults without changing the main gpt-6.1-sol/medium session. When safe, spawn as many bounded independent tasks as useful within available runtime capacity (this session has four total slots including main; project config allows up to six spawned threads) with explicit model/effort overrides, exclusive file ownership or worktrees and focused acceptance tests. Main owns architectural/shared changes, state registry/cursor, Git integration, comprehensive validation and remote deployments. Never concurrently mutate schemas/migrations/auth/shared contracts/deployment configuration. Later-phase work is eligible only when its prerequisites are VERIFIED; otherwise parallelize independent subtasks of the eligible checkpoint. Verify actual runtime effort before claiming LOW is active. See the [parallel runbook](../runbooks/codex-parallel-development.md).
+The owner authorized real concurrent gpt-6.1-sol/low subagents on 2026-10-09 and subsequently removed the fixed two-agent policy; `.codex/config.toml` records these defaults without changing the main gpt-6.1-sol/medium session. When safe, spawn as many bounded independent tasks as useful within available runtime capacity (this session exposes seven total slots including main; project config allows up to six spawned threads) with the current owner limit of four concurrent implementation subagents, explicit model/effort overrides, exclusive file ownership or worktrees and focused acceptance tests. Main owns architectural/shared changes, state registry/cursor, Git integration, comprehensive validation and remote deployments. Never concurrently mutate schemas/migrations/auth/shared contracts/deployment configuration. Later-phase work is eligible only when its prerequisites are VERIFIED; otherwise parallelize independent subtasks of the eligible checkpoint. Verify actual runtime effort before claiming LOW is active. See the [parallel runbook](../runbooks/codex-parallel-development.md).
 
 ## Historical provenance
 
@@ -497,15 +497,15 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P5-001 — Billing/subscription domain
 
-- **Status:** HUMAN ACTION REQUIRED
+- **Status:** IN PROGRESS
 - **Dependencies:** MB-P5-000
 - **Objective:** Define money-safe billing and subscriptions with integer minor units/currency.
-- **Scope / required work:** Establish the billing business contract before money-safe persistence: payer (person/organization), charge subject (subscription/services/both), currency, plans/prices/cadence, entitlements, trial/proration/cancellation/refunds and tax treatment. UNKNOWN — VERIFY FROM REPOSITORY; repository search found only the generic payment-provider interface and money invariant, not those rules.
+- **Scope / required work:** Implement owner-approved account subscription plans/lifecycle, finite administrative grants, entitlement/vehicle-limit foundation, period/payment ledger constraints and separate configurable partner agreement/referral/commission/adjustment/manual-settlement foundation; scoped APIs and Spanish Portal/Admin. See [Phase 5 contract](../architecture/phase-5-membership-billing.md) and [ADR 0025](../adr/0025-membership-billing-commercial-boundaries.md).
 - **Relevant files/systems:** Payments package, contracts, D1
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
-- **Verification:** Financial invariant and migration tests
+- **Verification:** Financial invariant/migration, lifecycle, ownership/MFA/entitlement, commission calculation/consent/completion/CAS/rollback, UI regression tests; gate/CI and Development migration/synthetic scope verification.
 - **Completion criteria:** Ledger/state constraints established.
-- **Human-action conditions:** Owner supplies or identifies authoritative billing business rules. A concise clarification was requested; no secrets/provider credentials are requested. Do not invent pricing, obligations or charge semantics.
+- **Human-action conditions:** No blocker for independently testable Development foundation. Production financial activation needs approved tax/refund/grace/retry/final-vehicle-limit/recurring/settlement policies; no automatic partner charge/payout.
 
 ### MB-P5-002 — Wompi integration
 

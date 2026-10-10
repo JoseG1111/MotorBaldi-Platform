@@ -776,3 +776,420 @@ describe("Inspection browser authority and media controls", () => {
     ]);
   });
 });
+
+describe("Membership browser controls", () => {
+  const plans = {
+    items: [
+      {
+        code: "MONTH",
+        name: "Acompañamiento mensual",
+        period: "MONTHLY",
+        amount_minor: 2990000,
+        currency: "COP",
+        vehicle_limit: 2,
+      },
+      {
+        code: "YEAR",
+        name: "Acompañamiento anual",
+        period: "ANNUAL",
+        amount_minor: 28800000,
+        currency: "COP",
+        vehicle_limit: 2,
+      },
+    ],
+  };
+  const base = {
+    subscription: null,
+    premium: false,
+    vehicleLimit: 2,
+    vehicles: [],
+    entitlements: [],
+    checkoutAvailable: false,
+    benefits: [
+      { code: "GUIDANCE", label: "Orientación asistida", available: true },
+      { code: "FUTURE", label: "Beneficio futuro", available: false },
+    ],
+  };
+  const text = (node: FakeNode): string =>
+    [node.textContent, ...node.children.map(text)].join("\n");
+  const allNodes = (node: FakeNode): FakeNode[] => [
+    node,
+    ...node.children.flatMap(allNodes),
+  ];
+
+  it("shows server-priced monthly and annual options and creates only a pending request without a checkout button", async () => {
+    const writes: { path: string; init: RequestInit }[] = [];
+    const { context, nodes } = browserHarness(
+      portalScript,
+      async (path, init) => {
+        if (init?.method === "POST") {
+          writes.push({ path, init });
+          return Response.json({ subscriptionId: "pending-subscription" });
+        }
+        if (path === "/api/v1/billing/plans") return Response.json(plans);
+        if (path === "/api/v1/me/membership") return Response.json(base);
+        return Response.json({ code: "UNAUTHENTICATED" }, { status: 401 });
+      },
+    );
+    await runInContext("refreshMembership()", context);
+    const root = nodes.get("membership-plans")!;
+    expect(text(root)).toContain("29.900");
+    expect(text(root)).toContain("288.000");
+    expect(text(root)).toContain("Opción mensual");
+    expect(text(root)).toContain("Opción anual");
+    expect(text(nodes.get("membership-detail")!)).toContain(
+      "no realiza un cobro",
+    );
+    expect(portalPage).toContain("ACOMPAÑAMIENTO MOTORBALDI");
+    expect(portalPage).toContain("TODO SOBRE TU VEHÍCULO. SIEMPRE CONTIGO.");
+    expect(portalPage).toContain("sin membresía");
+    expect(portalPage).toContain("no sustituye un diagnóstico profesional");
+    expect(portalPage).not.toContain("24/7");
+    const future = allNodes(nodes.get("membership-benefits")!).find(
+      (node) => node.textContent === "Beneficio futuro · próximamente",
+    ) as FakeNode & { disabled: boolean };
+    expect(future.disabled).toBe(true);
+    const choose = allNodes(root).find((node) =>
+      node.textContent.startsWith("Elegir opción anual"),
+    );
+    expect(choose?.onclick).toEqual(expect.any(Function));
+    await choose!.onclick!();
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.path).toBe("/api/v1/billing/subscriptions");
+    expect(JSON.parse(String(writes[0]?.init.body))).toEqual({
+      planCode: "YEAR",
+    });
+    expect(
+      new Headers(writes[0]?.init.headers).get("idempotency-key"),
+    ).toBeTruthy();
+    expect(text(root)).not.toContain("Pagar");
+  });
+
+  it.each([
+    { capability: false, status: "PENDING_ACTIVATION", canceled: false },
+    { capability: undefined, status: "PENDING_ACTIVATION", canceled: false },
+    { capability: true, status: "CANCELLED", canceled: false },
+    { capability: true, status: "SUSPENDED", canceled: false },
+    { capability: true, status: "ACTIVE", canceled: true },
+  ])(
+    "hides sandbox checkout without capability or eligible subscription: $status/$capability/$canceled",
+    async ({ capability, status, canceled }) => {
+      const { context, nodes } = browserHarness(portalScript, async (path) => {
+        if (path === "/api/v1/billing/plans") return Response.json(plans);
+        if (path === "/api/v1/me/membership")
+          return Response.json({
+            ...base,
+            checkoutAvailable: capability,
+            subscription: {
+              id: "synthetic",
+              status,
+              cancel_at_period_end: canceled,
+            },
+          });
+        return Response.json({}, { status: 401 });
+      });
+      await runInContext("refreshMembership()", context);
+      expect(text(nodes.get("membership-detail")!)).not.toContain(
+        "en Wompi (pruebas)",
+      );
+    },
+  );
+
+  it.each(["PENDING_ACTIVATION", "PENDING_RENEWAL"])(
+    "offers only validated sandbox checkout link after explicit action for %s",
+    async (status) => {
+      const writes: RequestInit[] = [];
+      const { context, nodes } = browserHarness(
+        portalScript,
+        async (path, init) => {
+          if (init?.method === "POST") {
+            writes.push(init);
+            expect(path).toBe(
+              "/api/v1/billing/subscriptions/synthetic/checkout",
+            );
+            return Response.json({
+              checkoutAvailable: true,
+              status: "CREATED",
+              checkoutUrl: "https://checkout.wompi.co/p/?reference=synthetic",
+            });
+          }
+          if (path === "/api/v1/billing/plans") return Response.json(plans);
+          if (path === "/api/v1/me/membership")
+            return Response.json({
+              ...base,
+              checkoutAvailable: true,
+              subscription: { id: "synthetic", status },
+            });
+          return Response.json({}, { status: 401 });
+        },
+      );
+      await runInContext("refreshMembership()", context);
+      const root = nodes.get("membership-detail")!;
+      const button = allNodes(root).find(
+        (node) =>
+          node.textContent ===
+          (status === "PENDING_ACTIVATION"
+            ? "Pagar en Wompi (pruebas)"
+            : "Renovar en Wompi (pruebas)"),
+      )!;
+      expect(writes).toHaveLength(0);
+      await button.onclick!();
+      expect(JSON.parse(String(writes[0]?.body))).toEqual({});
+      expect(
+        new Headers(writes[0]?.headers).get("idempotency-key"),
+      ).toBeTruthy();
+      const link = allNodes(root).find(
+        (node) => node.textContent === "Continuar a Wompi (pruebas)",
+      ) as FakeNode & { href: string };
+      expect(link.href).toBe(
+        "https://checkout.wompi.co/p/?reference=synthetic",
+      );
+      expect(context.location.href).toBe("https://portal.test/");
+      expect(text(root)).toContain("Acceso básico gratuito");
+      expect(nodes.get("notice")!.textContent).toContain(
+        "no confirma el pago ni activa",
+      );
+    },
+  );
+
+  it.each([
+    { status: "PENDING", url: "https://checkout.wompi.co/p/" },
+    { status: "UNKNOWN", url: "https://checkout.wompi.co/p/" },
+    { status: "CREATED", url: "http://checkout.wompi.co/p/" },
+    { status: "CREATED", url: "https://checkout.wompi.co.attacker.test/p/" },
+    { status: "CREATED", url: "https://checkout.wompi.co/other" },
+    { status: "CREATED", url: "https://user:secret@checkout.wompi.co/p/" },
+  ])(
+    "withholds checkout navigation for unconfirmed payment or invalid URL: $status/$url",
+    async ({ status, url }) => {
+      const { context, nodes } = browserHarness(
+        portalScript,
+        async (path, init) => {
+          if (init?.method === "POST")
+            return Response.json({
+              checkoutAvailable: true,
+              status,
+              checkoutUrl: url,
+            });
+          if (path === "/api/v1/billing/plans") return Response.json(plans);
+          if (path === "/api/v1/me/membership")
+            return Response.json({
+              ...base,
+              checkoutAvailable: true,
+              subscription: { id: "synthetic", status: "PENDING_ACTIVATION" },
+            });
+          return Response.json({}, { status: 401 });
+        },
+      );
+      await runInContext("refreshMembership()", context);
+      const root = nodes.get("membership-detail")!;
+      const button = allNodes(root).find(
+        (node) => node.textContent === "Pagar en Wompi (pruebas)",
+      ) as FakeNode & { disabled: boolean };
+      await button.onclick!();
+      expect(button.disabled).toBe(true);
+      expect(text(root)).not.toContain("Continuar a Wompi");
+      expect(context.location.href).toBe("https://portal.test/");
+      expect(nodes.get("notice")!.textContent).toContain(
+        "antes de iniciar otro pago",
+      );
+      expect(text(root)).toContain("Acceso básico gratuito");
+    },
+  );
+
+  it("preserves a billing retry key after failure and sends current versions for cancellation and vehicle assignments", async () => {
+    const subscription = {
+      id: "paid-subscription",
+      status: "ACTIVE",
+      plan_code: "MONTH",
+      version: 7,
+      cancel_at_period_end: false,
+      current_period_end: "2026-11-10T00:00:00Z",
+    };
+    const writes: { path: string; init: RequestInit }[] = [];
+    const { context, nodes } = browserHarness(
+      portalScript,
+      async (path, init) => {
+        if (init?.method === "POST") {
+          writes.push({ path, init });
+          return Response.json(
+            writes.length === 1 ? { code: "VERSION_CONFLICT" } : {},
+            { status: writes.length === 1 ? 409 : 200 },
+          );
+        }
+        if (path === "/api/v1/billing/plans") return Response.json(plans);
+        if (path === "/api/v1/me/membership")
+          return Response.json({
+            ...base,
+            subscription,
+            premium: true,
+            vehicles: [{ vehicle_id: "included-vehicle" }],
+          });
+        if (path === "/api/v1/me/garage")
+          return Response.json({
+            items: [{ id: "included-vehicle" }, { id: "eligible-vehicle" }],
+          });
+        return Response.json({ code: "UNAUTHENTICATED" }, { status: 401 });
+      },
+    );
+    await runInContext(
+      "let membershipKeyCounter=0;crypto.randomUUID=()=> 'billing-key-'+(++membershipKeyCounter)",
+      context,
+    );
+    await runInContext("refreshMembership()", context);
+    let root = nodes.get("membership-detail")!;
+    const cancel = root.children.find(
+      (node) => node.textContent === "Cancelar renovación",
+    );
+    await cancel!.onclick!();
+    await cancel!.onclick!();
+    expect(writes.slice(0, 2).map((call) => call.path)).toEqual([
+      "/api/v1/billing/subscriptions/paid-subscription/cancel",
+      "/api/v1/billing/subscriptions/paid-subscription/cancel",
+    ]);
+    expect(new Headers(writes[0]?.init.headers).get("idempotency-key")).toBe(
+      new Headers(writes[1]?.init.headers).get("idempotency-key"),
+    );
+    expect(JSON.parse(String(writes[1]?.init.body))).toEqual({ version: 7 });
+    expect(nodes.get("notice")?.textContent).toContain(
+      "El acceso ya pagado se conserva",
+    );
+    root = nodes.get("membership-detail")!;
+    const remove = root.children.find((node) =>
+      node.textContent.startsWith("Quitar vehículo"),
+    );
+    await remove!.onclick!();
+    expect(writes[2]?.path).toBe(
+      "/api/v1/billing/subscriptions/paid-subscription/vehicles/included-vehicle/remove",
+    );
+    expect(JSON.parse(String(writes[2]?.init.body))).toEqual({ version: 7 });
+    root = nodes.get("membership-detail")!;
+    const form =
+      root.children[
+        root.children.findIndex(
+          (node) => node.textContent === "Incluir vehículo de mi garaje",
+        ) + 1
+      ]!;
+    form.fields = new Map([["vehicleId", "eligible-vehicle"]]);
+    context.membershipForm = form;
+    await runInContext(
+      "membershipForm.onsubmit({preventDefault(){},target:membershipForm})",
+      context,
+    );
+    expect(writes[3]?.path).toBe(
+      "/api/v1/billing/subscriptions/paid-subscription/vehicles",
+    );
+    expect(JSON.parse(String(writes[3]?.init.body))).toEqual({
+      version: 7,
+      vehicleId: "eligible-vehicle",
+    });
+  });
+
+  it.each([
+    {
+      status: "PENDING_ACTIVATION",
+      premium: false,
+      cancel: false,
+      vehicles: [],
+    },
+    {
+      status: "ACTIVE",
+      premium: true,
+      cancel: true,
+      vehicles: [{ vehicle_id: "one" }, { vehicle_id: "two" }],
+    },
+  ])(
+    "gates membership vehicle controls and scheduled cancellation for $status",
+    async ({ status, premium, cancel, vehicles }) => {
+      const { context, nodes } = browserHarness(portalScript, async (path) => {
+        if (path === "/api/v1/billing/plans") return Response.json(plans);
+        if (path === "/api/v1/me/membership")
+          return Response.json({
+            ...base,
+            premium,
+            vehicles,
+            subscription: {
+              id: "gated-subscription",
+              status,
+              plan_code: "MONTH",
+              version: 4,
+              cancel_at_period_end: cancel,
+              current_period_end: "2026-11-10T00:00:00Z",
+            },
+          });
+        return Response.json({ code: "UNAUTHENTICATED" }, { status: 401 });
+      });
+      await runInContext("refreshMembership()", context);
+      const root = nodes.get("membership-detail")!;
+      expect(text(root)).not.toContain("Incluir vehículo de mi garaje");
+      expect(text(nodes.get("membership-plans")!)).not.toContain(
+        "Elegir opción",
+      );
+      if (!premium) {
+        expect(text(root)).toContain("Pendiente de activación");
+        expect(text(root)).not.toContain("Quitar vehículo");
+        expect(text(root)).toContain("Acceso básico gratuito");
+      } else {
+        expect(text(root)).toContain("El acceso ya pagado se conserva");
+        expect(text(root)).not.toContain("Cancelar renovación");
+      }
+    },
+  );
+
+  it("keeps the admin financial panels read-only and default-deny", async () => {
+    const calls: { path: string; init?: RequestInit }[] = [];
+    const { context, nodes } = browserHarness(
+      adminScript,
+      async (path, init) => {
+        calls.push({ path, init });
+        if (path === "/api/v1/admin/billing")
+          return Response.json({
+            subscriptions: [
+              { id: "sub-test", status: "ACTIVE", plan_code: "MONTH" },
+            ],
+            payments: [],
+            policies: { checkoutAvailable: false },
+          });
+        if (path === "/api/v1/admin/commissions")
+          return Response.json({
+            agreements: [],
+            commissions: [
+              {
+                id: "commission-test",
+                status: "PENDING",
+                amount_minor: 50000,
+                currency: "COP",
+              },
+            ],
+            settlements: [],
+          });
+        return Response.json({ code: "UNAUTHENTICATED" }, { status: 401 });
+      },
+    );
+    await runInContext("showBilling();showCommissions()", context);
+    expect(
+      calls.filter((call) => /billing|commissions/.test(call.path)),
+    ).toHaveLength(0);
+    await runInContext(
+      "permissions=new Set(['platform.billing.read','platform.commission.read']);showBilling()",
+      context,
+    );
+    await runInContext("showCommissions()", context);
+    expect(text(nodes.get("billing-detail")!)).toContain("sub-test");
+    expect(text(nodes.get("billing-detail")!)).toContain("Deshabilitado");
+    expect(text(nodes.get("commissions-detail")!)).toContain("commission-test");
+    expect(text(nodes.get("commissions-detail")!)).toContain(
+      "No hay registros.",
+    );
+    expect(calls.filter((call) => call.init?.method === "POST")).toHaveLength(
+      0,
+    );
+    expect(adminPage).not.toContain("Confirmar pago");
+    await runInContext(
+      "permissions=new Set();showBilling();showCommissions()",
+      context,
+    );
+    expect(nodes.get("billing-detail")?.children).toHaveLength(0);
+    expect(nodes.get("commissions-detail")?.children).toHaveLength(0);
+  });
+});

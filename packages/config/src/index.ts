@@ -27,6 +27,11 @@ export interface ApiBindings extends CommonBindings {
   TURNSTILE_EXPECTED_HOSTNAME?: string;
   TURNSTILE_BYPASS_TOKEN?: string;
   EMAIL_PROVIDER?: string;
+  WOMPI_ENVIRONMENT?: string;
+  WOMPI_PUBLIC_KEY?: string;
+  WOMPI_PRIVATE_KEY?: string;
+  WOMPI_INTEGRITY_SECRET?: string;
+  WOMPI_EVENTS_SECRET?: string;
 }
 export interface BackgroundWorkerBindings extends CommonBindings {
   DB: D1Database;

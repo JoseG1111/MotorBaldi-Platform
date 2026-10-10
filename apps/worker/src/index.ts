@@ -27,9 +27,42 @@ import {
 import { expireCredentials } from "@motorbaldi/professional";
 import { newId } from "@motorbaldi/shared";
 import { z } from "zod";
+import { expireMemberships } from "@motorbaldi/payments";
 
 const uuid = z.string().uuid();
 const eventContracts = [
+  [
+    "billing.checkout.created.v1",
+    "billing",
+    z
+      .object({ subscriptionId: uuid, paymentId: uuid, periodId: uuid })
+      .strict(),
+  ],
+  [
+    "billing.payment.changed.v1",
+    "billing",
+    z.object({ paymentId: uuid, subscriptionId: uuid }).strict(),
+  ],
+  [
+    "billing.subscription.expired.v1",
+    "billing",
+    z.object({ subscriptionId: uuid }).strict(),
+  ],
+  [
+    "billing.subscription.changed.v1",
+    "billing",
+    z.object({ subscriptionId: uuid }).strict(),
+  ],
+  [
+    "commission.changed.v1",
+    "commission",
+    z
+      .object({
+        id: uuid,
+        operation: z.string().regex(/^commission\.[a-z.]+$/),
+      })
+      .strict(),
+  ],
   [
     "inspection.report.changed.v1",
     "inspection_report",
@@ -192,6 +225,7 @@ export default {
     ctx.waitUntil(expireInvitations(env.DB));
     ctx.waitUntil(expireMembershipRequests(env.DB));
     ctx.waitUntil(expireCredentials(env.DB));
+    ctx.waitUntil(expireMemberships(env.DB, newId()));
     if (env.OUTBOX_COORDINATOR) {
       ctx.waitUntil(
         env.OUTBOX_COORDINATOR.getByName(c.environment).fetch(

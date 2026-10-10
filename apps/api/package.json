@@ -23,6 +23,7 @@
     "@motorbaldi/crm": "workspace:*",
     "@motorbaldi/vehicles": "workspace:*",
     "@motorbaldi/workshops": "workspace:*",
-    "@motorbaldi/inspections": "workspace:*"
+    "@motorbaldi/inspections": "workspace:*",
+    "@motorbaldi/payments": "workspace:*"
   }
 }

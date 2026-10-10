@@ -1,4 +1,17 @@
 import {
+  checkoutInput,
+  authorizeCheckout,
+  prepareCheckout,
+  parseBillingCommand,
+  authorizeBillingCommand,
+  prepareBillingCommand,
+  parseCommissionCommand,
+  authorizeCommissionCommand,
+  prepareCommissionCommand,
+  type BillingOperation,
+  type CommissionOperation,
+} from "@motorbaldi/payments";
+import {
   authorizeInspectionVehicleCommand,
   authorizeInspectionAttachment,
   prepareInspectionAttachment,
@@ -66,6 +79,30 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ): Promise<PreparedCommand<Json>> {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation === "billing.checkout.create")
+      return prepareCheckout(
+        db,
+        actor!,
+        checkoutInput.parse(request),
+        requestId,
+      );
+    if (operation.startsWith("billing."))
+      return prepareBillingCommand(
+        db,
+        actor!,
+        operation as BillingOperation,
+        parseBillingCommand(operation, request),
+        requestId,
+      );
+    if (operation.startsWith("commission."))
+      return prepareCommissionCommand(
+        db,
+        actor!,
+        operation as CommissionOperation,
+        parseCommissionCommand(operation, request),
+        requestId,
+      );
+
     switch (operation) {
       case "organization.create":
         return prepareCreateOrganization(
@@ -175,6 +212,23 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ) {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation === "billing.checkout.create")
+      await authorizeCheckout(db, actor, checkoutInput.parse(request));
+    else if (operation.startsWith("billing."))
+      await authorizeBillingCommand(
+        db,
+        actor,
+        operation as BillingOperation,
+        parseBillingCommand(operation, request),
+      );
+    if (operation.startsWith("commission."))
+      await authorizeCommissionCommand(
+        db,
+        actor,
+        operation as CommissionOperation,
+        parseCommissionCommand(operation, request),
+      );
+
     if (operation === "crm.lead.convert")
       await requirePlatformPermission(db, actor, "platform.crm.manage");
     if (operation === "identity.person.merge")

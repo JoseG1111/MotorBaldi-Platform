@@ -13,6 +13,7 @@
     "@motorbaldi/observability": "workspace:*",
     "@motorbaldi/storage": "workspace:*",
     "@motorbaldi/shared": "workspace:*",
-    "zod": "^4.3.0"
+    "zod": "^4.3.0",
+    "@motorbaldi/payments": "workspace:*"
   }
 }

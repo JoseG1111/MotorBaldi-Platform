@@ -773,3 +773,128 @@ for (const action of ["update", "finalize", "amend"])
       ]),
     },
   });
+
+// Prices and premium access are server-resolved; financial writes require durable replay keys.
+for (const path of [
+  "/api/v1/billing/plans",
+  "/api/v1/me/membership",
+  "/api/v1/admin/billing",
+  "/api/v1/admin/commissions",
+])
+  Object.assign(openapi.paths, {
+    [path]: {
+      get: {
+        responses: {
+          "200": {
+            description:
+              "Account-scoped catalog/membership or MFA-authorized financial overview",
+          },
+          "401": { description: "Authentication required" },
+          "403": { description: "Financial permission and assurance required" },
+        },
+      },
+    },
+  });
+for (const path of [
+  "/api/v1/billing/subscriptions",
+  "/api/v1/billing/subscriptions/{subscriptionId}/checkout",
+  "/api/v1/billing/subscriptions/{subscriptionId}/cancel",
+  "/api/v1/billing/subscriptions/{subscriptionId}/vehicles",
+  "/api/v1/billing/subscriptions/{subscriptionId}/vehicles/{vehicleId}/remove",
+  "/api/v1/admin/billing/subscriptions/{subscriptionId}/grant",
+  "/api/v1/admin/billing/subscriptions/{subscriptionId}/suspend",
+  "/api/v1/me/commission-consents",
+  "/api/v1/admin/commissions/agreements",
+  "/api/v1/admin/commissions/agreements/{agreementId}/approve",
+  "/api/v1/admin/commissions/referrals",
+  "/api/v1/admin/commissions/recognitions",
+  "/api/v1/admin/commissions/{commissionId}/approve",
+  "/api/v1/admin/commissions/{commissionId}/adjustments",
+  "/api/v1/admin/commissions/{commissionId}/dispute",
+  "/api/v1/admin/commissions/{commissionId}/settlements",
+  "/api/v1/admin/commissions/settlements/{settlementId}/reconcile",
+]) {
+  const parameters = [...path.matchAll(/\{([^}]+)\}/g)].map((match) => ({
+    name: match[1]!,
+    in: "path",
+    required: true,
+    schema: { type: "string", format: "uuid" },
+  }));
+  Object.assign(openapi.paths, {
+    [path]: {
+      post: idempotent(
+        "Strict authorized financial command; account ownership and privileged MFA enforced",
+        parameters,
+      ),
+    },
+  });
+}
+
+Object.assign(openapi.paths, {
+  "/api/v1/payments/wompi/events": {
+    post: {
+      summary:
+        "Signed sandbox webhook; private provider reconciliation and permanent evidence deduplication",
+      parameters: [
+        {
+          name: "X-Event-Checksum",
+          in: "header",
+          required: false,
+          schema: { type: "string" },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: { "application/json": { schema: { type: "object" } } },
+      },
+      responses: {
+        "202": { description: "Verified provider evidence recorded" },
+        "400": problem,
+        "409": problem,
+        "503": {
+          description: "Sandbox credentials missing or production disabled",
+        },
+      },
+    },
+  },
+});
+
+Object.assign(openapi.paths, {
+  "/api/v1/billing/payment-capabilities": {
+    get: {
+      responses: {
+        "200": {
+          description: "Authenticated credential-free gateway capabilities",
+        },
+        "401": problem,
+      },
+    },
+  },
+  "/api/v1/admin/billing/payments/{paymentId}/reconcile": {
+    post: {
+      summary:
+        "MFA-authorized reconciliation of the stored sandbox transaction; no charge retry",
+      parameters: [
+        { name: "paymentId", in: "path", required: true, schema: id },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          "application/json": {
+            schema: { type: "object", additionalProperties: false },
+          },
+        },
+      },
+      responses: {
+        "200": {
+          description:
+            "Provider evidence reconciled with permanent semantic deduplication",
+        },
+        "401": problem,
+        "403": problem,
+        "409": problem,
+        "503": problem,
+      },
+    },
+  },
+});
