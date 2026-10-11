@@ -1,16 +1,15 @@
 # Current checkpoint
 
-- **Current checkpoint:** MB-P9-005 — Remote validation
-- **Status:** IN PROGRESS
-- **Last verified checkpoint:** MB-P9-004 — Reporting/UI
-- **Work completed:** Owner-approved Phase 8 remotely verified; bounded Phase 9 contract verified with 8 strict schema/privacy/provenance tests.
-- **Verification completed:** Phase 8 implementation e8f4c82 CI38110062284 and Development positive publication/cleanup/D1/audit/outbox/Queue PASS. Phase 9 contract typecheck/boundaries/execution/security PASS.
-- **Remaining work:** Exact implementation commit/CI closeout remains; final743-test gate, changed-app Development deployment, signed report and independent D1/source audit/outbox/Queue checks PASS.
-- **Current blocker:** None. Existing OS-secured Development automation available.
-- **Exact next action:** Commit/push the tested implementation, wait for exact CI pass, then verify MB-P9-005 and reconcile remaining parked boundaries.
-- **Relevant files:** `packages/analytics/`, `docs/architecture/phase-9-operational-analytics.md`, ADR0029.
-- **Commands worth rerunning:** Analytics focused tests, typecheck and execution check; full gate before deployment.
-- **Constraints:** No new roles, copied data, personal data, financial/predictive uses, commerce/media/providers, staging or Production changes. Existing billing/scanner limitations remain parked.
-- **Human-action conditions:** Global execution-plan stop rule; none for established scoped counts.
-
-- **Current remote evidence:** API58f67646-8122-440f-809a-be4fad2c13b0, Portal061f5074-3668-40b1-8ed3-fe2b60b1b32e and Admin0c1793ab-ecaf-4731-9e34-4e09e13d160a deployed exclusively to Development. Worker unchanged; no migrations required. Health/report assets/anonymous marketplace regression PASS. Both analytics remote commands PASS signed privacy/no-store/GET/query/foreign-scope/machine Queue denial and independent count equality. Owned canonicalARCHIVED4/offeringINACTIVE3/listingSUSPENDED1;11marketplacehistories/11processed events, matching source audits/outbox/history; Parts/marketplace/automation positive consistency PASS, global pending/unresolveddeadletters/FK violations0. No human credentials, copied report data or new events/materialization. Local final gate PASS743tests (206foundation/532Worker/5signedAPI+DO). Exact CI pending; checkpoint not yet VERIFIED.
+- **Current checkpoint:** MB-P5-005 — Remote validation
+- **Status:** HUMAN ACTION REQUIRED
+- **Last verified checkpoint:** MB-P9-005 — Remote validation
+- **Work completed:** All dependency-eligible Phase 7/8/9 engineering is verified for accepted scope. Phase 8 public Parts discovery/moderation is approved and remotely verified; Phase 9 transient scoped current-state reports are implemented, deployed and verified. Commerce/media/providers, profiling and financial estimates remain disabled or unavailable.
+- **Verification completed:** Implementation431ab13 passed [CI38111171488](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38111171488) and final743-test gate (206foundation/532Worker/5signedAPI+DO), artifact/history secret checks. Actual signed analytics smoke and independent D1/source audit/history/outbox/Queue comparisons PASS, without human passwords/cookies/TOTP. Development health/report assets and anonymous discovery regression PASS.
+- **Current remote evidence:** Development API58f67646-8122-440f-809a-be4fad2c13b0, Portal061f5074-3668-40b1-8ed3-fe2b60b1b32e and Admin0c1793ab-ecaf-4731-9e34-4e09e13d160a deployed. Worker remains Phase 8 f1e7abf6-fb64-4dcd-bea3-baca39791c61; schema through0019. Owned current counts canonicalARCHIVED4/offeringINACTIVE3/listingSUSPENDED1,11marketplacehistories/11processed events; Parts/marketplace/automation consistency PASS. Global pending/unresolveddeadletters/FK violations0. Queue-wide API access remains denied to machine; actual human MFA API tested locally and remote Queue source consistency verified using authorized D1 probes.
+- **Remaining work:** Separately parked actual Wompi Sandbox/full billing smoke MB-P5-005, and real antimalware/positive ACTIVE media MB-P3-005 DEFERRED — OWNER APPROVED. Neither is verified by Parts, discovery or analytics evidence.
+- **Current blocker:** No eligible engineering remains. Fresh names-only Development API secret inventory confirms0/4 required Wompi secret names; no values inspected or revealed. Authorized merchant credentials/dashboard event setup remain external human actions. Real scanner remains owner-deferred at $0 additional services; quarantine/private storage preserved.
+- **Exact next action:** Keep providers disabled. Resume actual sandbox verification only when its authorized merchant setup/credential boundary clears through secure local provisioning; follow the linked runbook and actual scenario matrix. Do not request secret values in chat or enable Wompi/paid providers for marketplace/reporting. Real media release requires the separately deferred scanning decision/evidence.
+- **Relevant files:** [execution registry](EXECUTION_PLAN.md), [Development automation](../runbooks/development-automation.md), [Analytics validation](../runbooks/analytics-development-validation.md), [Wompi runbook](../runbooks/wompi-development.md), ADRs0024/0028/0029.
+- **Commands worth rerunning:** `pnpm execution:check`; `node scripts/analytics/development-smoke.mjs`; `node scripts/analytics/check-consistency.mjs`.
+- **Constraints:** No Production/staging deployment, personal/exposed credentials, human MFA weakening, unrelated machine permissions, copied report data, paid providers, public unscanned media, financial/profiling claims or marketplace commerce. Existing OS-backed authentication is reusable autonomously.
+- **Human-action conditions:** Only the execution-plan external boundaries above; routine Development validation has no human-authentication prerequisite.
