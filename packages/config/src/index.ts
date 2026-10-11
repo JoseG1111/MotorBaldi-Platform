@@ -21,6 +21,8 @@ export interface ApiBindings extends CommonBindings {
   AUTH_BASE_URL: string;
   CORS_ORIGINS: string;
   PUBLIC_CORS_ORIGINS?: string;
+  DEVELOPMENT_AUTOMATION_ENABLED?: string;
+  DEVELOPMENT_AUTOMATION_CREDENTIAL?: string;
   AUTH_SECRET: string;
   AUTH_SECRETS?: string;
   TURNSTILE_SECRET_KEY?: string;
@@ -103,6 +105,17 @@ function parseSecrets(value?: string) {
 }
 
 export function apiConfig(env: ApiBindings): ApiConfig {
+  if (
+    (env.DEVELOPMENT_AUTOMATION_ENABLED !== undefined ||
+      env.DEVELOPMENT_AUTOMATION_CREDENTIAL !== undefined) &&
+    env.ENVIRONMENT !== "development"
+  )
+    throw new Error("Development automation is forbidden outside Development");
+  if (
+    env.DEVELOPMENT_AUTOMATION_ENABLED !== undefined &&
+    env.DEVELOPMENT_AUTOMATION_ENABLED !== "true"
+  )
+    throw new Error("Invalid Development automation configuration");
   const parsed = apiSchema.safeParse(env);
   if (!parsed.success)
     throw new Error(

@@ -1,5 +1,8 @@
 import { Problem, type Principal } from "@motorbaldi/contracts";
-import { auditStatement } from "@motorbaldi/db";
+import {
+  hasDevelopmentAutomationAssurance,
+  auditStatement,
+} from "@motorbaldi/db";
 import { newId } from "@motorbaldi/shared";
 export interface Actor {
   accountId: string;
@@ -59,7 +62,11 @@ export async function requirePlatformPermission(
     .bind(principal.personId, permission)
     .first();
   if (!grant) throw new Problem(403, "FORBIDDEN", "Access denied");
-  if (options.mfa && !principal.mfaEnabled)
+  if (
+    options.mfa &&
+    !principal.mfaEnabled &&
+    !(await hasDevelopmentAutomationAssurance(db, principal))
+  )
     throw new Problem(
       403,
       "MFA_REQUIRED",

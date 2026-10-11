@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Problem } from "@motorbaldi/contracts";
 import {
+  hasDevelopmentAutomationAssurance,
   outboxStatement,
   type EventRegistry,
   type PreparedCommand,
@@ -614,6 +615,7 @@ export async function getWorkshopPartSnapshot(
 
 export async function requirePartsActorMFA(db: D1Database, actor: PartsActor) {
   await requirePartsActor(db, actor);
+  if (await hasDevelopmentAutomationAssurance(db, actor)) return;
   if (
     !(await db
       .prepare(

@@ -5,6 +5,10 @@ const portal =
   "https://motorbaldi-portal-development.josegbarrios2.workers.dev";
 const api = "https://motorbaldi-api-development.josegbarrios2.workers.dev";
 const codes = new Set([
+  "VALIDATION_ERROR",
+  "DEVELOPMENT_AUTOMATION_DENIED",
+  "DEVELOPMENT_AUTOMATION_SCOPE",
+  "DATABASE_ENVIRONMENT_MISMATCH",
   "UNAUTHORIZED",
   "UNAUTHENTICATED",
   "FORBIDDEN",
@@ -30,14 +34,18 @@ export function formatSmokeFailure(error) {
 export async function runSmoke({
   cookie = "",
   anonymous = false,
+  automation = false,
   verifyOnly = false,
   fetch: fetcher = globalThis.fetch,
   log = console.log,
 } = {}) {
   let unknown = 0;
   const fixtures = [];
+  const grants = [];
   if (
-    (!anonymous && (!cookie || /[\r\n]/.test(cookie))) ||
+    (!anonymous && !automation && !cookie) ||
+    /[\r\n]/.test(cookie) ||
+    (automation && !!cookie) ||
     (anonymous && verifyOnly)
   )
     throw new Failure("configuration", "INVALID_CONFIGURATION");
@@ -64,6 +72,9 @@ export async function runSmoke({
           headers: {
             origin,
             ...(authenticated && cookie ? { cookie } : {}),
+            ...(authenticated && automation
+              ? { "x-motorbaldi-automation-intent": "true" }
+              : {}),
             ...(mutation
               ? { "content-type": "application/json", "idempotency-key": key }
               : {}),
@@ -92,7 +103,24 @@ export async function runSmoke({
         if (mutation) unknown++;
         throw new Failure(step, "INVALID_RESPONSE", response.status);
       }
-      if (mutation && status === 200) {
+      if (
+        mutation &&
+        status === 200 &&
+        path === "/development/automation/fixtures/parts/enable" &&
+        (data.enabled !== true ||
+          data.organizationId !== body.organizationId ||
+          data.locationId !== body.locationId ||
+          typeof data.replayed !== "boolean")
+      ) {
+        if (attempt === 0) continue;
+        unknown++;
+        throw new Failure(step, "INVALID_RESPONSE", response.status);
+      }
+      if (
+        mutation &&
+        status === 200 &&
+        path !== "/development/automation/fixtures/parts/enable"
+      ) {
         const field = path.endsWith("/grants")
           ? "grantId"
           : path.startsWith("/admin/vehicles")
@@ -176,7 +204,7 @@ export async function runSmoke({
       row.version === fixture.version &&
         row.status === fixture.status &&
         (fixture.order
-          ? row.vehicleId === fixture.vehicleId &&
+          ? row.vehicle_id === fixture.vehicleId &&
             row.description === fixture.description
           : row.manufacturerReference === fixture.reference),
       "cleanup-ownership",
@@ -191,6 +219,20 @@ export async function runSmoke({
       reason: "Synthetic Development Parts cleanup",
     });
     fixture.done = true;
+  }
+  async function revokeGrant(grant) {
+    const result = await call(
+      "grant-cleanup",
+      `/admin/vehicles/${grant.vehicleId}/grants/${grant.grantId}/revoke`,
+      { reason: "Synthetic Development Parts cleanup" },
+      { key: grant.key },
+    );
+    receipt(result, "vehicleId", "grant-cleanup-receipt");
+    if (result.vehicleId !== grant.vehicleId) {
+      unknown++;
+      throw new Failure("grant-cleanup-receipt", "INVALID_RESPONSE");
+    }
+    grant.done = true;
   }
   try {
     const missing = "018f0000-0000-7000-8000-000000000099";
@@ -227,7 +269,13 @@ export async function runSmoke({
       return;
     }
     const me = await call("session", "/me");
-    check(me.mfaEnabled === true, "session");
+    check(
+      automation
+        ? me.authenticationMethod === "DEVELOPMENT_AUTOMATION" &&
+            me.mfaEnabled === false
+        : me.mfaEnabled === true,
+      "session",
+    );
     await call("canonical-list", "/admin/parts");
     const organizations = await call(
       "fixture-organization",
@@ -248,6 +296,18 @@ export async function runSmoke({
         row.name === "MotorBaldi Development Workshop Site" &&
         row.status === "ACTIVE",
     );
+    if (automation && !verifyOnly && location) {
+      await call(
+        "fixture-parts-enable",
+        "/development/automation/fixtures/parts/enable",
+        {
+          organizationId: org.id,
+          locationId: location.id,
+          reason: "Synthetic Development PARTS fixture enable",
+        },
+        { key: "development-parts-fixture-enable-v1" },
+      );
+    }
     const capabilities = await call(
       "fixture-capabilities",
       base + "/capabilities",
@@ -363,29 +423,35 @@ export async function runSmoke({
       reason,
     });
     receipt(vehicle, "vehicleId", "vehicle-receipt");
+    const grantExpiresAt = new Date(Date.now() + 3600000).toISOString();
     for (const permissionCode of [
       "vehicle.workshop.read",
       "vehicle.workshop.write",
-    ])
-      receipt(
-        await call(
-          "vehicle-grant",
-          `/admin/vehicles/${vehicle.vehicleId}/grants`,
-          {
-            organizationId: org.id,
-            locationId: location.id,
-            permissionCode,
-            reason,
-          },
-        ),
-        "grantId",
-        "grant-receipt",
+    ]) {
+      const granted = await call(
+        "vehicle-grant",
+        `/admin/vehicles/${vehicle.vehicleId}/grants`,
+        {
+          organizationId: org.id,
+          locationId: location.id,
+          permissionCode,
+          expiresAt: grantExpiresAt,
+          reason,
+        },
       );
+      receipt(granted, "grantId", "grant-receipt");
+      grants.push({
+        vehicleId: vehicle.vehicleId,
+        grantId: granted.grantId,
+        key: randomUUID(),
+        done: false,
+      });
+    }
     const orderDescription = reason + " " + randomUUID();
     const order = await call("order-create", base + "/workshop/orders", {
       vehicleId: vehicle.vehicleId,
       locationId: location.id,
-      assignedPersonId: me.personId,
+      ...(automation ? {} : { assignedPersonId: me.personId }),
       description: orderDescription,
       reason,
     });
@@ -486,6 +552,7 @@ export async function runSmoke({
       "snapshot-freeze",
     );
     for (const fixture of [...fixtures].reverse()) await clean(fixture);
+    for (const grant of grants) await revokeGrant(grant);
     log(
       "PASS Development Parts canonical, scoped offering and immutable Workshop snapshot lifecycle",
     );
@@ -503,8 +570,20 @@ export async function runSmoke({
           cleanup++;
         }
       }
+    if (!fixtures.some((row) => row.order && !row.done)) {
+      for (const grant of grants)
+        if (!grant.done) {
+          try {
+            await revokeGrant(grant);
+          } catch {
+            cleanup++;
+          }
+        }
+    }
     Object.assign(primary, {
-      known: fixtures.filter((row) => !row.done).length,
+      known:
+        fixtures.filter((row) => !row.done).length +
+        grants.filter((row) => !row.done).length,
       unknown,
       cleanup,
     });

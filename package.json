@@ -24,8 +24,8 @@
     "d1:init:development": "node scripts/foundation/d1-init.mjs development",
     "d1:init:staging": "node scripts/foundation/d1-init.mjs staging",
     "d1:init:production": "node scripts/foundation/d1-init.mjs production",
-    "test": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:workers && pnpm openapi:check && pnpm boundaries:check && pnpm security:check",
-    "test:unit": "vitest run tests/foundation/unit.test.ts tests/foundation/migrations.test.ts tests/foundation/phase1-ui.test.ts tests/foundation/bootstrap-development-account.test.ts tests/foundation/support-ui.test.ts tests/foundation/communications-smoke.test.ts tests/foundation/parts-contract.test.ts tests/foundation/parts-ui.test.ts tests/foundation/parts-smoke.test.ts tests/foundation/parts-consistency.test.ts",
+    "test": "pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:workers && pnpm test:automation && pnpm openapi:check && pnpm boundaries:check && pnpm security:check",
+    "test:unit": "vitest run tests/foundation/unit.test.ts tests/foundation/migrations.test.ts tests/foundation/phase1-ui.test.ts tests/foundation/bootstrap-development-account.test.ts tests/foundation/support-ui.test.ts tests/foundation/communications-smoke.test.ts tests/foundation/parts-contract.test.ts tests/foundation/parts-ui.test.ts tests/foundation/parts-smoke.test.ts tests/foundation/parts-consistency.test.ts tests/foundation/development-automation-client.test.ts tests/foundation/development-automation-consistency.test.ts",
     "test:workers": "vitest run --config vitest.workers.config.ts",
     "openapi:check": "tsx scripts/foundation/openapi.ts",
     "security:check": "node scripts/foundation/security.mjs && node scripts/foundation/security-fixtures.mjs",
@@ -34,8 +34,9 @@
     "boundaries:check": "node scripts/foundation/boundaries.mjs && node scripts/foundation/boundary-fixtures.mjs",
     "test:artifacts": "node scripts/foundation/artifact-fixtures.mjs",
     "wrangler:types": "wrangler types --config apps/api/wrangler.jsonc worker-configuration.d.ts",
-    "gate": "pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm execution:check && pnpm test:unit && pnpm test:workers && pnpm openapi:check && pnpm security:check && pnpm audit --audit-level high && pnpm test:artifacts",
-    "execution:check": "node scripts/foundation/execution-state.mjs && node scripts/foundation/execution-state-fixtures.mjs"
+    "gate": "pnpm lint && pnpm typecheck && pnpm boundaries:check && pnpm execution:check && pnpm test:unit && pnpm test:workers && pnpm test:automation && pnpm openapi:check && pnpm security:check && pnpm audit --audit-level high && pnpm test:artifacts",
+    "execution:check": "node scripts/foundation/execution-state.mjs && node scripts/foundation/execution-state-fixtures.mjs",
+    "test:automation": "vitest run --config vitest.automation.config.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",

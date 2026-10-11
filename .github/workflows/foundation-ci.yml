@@ -32,6 +32,7 @@ jobs:
       - run: pnpm execution:check
       - run: pnpm test:unit
       - run: pnpm test:workers
+      - run: pnpm test:automation
       - run: pnpm openapi:check
       - run: pnpm security:check
       - run: pnpm audit --audit-level high

@@ -71,6 +71,7 @@
       },
       "vars": {
         "ENVIRONMENT": "development",
+        "DEVELOPMENT_AUTOMATION_ENABLED": "true",
         "AUTH_BASE_URL": "https://motorbaldi-api-development.josegbarrios2.workers.dev",
         "CORS_ORIGINS": "https://motorbaldi-portal-development.josegbarrios2.workers.dev,https://motorbaldi-admin-development.josegbarrios2.workers.dev",
         "PUBLIC_CORS_ORIGINS": "https://motorbaldi-portal-development.josegbarrios2.workers.dev",

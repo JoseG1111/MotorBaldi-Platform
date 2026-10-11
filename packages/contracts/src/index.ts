@@ -20,4 +20,6 @@ export interface Principal {
   accountId: string;
   personId: string | null;
   mfaEnabled: boolean;
+  /** Verified Development machine context, distinct from human MFA. */
+  automationAuthorizationId?: string;
 }

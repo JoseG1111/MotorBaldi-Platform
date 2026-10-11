@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { getAutomationFetch } from "../development/automation-client.mjs";
 import { runSmoke, formatSmokeFailure } from "./smoke-runtime.mjs";
 const args = process.argv.slice(2);
 if (
@@ -14,7 +14,8 @@ if (
       runSmoke({
         anonymous,
         verifyOnly: args.includes("--verify-only"),
-        cookie: anonymous ? "" : readFileSync(0, "utf8").trim(),
+        automation: !anonymous,
+        fetch: getAutomationFetch(),
       }),
     )
     .catch((error) => {

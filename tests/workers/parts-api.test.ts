@@ -27,6 +27,7 @@ import m14 from "../../migrations/0014_notifications.sql?raw";
 import m15 from "../../migrations/0015_support.sql?raw";
 import m16 from "../../migrations/0016_support_history_boundary.sql?raw";
 import m17 from "../../migrations/0017_parts_catalog.sql?raw";
+import m18 from "../../migrations/0018_development_automation.sql?raw";
 
 const db = (env as unknown as ApiBindings).DB;
 const worker = (
@@ -226,6 +227,7 @@ beforeAll(async () => {
     m15,
     m16,
     m17,
+    m18,
   ])
     await db.exec(migration.replace(/--[^\n]*/g, "").replace(/\n/g, " "));
   await db

@@ -5,6 +5,7 @@ export const maxIdempotencyResponseBytes = 8192;
 
 export const idempotencyOperationRegistry = {
   "foundation.test": 3600,
+  "development.fixture.parts.enable": 604800,
   "parts.canonical.create": 604800,
   "parts.canonical.update": 604800,
   "parts.canonical.transition": 604800,

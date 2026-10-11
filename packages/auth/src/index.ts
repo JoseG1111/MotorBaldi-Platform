@@ -28,6 +28,20 @@ export async function assessAuthenticatedSession(
   accountId: string,
   sessionId: string,
 ): Promise<{ mfaEnabled: boolean } | null> {
+  if (
+    (await db
+      .prepare(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='development_automation_identities'",
+      )
+      .first()) &&
+    (await db
+      .prepare(
+        "SELECT 1 FROM development_automation_identities WHERE account_id=?",
+      )
+      .bind(accountId)
+      .first())
+  )
+    return null;
   const row = await db
     .prepare(
       "SELECT u.two_factor_enabled,EXISTS(SELECT 1 FROM auth_two_factors f WHERE f.user_id=u.id AND f.verified=1) AS verified_factor,s.created_at>=u.updated_at AS recent_session FROM auth_users u JOIN auth_sessions s ON s.user_id=u.id WHERE u.id=? AND s.id=? AND u.email_verified=1 AND s.expires_at>?",
@@ -212,3 +226,5 @@ export function authOptions(
     },
   };
 }
+
+export * from "./development-automation.js";

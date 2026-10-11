@@ -1,4 +1,13 @@
 import {
+  automationCommitGuard,
+  prepareDevelopmentPartsFixture,
+} from "./development-automation-command.js";
+import {
+  automationResourceClaim,
+  validateAutomationCommand,
+} from "./development-automation-scope.js";
+import { assessDevelopmentAutomationCommand } from "@motorbaldi/auth";
+import {
   parsePartsCommand,
   authorizePartsCommand,
   preparePartsCommand,
@@ -97,6 +106,8 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ): Promise<PreparedCommand<Json>> {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation === "development.fixture.parts.enable")
+      return prepareDevelopmentPartsFixture(db, actor!, request, requestId);
     if (operation.startsWith("parts."))
       return preparePartsCommand(
         db,
@@ -398,18 +409,37 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
       request: Json;
       requestId: string;
       sessionId?: string | null;
+      automationAuthorizationId?: string | null;
     };
     await assertDatabaseEnvironment(this.env.DB, this.env.ENVIRONMENT);
+    const machine = input.automationAuthorizationId
+      ? await assessDevelopmentAutomationCommand(
+          this.env,
+          input.automationAuthorizationId,
+          input.scope.accountId,
+          input.scope.operation,
+          input.request,
+        )
+      : null;
+    if (machine)
+      await validateAutomationCommand(
+        this.env.DB,
+        machine,
+        input.scope.operation,
+        input.request,
+      );
     let vehicleActor: BusinessPrincipal | null = null;
     let vehicleBody: Record<string, Json> | null = null;
     if (input.scope.operation.startsWith("vehicle.")) {
-      const assurance = input.sessionId
-        ? await assessAuthenticatedSession(
-            this.env.DB,
-            input.scope.accountId,
-            input.sessionId,
-          )
-        : null;
+      const assurance =
+        machine ??
+        (input.sessionId
+          ? await assessAuthenticatedSession(
+              this.env.DB,
+              input.scope.accountId,
+              input.sessionId,
+            )
+          : null);
       if (!assurance)
         throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
       const account = await ensureMotorBaldiAccount(
@@ -421,6 +451,9 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         accountId: input.scope.accountId,
         personId: account.personId,
         mfaEnabled: assurance.mfaEnabled,
+        ...(machine
+          ? { automationAuthorizationId: machine.automationAuthorizationId }
+          : {}),
       };
       vehicleBody = parseVehicleCommand(input.scope.operation, input.request);
       await authorizeVehicleCommand(
@@ -442,13 +475,15 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
       typeof inspectionAttachmentInput.parse
     > | null = null;
     if (input.scope.operation === "inspection.file.attach") {
-      const assurance = input.sessionId
-        ? await assessAuthenticatedSession(
-            this.env.DB,
-            input.scope.accountId,
-            input.sessionId,
-          )
-        : null;
+      const assurance =
+        machine ??
+        (input.sessionId
+          ? await assessAuthenticatedSession(
+              this.env.DB,
+              input.scope.accountId,
+              input.sessionId,
+            )
+          : null);
       if (!assurance)
         throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
       const account = await ensureMotorBaldiAccount(
@@ -460,6 +495,9 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         accountId: input.scope.accountId,
         personId: account.personId,
         mfaEnabled: assurance.mfaEnabled,
+        ...(machine
+          ? { automationAuthorizationId: machine.automationAuthorizationId }
+          : {}),
       };
       inspectionBody = inspectionAttachmentInput.parse(input.request);
       await authorizeInspectionAttachment(
@@ -471,13 +509,15 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
     let workshopActor: BusinessPrincipal | null = null;
     let workshopBody: Record<string, Json> | null = null;
     if (input.scope.operation.startsWith("workshop.")) {
-      const assurance = input.sessionId
-        ? await assessAuthenticatedSession(
-            this.env.DB,
-            input.scope.accountId,
-            input.sessionId,
-          )
-        : null;
+      const assurance =
+        machine ??
+        (input.sessionId
+          ? await assessAuthenticatedSession(
+              this.env.DB,
+              input.scope.accountId,
+              input.sessionId,
+            )
+          : null);
       if (!assurance)
         throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
       const account = await ensureMotorBaldiAccount(
@@ -489,6 +529,9 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         accountId: input.scope.accountId,
         personId: account.personId,
         mfaEnabled: assurance.mfaEnabled,
+        ...(machine
+          ? { automationAuthorizationId: machine.automationAuthorizationId }
+          : {}),
       };
       workshopBody = parseWorkshopCommand(input.scope.operation, input.request);
       await authorizeWorkshopCommand(
@@ -505,13 +548,15 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
       !inspectionActor &&
       input.scope.operation !== "crm.lead.create";
     if (generic && input.scope.operation !== "foundation.test") {
-      const assurance = input.sessionId
-        ? await assessAuthenticatedSession(
-            this.env.DB,
-            input.scope.accountId,
-            input.sessionId,
-          )
-        : null;
+      const assurance =
+        machine ??
+        (input.sessionId
+          ? await assessAuthenticatedSession(
+              this.env.DB,
+              input.scope.accountId,
+              input.sessionId,
+            )
+          : null);
       if (!assurance)
         throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
       const account = await ensureMotorBaldiAccount(
@@ -523,6 +568,9 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         accountId: input.scope.accountId,
         personId: account.personId,
         mfaEnabled: assurance.mfaEnabled,
+        ...(machine
+          ? { automationAuthorizationId: machine.automationAuthorizationId }
+          : {}),
       };
       await this.authorizeGeneric(
         input.scope.operation,
@@ -598,6 +646,16 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
       );
       try {
         await this.env.DB.batch([
+          ...(machine
+            ? [
+                automationCommitGuard(
+                  this.env.DB,
+                  machine,
+                  input.scope.operation,
+                  input.requestId,
+                ),
+              ]
+            : []),
           replayStatement,
           workshopReplayAudit(
             this.env.DB,
@@ -605,6 +663,14 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
             command.orderId,
             input.requestId,
           ),
+          ...(machine
+            ? automationResourceClaim(
+                this.env.DB,
+                machine,
+                input.scope.operation,
+                command.response,
+              )
+            : []),
           ...command.statements,
         ]);
       } catch (error) {
@@ -651,6 +717,16 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
       );
       try {
         await this.env.DB.batch([
+          ...(machine
+            ? [
+                automationCommitGuard(
+                  this.env.DB,
+                  machine,
+                  input.scope.operation,
+                  input.requestId,
+                ),
+              ]
+            : []),
           replayStatement,
           vehicleChangeAudit(
             this.env.DB,
@@ -659,6 +735,14 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
             command.vehicleId,
             input.requestId,
           ),
+          ...(machine
+            ? automationResourceClaim(
+                this.env.DB,
+                machine,
+                input.scope.operation,
+                command.response,
+              )
+            : []),
           ...command.statements,
         ]);
       } catch (error) {
@@ -726,6 +810,21 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
       input.requestId,
       genericActor,
     );
+    if (machine)
+      command.statements.unshift(
+        automationCommitGuard(
+          this.env.DB,
+          machine,
+          input.scope.operation,
+          input.requestId,
+        ),
+        ...automationResourceClaim(
+          this.env.DB,
+          machine,
+          input.scope.operation,
+          command.response,
+        ),
+      );
     try {
       const response = await commitIdempotentCommand(
         this.env.DB,

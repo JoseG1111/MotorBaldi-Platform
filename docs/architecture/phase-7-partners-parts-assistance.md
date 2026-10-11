@@ -31,3 +31,5 @@ The phase adds no stock reservation/deduction, direct parts payment, customer ch
 ## Assistance boundaries
 
 The [approved general-support workflow](phase-6-communications-support.md#approved-support-workflow--2026-10-10) remains available under its exact customer/staff authorization. Premium guidance remains disabled until configured operating hours, staffing, entitlement/usage limits and business readiness. TOWING capability does not authorize dispatch, roadside availability, diagnosis, guaranteed response times or an SLA. A separate service-request/fulfillment contract is still required if Phase 7 assistance extends beyond existing support cases.
+
+The owner-directed Development-only automation exception in [ADR 0027](../adr/0027-development-automation-authentication.md) uses a distinct passwordless machine principal, fixed synthetic Workshop/site and owned synthetic resources. It does not assert human MFA or change human, staging or production authorization. Signed contexts, current least-privilege roles, scoped ownership and commit-time guards remain mandatory.

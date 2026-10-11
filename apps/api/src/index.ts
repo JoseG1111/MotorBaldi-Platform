@@ -1,3 +1,11 @@
+import {
+  authenticateDevelopmentAutomation,
+  issueDevelopmentAutomationAuthorization,
+} from "@motorbaldi/auth";
+import {
+  automationRoute,
+  validateAutomationCommand,
+} from "./development-automation-scope.js";
 import { partsRoutes } from "./parts-routes.js";
 import { supportRoutes } from "./support-routes.js";
 import { notificationRoutes } from "./notification-routes.js";
@@ -295,6 +303,17 @@ async function boundedEvidence(request: Request) {
   return bytes;
 }
 
+const machineRequests = new WeakMap<
+  Headers,
+  Promise<
+    | (import("@motorbaldi/contracts").Principal & {
+        personId: string;
+        automationAuthorizationId: string;
+      })
+    | null
+  >
+>();
+
 async function idempotentCommand(
   env: ApiBindings,
   headers: Headers,
@@ -306,7 +325,23 @@ async function idempotentCommand(
   organizationId?: string,
 ) {
   let sessionId: string | null = null;
-  if (operation !== "crm.lead.create") {
+  let automationAuthorizationId: string | null = null;
+  const machine = await machineRequests.get(headers);
+  if (machine) {
+    automationAuthorizationId = await issueDevelopmentAutomationAuthorization(
+      env.DB,
+      machine,
+      operation,
+      body,
+    );
+    await validateAutomationCommand(
+      env.DB,
+      { ...machine, automationAuthorizationId },
+      operation,
+      body,
+    );
+  }
+  if (operation !== "crm.lead.create" && !machine) {
     const session = await authentication(
       env,
       apiConfig(env),
@@ -325,7 +360,14 @@ async function idempotentCommand(
     scope.scope + ":" + key,
   ).fetch("https://idempotency/run", {
     method: "POST",
-    body: JSON.stringify({ key, scope, request: body, requestId, sessionId }),
+    body: JSON.stringify({
+      key,
+      scope,
+      request: body,
+      requestId,
+      sessionId,
+      automationAuthorizationId,
+    }),
   });
   const result = await response.json<Record<string, Json>>();
   if (!response.ok)
@@ -387,6 +429,17 @@ async function route(
   }
 
   await assertDatabaseEnvironment(env.DB, c.environment);
+  const machinePromise = authenticateDevelopmentAutomation(
+    request,
+    env,
+    requestId,
+  );
+  machineRequests.set(request.headers, machinePromise);
+  const machine = await machinePromise;
+  if (machine) {
+    const intercepted = await automationRoute(env.DB, request, machine);
+    if (intercepted) return intercepted;
+  }
   if (url.pathname === "/api/v1/payments/wompi/events") {
     requireMethod("POST");
     await reconcilePaymentWebhook(env, await boundedJson(request), requestId, {
@@ -468,7 +521,7 @@ async function route(
     c.emailProvider === "DEVELOPMENT_SINK";
   const auth = authentication(env, c, requestId, signupEnabled);
   const businessPrincipal = async () => {
-    const principal = await auth.principal(request.headers);
+    const principal = machine ?? (await auth.principal(request.headers));
     if (!principal?.personId)
       throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
     return principal as typeof principal & { personId: string };
@@ -527,6 +580,27 @@ async function route(
         paymentId: reserved.paymentId,
       }),
       { headers: { ...cors, "cache-control": "no-store" } },
+    );
+  }
+  if (url.pathname === "/api/v1/development/automation/fixtures/parts/enable") {
+    requireMethod("POST");
+    if (!machine)
+      throw new Problem(
+        403,
+        "DEVELOPMENT_AUTOMATION_DENIED",
+        "Development automation unavailable",
+      );
+    return json(
+      await idempotentCommand(
+        env,
+        request.headers,
+        "development.fixture.parts.enable",
+        machine.accountId,
+        (await boundedJson(request)) as Json,
+        requestId,
+        requiredKey(request),
+      ),
+      { headers: cors },
     );
   }
   const partsResponse = await partsRoutes(

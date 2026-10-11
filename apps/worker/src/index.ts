@@ -45,6 +45,11 @@ import { expireMemberships } from "@motorbaldi/payments";
 const uuid = z.string().uuid();
 const eventContracts = [
   [
+    "development.fixture.parts.enabled.v1",
+    "development_automation",
+    z.object({ organizationId: uuid, locationId: uuid }).strict(),
+  ],
+  [
     "billing.checkout.created.v1",
     "billing",
     z
@@ -203,6 +208,30 @@ export default {
     const c = backgroundWorkerConfig(env);
     await assertDatabaseEnvironment(env.DB, c.environment);
     const scopedHandlers = new Map(handlers);
+    scopedHandlers.set(
+      "development.fixture.parts.enabled.v1",
+      async (event) => {
+        const body = JSON.parse(event.payload_json) as {
+          organizationId: string;
+          locationId: string;
+        };
+        if (
+          env.ENVIRONMENT !== "development" ||
+          event.aggregate_id !== body.organizationId ||
+          !(await env.DB.prepare(
+            "SELECT 1 FROM governance_audit_events a JOIN development_automation_identities i ON i.account_id=a.actor_id WHERE a.action='development.fixture.parts.enabled' AND a.resource_id=? AND a.request_id=? AND i.organization_id=? AND i.location_id=?",
+          )
+            .bind(
+              body.organizationId,
+              event.request_id,
+              body.organizationId,
+              body.locationId,
+            )
+            .first())
+        )
+          throw new Error("INVALID_DEVELOPMENT_FIXTURE_EVENT");
+      },
+    );
     for (const [key, handler] of partsEventHandlers(env.DB))
       scopedHandlers.set(key, handler);
     for (const [key, handler] of supportEventHandlers(env.DB))
@@ -254,6 +283,19 @@ export default {
     ctx.waitUntil(storage.cleanupOrphanPromotions());
     ctx.waitUntil(recoverExpiredLeases(env.DB));
     ctx.waitUntil(cleanupExpiredIdempotencyRecords(env.DB));
+    if (env.ENVIRONMENT === "development")
+      ctx.waitUntil(
+        (async () => {
+          await env.DB.batch([
+            env.DB.prepare(
+              "DELETE FROM development_automation_authorizations WHERE id IN (SELECT id FROM development_automation_authorizations WHERE expires_at<strftime('%Y-%m-%dT%H:%M:%fZ','now') LIMIT 500)",
+            ),
+            env.DB.prepare(
+              "DELETE FROM development_automation_nonces WHERE (key_id,nonce) IN (SELECT key_id,nonce FROM development_automation_nonces WHERE expires_at<strftime('%Y-%m-%dT%H:%M:%fZ','now') LIMIT 500)",
+            ),
+          ]);
+        })(),
+      );
     ctx.waitUntil(reconcileVerifiedAccounts(env.DB, newId()));
     ctx.waitUntil(expireInvitations(env.DB));
     ctx.waitUntil(expireMembershipRequests(env.DB));
