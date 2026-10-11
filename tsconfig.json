@@ -48,7 +48,9 @@
       "@motorbaldi/workshops": ["packages/workshops/src/index.ts"],
       "@motorbaldi/inspections": ["packages/inspections/src/index.ts"],
       "@motorbaldi/parts": ["packages/parts/src/index.ts"],
-      "@motorbaldi/analytics": ["packages/analytics/src/index.ts"]
+      "@motorbaldi/analytics": ["packages/analytics/src/index.ts"],
+      "@motorbaldi/shared/ui": ["packages/shared/src/ui.ts"],
+      "@motorbaldi/shared/brand": ["packages/shared/src/brand.ts"]
     }
   },
   "include": [

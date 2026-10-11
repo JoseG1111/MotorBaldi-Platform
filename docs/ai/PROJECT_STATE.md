@@ -1,4 +1,4 @@
-# Project state — reconciled 2026-10-10
+# Project state — reconciled 2026-10-11
 
 ## Repository and runtime
 
@@ -63,3 +63,9 @@ Final Phase 9 gate743tests PASS; changed Development API/Portal/Admin deployed, 
 MB-P9-005 VERIFIED after final743-test gate, actual signed Development current-count/privacy/scope/denial smoke, independent D1/source audit/outbox/Queue checks and implementation431ab13 [CI38111171488](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38111171488) PASS. Development API58f67646-8122-440f-809a-be4fad2c13b0, Portal061f5074-3668-40b1-8ed3-fe2b60b1b32e and Admin0c1793ab-ecaf-4731-9e34-4e09e13d160a deployed; Worker unchanged from verified Phase 8, migrations through0019. Reports remain INTERNAL transient count-only and recheck existing exact assured authority in one D1 aggregate. Machine scope is explicitly owned-synthetic; it gains no audit/superadmin/human-MFA privilege. No copied source data, new retention, materialized stream, finance/profiling/forecasting/telemetry/export is implemented or claimed.
 
 All eligible approved engineering is verified; the recovery cursor returns to parked MB-P5-005 HUMAN ACTION REQUIRED. Current names-only Development inventory still finds0/4 Wompi names, so actual merchant/provider and incomplete billing full-smoke verification remain unverified. Marketplace commerce/Wompi remain disabled; no paid provider activated. MB-P3-005 remains DEFERRED — OWNER APPROVED with real antimalware/ACTIVE public media release unavailable and private quarantine preserved. These external boundaries do not weaken or reopen routine Development automation. Resume only when their actual authorized external conditions clear.
+
+## Enterprise UI transformation — 2026-10-11
+
+MB-UX-001 through MB-UX-005 are VERIFIED; MB-UX-006 is IMPLEMENTED — NOT VERIFIED pending exact CI. Official MotorBaldi red/near-black/warm-paper branding replaces the arbitrary application palette. Admin and Portal share Worker-rendered tokens, icons, shell, responsive permission-aware navigation, compact forms/tables/details and explicit error feedback. People uses bounded server search/cursors and preserves separate person/account/organization relationships. Existing Admin domains and customer/workshop/partner Portal workflows are integrated; no backend contracts or business scopes changed.
+
+Full gate772tests PASS including27Chromium/axe/workflow tests and59synthetic screenshots. Actual representative layouts inspected and refined. Development Admin/Portal deployed and four anonymous remote browser checks plus independent signed auth/report/D1 checks PASS. See [UX evidence](UX_EVIDENCE.md) for tokens, deployment versions, screenshots and verification limits. Human-session remote browser replay is not claimed. Existing Wompi and scanner boundaries remain parked; no staging/production/marketing changes.

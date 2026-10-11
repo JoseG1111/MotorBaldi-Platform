@@ -1,3 +1,4 @@
+import { brandResponse } from "@motorbaldi/shared/brand";
 import type { AdminBindings } from "@motorbaldi/config";
 
 import { adminPage, adminScript } from "./page.js";
@@ -5,6 +6,8 @@ import { adminPage, adminScript } from "./page.js";
 export default {
   async fetch(request: Request, env: AdminBindings) {
     const url = new URL(request.url);
+    if (url.pathname === "/brand/logo.webp" && request.method === "GET")
+      return brandResponse();
     if (url.pathname.startsWith("/api/")) {
       const upstream = new URL(
         url.pathname + url.search,

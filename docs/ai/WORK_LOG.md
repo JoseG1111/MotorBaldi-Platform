@@ -164,3 +164,15 @@ Final gate743tests PASS. Development API58f67646-8122-440f-809a-be4fad2c13b0/Por
 ## 2026-10-10 — MB-P9-005 VERIFIED; eligible engineering complete
 
 Implementation431ab13 passed [Platform CI38111171488](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38111171488) including743tests, artifacts and history secret scan. Actual signed Development reporting/count/privacy/denial and independent D1/source audit/outbox/Queue evidence already passed; only changed API/Portal/Admin deployed. All Phase 8 discovery/moderation and Phase 9 scoped current-count checkpoints are verified for accepted scope, with no commerce/media/provider/financial/profiling claims. Recovery cursor returns to parked MB-P5-005 HUMAN ACTION REQUIRED because no eligible engineering remains. Fresh names-only Wompi inventory0/4 confirms actual merchant/credential/full billing smoke boundary persists; scanner3-005 remains owner-deferred/$0/private quarantine. OS-backed autonomous Development auth remains ready without human login.
+
+- 2026-10-10: MB-UX-001 VERIFIED from official live CSS/assets, supplied screenshots and canonical frontend/API audit (UX_EVIDENCE.md). MB-UX-002 active; parked provider boundaries unchanged.
+
+- 2026-10-10: MB-UX-002 VERIFIED for shared shell only (8 synthetic Chromium viewport/axe/keyboard checks, visual inspection, TypeScript,39UI tests). MB-UX-003 active.
+
+- 2026-10-11: MB-UX-003 VERIFIED: bounded record tables/detail, commissions contract fix,52focused unit+10browser checks. Main viewed actual record screenshots and improved list/detail navigation. MB-UX-004 active; final full gate and remote deployment outstanding.
+
+- 2026-10-11: MB-UX-004 VERIFIED: all existing Admin domain layouts integrated,67focused+20browser tests PASS;9modules desktop/mobile axe and overflow. Main reviewed Parts/inspections/mobile workshop; Parts metrics/forms/review collapsed after visual defect and rerun passed. MB-UX-005 active.
+
+- 2026-10-11: MB-UX-005 VERIFIED: scoped Portal workflows, four synthetic browser tests and51focused Phase1+Parts tests PASS. Main visually inspected customer/workshop/partner views and corrected history/partner composition. MB-UX-006 active for final gate, CI and Development deployment.
+
+- 2026-10-11: MB-UX-006 IMPLEMENTED — NOT VERIFIED pending exact CI. Full gate772tests PASS (745unit/Worker/automation+27browser);59synthetic screenshots, final densePeople/partner/mobilehistory inspected. Development Admin12d6af60/Portal5acd9d9c deployed; four remote anonymous browser checks and signed auth/read-only analytics+D1 consistency PASS. No API/schema/production changes.

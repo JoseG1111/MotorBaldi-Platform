@@ -174,10 +174,8 @@ describe("Phase 1 browser assets", () => {
     });
     await runInContext("refreshGarage()", context);
     expect(calls).toContain("/api/v1/me/garage");
-    expect(nodes.get("garage-list")!.children).toHaveLength(2);
-    expect(
-      nodes.get("garage-list")!.children[0]!.children[0]!.textContent,
-    ).toContain("Vehículo");
+    expect(text(nodes.get("garage-list")!)).toContain("Vehículo 018f0000");
+    expect(text(nodes.get("garage-list")!)).toContain("Abrir vehículo");
   });
 
   it("shows Admin sign-in for 401 and restricted access only for 403", async () => {
@@ -300,7 +298,11 @@ describe("Phase 1 browser assets", () => {
     );
     await runInContext("showCredentials()", context);
     const credentialBox = nodes.get("credential-queue")!.children[0]!;
-    const verify = credentialBox.children.find(
+    const descendants = (node: FakeNode): FakeNode[] => [
+      node,
+      ...node.children.flatMap(descendants),
+    ];
+    const verify = descendants(credentialBox).find(
       (child) => child.textContent === "Verificar",
     )!;
     await verify.onclick!();
@@ -348,6 +350,29 @@ type FakeNode = {
   addEventListener(type: string, listener: FakeNode["listeners"][string]): void;
   querySelector(): FakeNode;
 };
+
+function descendants(node: FakeNode): FakeNode[] {
+  return [node, ...node.children.flatMap(descendants)];
+}
+function text(node: FakeNode): string {
+  return descendants(node)
+    .map((item) => item.textContent)
+    .join("\n");
+}
+
+function formNamed(root: FakeNode, title: string): FakeNode {
+  const flatten = (node: FakeNode): FakeNode[] => [
+    node,
+    ...node.children.flatMap(flatten),
+  ];
+  for (const node of flatten(root)) {
+    if (node.children.some((child) => child.textContent === title)) {
+      const form = node.children.find((child) => "onsubmit" in child);
+      if (form) return form;
+    }
+  }
+  throw new Error("Expected a form in the named disclosure: " + title);
+}
 
 function browserHarness(
   script: string,
@@ -491,23 +516,19 @@ describe("Vehicle browser workflows", () => {
     await runInContext(`openVehicle('${id}')`, context);
     expect(calls).not.toContain("/api/v1/vehicles/" + id + "/records");
     expect(
-      nodes
-        .get("vehicle-detail")!
-        .children.some((n) =>
-          n.children.some((c) => c.textContent === "1250 kilómetros"),
-        ),
+      descendants(nodes.get("vehicle-detail")!).some((n) =>
+        n.children.some((c) => c.textContent === "1250 kilómetros"),
+      ),
     ).toBe(true);
     expect(
-      nodes
-        .get("vehicle-detail")!
-        .children.some(
-          (n) => n.textContent === "Solicitar revisión de relación",
-        ),
+      descendants(nodes.get("vehicle-detail")!).some(
+        (n) => n.textContent === "Solicitar revisión de relación",
+      ),
     ).toBe(true);
     expect(
-      nodes
-        .get("vehicle-detail")!
-        .children.some((n) => n.textContent === "Registrar odómetro"),
+      descendants(nodes.get("vehicle-detail")!).some(
+        (n) => n.textContent === "Registrar odómetro",
+      ),
     ).toBe(false);
   });
 });
@@ -543,9 +564,9 @@ describe("Workshop browser controls", () => {
         "workshopOrg='organization-test';openWorkshopOrder('order-test')",
         context,
       );
-      const titles = nodes
-        .get("workshop-detail")!
-        .children.map((node) => node.textContent);
+      const titles = descendants(nodes.get("workshop-detail")!).map(
+        (node) => node.textContent,
+      );
       expect(titles.includes("Cerrar orden")).toBe(expectedClose);
       expect(titles.includes("Actualizar orden")).toBe(false);
       expect(titles.includes("Cancelar orden")).toBe(false);
@@ -576,9 +597,9 @@ describe("Workshop browser controls", () => {
       "workshopOrg='organization-test';openWorkshopOrder('order-test')",
       context,
     );
-    const titles = nodes
-      .get("workshop-detail")!
-      .children.map((node) => node.textContent);
+    const titles = descendants(nodes.get("workshop-detail")!).map(
+      (node) => node.textContent,
+    );
     expect(titles).toContain("Iniciar trabajo");
     expect(titles).not.toContain("Actualizar orden");
     expect(titles).not.toContain("Cancelar orden");
@@ -613,9 +634,9 @@ describe("Inspection browser authority and media controls", () => {
             : Response.json({ code: "UNAUTHENTICATED" }, { status: 401 }),
       );
       await runInContext("openInspection('report-test')", context);
-      const titles = nodes
-        .get("inspection-detail")!
-        .children.map((node) => node.textContent);
+      const titles = descendants(nodes.get("inspection-detail")!).map(
+        (node) => node.textContent,
+      );
       expect(titles.includes("Finalizar informe")).toBe(finalize);
       expect(titles.includes("Registrar enmienda")).toBe(amend);
       expect(titles.includes("Adjuntar evidencia")).toBe(
@@ -710,10 +731,7 @@ describe("Inspection browser authority and media controls", () => {
           : edit === "finding"
             ? "Enmendar hallazgo"
             : "Ampliar mediante enmienda";
-      const form =
-        root.children[
-          root.children.findIndex((node) => node.textContent === title) + 1
-        ];
+      const form = formNamed(root, title);
       expect(form).toBeDefined();
       if (!form) throw new Error("Correction form is missing");
       form.fields = new Map<string, unknown>([
@@ -1074,12 +1092,7 @@ describe("Membership browser controls", () => {
     );
     expect(JSON.parse(String(writes[2]?.init.body))).toEqual({ version: 7 });
     root = nodes.get("membership-detail")!;
-    const form =
-      root.children[
-        root.children.findIndex(
-          (node) => node.textContent === "Incluir vehículo de mi garaje",
-        ) + 1
-      ]!;
+    const form = formNamed(root, "Incluir vehículo de mi garaje");
     form.fields = new Map([["vehicleId", "eligible-vehicle"]]);
     context.membershipForm = form;
     await runInContext(
@@ -1146,6 +1159,34 @@ describe("Membership browser controls", () => {
     },
   );
 
+  it("rejects malformed financial API results instead of displaying an empty success", async () => {
+    for (const [operation, permission, payload] of [
+      ["showCommissions", "platform.commission.read", { agreements: [] }],
+      [
+        "showCommissions",
+        "platform.commission.read",
+        { agreements: [], entries: null },
+      ],
+      [
+        "showBilling",
+        "platform.billing.read",
+        { subscriptions: [], payments: {} },
+      ],
+    ] as const) {
+      const { context } = browserHarness(adminScript, async () =>
+        Response.json(payload),
+      );
+      await expect(
+        runInContext(
+          `permissions=new Set(['${permission}']);${operation}()`,
+          context,
+        ),
+      ).rejects.toThrow(
+        "La respuesta del servicio no tiene el formato esperado. Vuelve a intentarlo.",
+      );
+    }
+  });
+
   it("keeps the admin financial panels read-only and default-deny", async () => {
     const calls: { path: string; init?: RequestInit }[] = [];
     const { context, nodes } = browserHarness(
@@ -1163,7 +1204,7 @@ describe("Membership browser controls", () => {
         if (path === "/api/v1/admin/commissions")
           return Response.json({
             agreements: [],
-            commissions: [
+            entries: [
               {
                 id: "commission-test",
                 status: "PENDING",
@@ -1171,7 +1212,8 @@ describe("Membership browser controls", () => {
                 currency: "COP",
               },
             ],
-            settlements: [],
+            automaticPaymentsEnabled: false,
+            settlementMode: "MANUAL_TRACKING_ONLY",
           });
         return Response.json({ code: "UNAUTHENTICATED" }, { status: 401 });
       },

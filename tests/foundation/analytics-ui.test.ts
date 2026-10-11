@@ -164,8 +164,8 @@ function deferred<T>() {
 }
 describe("Scoped current analytics UI", () => {
   it("keeps internal reports inside authenticated screens and labels read-only current information", () => {
-    expect(adminPage).toContain(
-      'data-permission="platform.audit.read">Estado operativo',
+    expect(adminPage).toMatch(
+      /<button[^>]*data-panel="analytics"[^>]*data-permission="platform.audit.read"[^>]*>[\s\S]*?Estado operativo<\/span><\/button>/,
     );
     expect(adminPage).toContain(
       'id="analytics-canonical-status" role="status"',

@@ -1,3 +1,4 @@
+import { brandResponse } from "@motorbaldi/shared/brand";
 import type { PortalBindings } from "@motorbaldi/config";
 
 import { portalPage, portalScript } from "./page.js";
@@ -10,6 +11,8 @@ import {
 export default {
   async fetch(request: Request, env: PortalBindings) {
     const url = new URL(request.url);
+    if (url.pathname === "/brand/logo.webp" && request.method === "GET")
+      return brandResponse();
     if (url.pathname.startsWith("/api/")) {
       const upstream = new URL(
         url.pathname + url.search,

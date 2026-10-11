@@ -263,6 +263,19 @@ describe("Parts scoped browser workflows", () => {
     });
   });
 
+  it("converts the peso input exactly while retaining canonical minor units", () => {
+    const { context } = browserHarness(portalScript, async () =>
+      Response.json({}, { status: 401 }),
+    );
+    expect(runInContext("uiAmountMinor('2500.25')", context)).toBe("250025");
+    expect(runInContext("uiAmountMinor('0')", context)).toBe("0");
+    for (const value of ["-1", "1.234", "NaN", "1e4", "9007199254740991"]) {
+      expect(() =>
+        runInContext("uiAmountMinor(" + JSON.stringify(value) + ")", context),
+      ).toThrow();
+    }
+  });
+
   it("denies organization members without Parts management permission", async () => {
     const calls: string[] = [];
     const { context, nodes } = browserHarness(portalScript, async (path) => {
@@ -274,7 +287,9 @@ describe("Parts scoped browser workflows", () => {
     runInContext("currentOrg='org-a'", context);
     await runInContext("showParts()", context);
     expect(calls.some((path) => path.includes("parts-offerings"))).toBe(false);
-    expect(contents(nodes.get("notice")!)).toContain("OWNER");
+    expect(contents(nodes.get("notice")!)).toContain(
+      "propietarios o administradores autorizados",
+    );
   });
   it("denies staff without canonical permission", async () => {
     const calls: string[] = [];

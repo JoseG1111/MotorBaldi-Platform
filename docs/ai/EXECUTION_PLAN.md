@@ -872,3 +872,85 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
 - **Current evidence:** Final full gate PASS743tests (206foundation/532Worker/5signedAPI+DO). Only Development API58f67646-8122-440f-809a-be4fad2c13b0, Portal061f5074-3668-40b1-8ed3-fe2b60b1b32e and Admin0c1793ab-ecaf-4731-9e34-4e09e13d160a deployed; no migration or Worker changes. Health/report assets and anonymous discovery regression PASS. Signed analytics smoke and independent D1/source consistency command bothPASS, with owned current counts canonicalARCHIVED4/offeringINACTIVE3/listingSUSPENDED1,11marketplacehistories/11processed events, matched source audit/outbox/Queue and clean global pending/deadletter/FK constraints. Existing Parts/marketplace/automation checkers PASS. Machine remains denied global Queue API; positive human API verified locally and real remote Queue consistency proven through authorized D1 probes. Implementation431ab13 passed [Platform CI38111171488](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38111171488), including743tests, artifact/history secret scans. MB-P9-005 VERIFIED only for ADR0029 scoped read-only current-state reporting; broader intelligence/profiling/financial/provider features remain unavailable.
+
+## Owner-approved enterprise UX workstream — 2026-10-10
+
+Preserves all Phase 8/9 decisions and parked external boundaries. Development only. Actual rendered synthetic screenshots are required for visual completion.
+
+### MB-UX-001 — Brand and UI audit
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-P9-005
+- **Objective:** Brand and UI audit.
+- **Scope / required work:** Inspect official live styles/assets, references, frontend and contracts; record verified tokens.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Live brand styles/assets and repository audit.
+- **Completion criteria:** Inspect official live styles/assets, references, frontend and contracts; record verified tokens.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Official live CSS/logo inspected, repository and canonical contracts audited; see UX_EVIDENCE.md.
+
+### MB-UX-002 — Design system and app shell
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-UX-001
+- **Objective:** Design system and app shell.
+- **Scope / required work:** Shared brand tokens, accessible responsive shell and authorized navigation; inspect rendered layouts.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Focused tests and rendered synthetic browser evidence; final gate/deployment in MB-UX-006.
+- **Completion criteria:** Shared brand tokens, accessible responsive shell and authorized navigation; inspect rendered layouts.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Shared shell integrated in both real Worker handlers; TypeScript and 39 Phase 1 UI tests PASS; eight Chromium viewport/axe/keyboard checks PASS. Main visually inspected desktop Admin and mobile Portal screenshots; see UX_EVIDENCE.md.
+
+### MB-UX-003 — People, CRM and organizations
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-UX-002
+- **Objective:** People, CRM and organizations.
+- **Scope / required work:** Bounded record tables, search, detail, pagination and response regression fixes; actual visual QA.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Focused tests and rendered synthetic browser evidence; final gate/deployment in MB-UX-006.
+- **Completion criteria:** Bounded record tables, search, detail, pagination and response regression fixes; actual visual QA.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Server-paginated People/organizations/CRM, real multi-relationship detail and commission contract fix.52 focused unit tests and10 browser record tests PASS (search/paging/filter/sort/stale/error/permission/axe). Actual People detail/CRM screenshots inspected; see UX_EVIDENCE.md. Full gate found one obsolete markup assertion, corrected and focused verified; full gate deferred to final milestone.
+
+### MB-UX-004 — Remaining Admin modules
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-UX-003
+- **Objective:** Remaining Admin modules.
+- **Scope / required work:** Apply domain-appropriate management patterns across every implemented Admin module; workflow and responsive verification.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Focused tests and rendered synthetic browser evidence; final gate/deployment in MB-UX-006.
+- **Completion criteria:** Apply domain-appropriate management patterns across every implemented Admin module; workflow and responsive verification.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Domain tables/queues, structured inspection reports, vehicle/Parts disclosures, support and financial tables, actual count summaries.67focused unit tests+20browser suite PASS. Nine Admin modules at1440/390 have axe/overflow/detail evidence; main inspected Parts/inspection/workshop and corrected Parts overlong layout, then reran20focused tests and2module browser tests PASS.
+
+### MB-UX-005 — Portal transformation
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-UX-004
+- **Objective:** Portal transformation.
+- **Scope / required work:** Customer, workshop and partner experiences using existing scopes and APIs; responsive visual QA.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Focused tests and rendered synthetic browser evidence; final gate/deployment in MB-UX-006.
+- **Completion criteria:** Customer, workshop and partner experiences using existing scopes and APIs; responsive visual QA.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Role-scoped customer/workshop/partner workflows integrated; four Portal browser tests PASS at1440/390 with axe, overflow, profile submission and stale-workspace protection. Main inspected organization/workshop/partner/mobile history screenshots and corrected overlong partner forms/history composition.51focused Phase1+Parts tests PASS including exact COP conversion. See UX_EVIDENCE.md.
+
+### MB-UX-006 — Quality and final polish
+
+- **Status:** IMPLEMENTED — NOT VERIFIED
+- **Dependencies:** MB-UX-005
+- **Objective:** Quality and final polish.
+- **Scope / required work:** Cross-module accessibility, responsive screenshots, regression tests, full pnpm gate and existing Development deployment verification.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Focused tests and rendered synthetic browser evidence; final gate/deployment in MB-UX-006.
+- **Completion criteria:** Cross-module accessibility, responsive screenshots, regression tests, full pnpm gate and existing Development deployment verification.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Full pnpm gate PASS (208unit/532Worker/5automation/27browser),59synthetic screenshots and actual representative visual review. Development Admin/Portal deployed and four anonymous remote browser/axe/CSP/logo/denial checks PASS; signed auth and read-only analytics/D1 consistency PASS. Exact implementation CI pending; see UX_EVIDENCE.md.
