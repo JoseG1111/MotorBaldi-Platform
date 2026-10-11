@@ -1,13 +1,13 @@
 # Current checkpoint
 
-- **Current checkpoint:** MB-P7-005 — Remote validation
-- **Status:** IN PROGRESS
-- **Last verified checkpoint:** MB-P7-006 — Development automation authentication
-- **Work completed:** Dedicated passwordless signed Development identity and secure OS/Cloudflare credential provisioned; migration 0018 and API/Worker deployed. No human credentials used.
-- **Verification completed:** Full gate 620 tests; full authenticated remote Parts lifecycle PASS (runner fixes separately regression-tested); actual signed API/DO regressions; remote authentication, nonce replay/freshness/path/workflow/org isolation PASS. Human MFA and other environments preserved.
-- **Remaining work:** Exact implementation CI evidence and documentation closeout. PARTS-only enablement, full signed mutation/cleanup smoke and both positive D1/audit/outbox/Queue checks passed.
-- **Current blocker:** None. Routine validation uses the OS-backed automation client.
-- **Exact next action:** Commit/push the tested implementation, verify its Platform CI, then mark MB-P7-005 VERIFIED and advance to the dependency-eligible Phase 8 business contract review.
-- **Relevant files:** `scripts/development/`, `scripts/parts/`, `docs/runbooks/development-automation.md`, `docs/adr/0027-development-automation-authentication.md`.
-- **Commands worth rerunning:** `node scripts/development/authentication-smoke.mjs`; `node scripts/parts/development-smoke.mjs`; `node scripts/parts/check-consistency.mjs`; `node scripts/development/check-consistency.mjs`.
-- **Expected result:** Existing synthetic Workshop gains only PARTS; owned synthetic Parts lifecycle/replay/frozen snapshots and processed Queue evidence pass without human authentication.
+- **Current checkpoint:** MB-P8-001 — Marketplace business contract
+- **Status:** HUMAN ACTION REQUIRED
+- **Last verified checkpoint:** MB-P7-005 — Remote validation
+- **Work completed:** Development automation and Parts closeout VERIFIED; implementation 1748c1d and Platform CI 38101065621 pass.
+- **Verification completed:** 620 local/CI tests; signed remote Parts mutation/replay/cleanup; positive D1, audit, outbox and Queue checks. Human MFA and staging/production preserved.
+- **Remaining work:** Owner approval or amendments to the completed discovery-only Phase 8 proposal.
+- **Current blocker:** Public publication/marketplace business policy requires separate owner approval under ADR 0026 and the execution stop rule. No secret or routine authentication blocker remains.
+- **Exact next action:** Record the owner decision on `docs/architecture/phase-8-marketplace-proposal.md`; if approved, accept the contract, verify MB-P8-001 and continue to MB-P8-002 autonomously.
+- **Relevant files:** `docs/architecture/phase-8-marketplace-proposal.md`, `docs/architecture/phase-7-partners-parts-assistance.md`, `docs/adr/0026-parts-catalog-and-phase-boundaries.md`, `docs/architecture/phase-5-membership-billing.md`.
+- **Commands worth rerunning:** `pnpm execution:check`.
+- **Expected result:** Explicit owner-approved Phase 8 contract before implementation; routine Development authentication remains autonomous.

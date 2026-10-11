@@ -96,3 +96,11 @@ Signed full remote Parts smoke exposed two runner/API-contract mismatches: omitt
 ## 2026-10-10 — MB-P7-005 positive remote consistency
 
 The existing scheduled relay/Queue processed the remaining real events. Parts consistency PASS: canonical3/offering2/snapshot2/processedParts22; history/audit/event/source-version/duplicate/FK/dead-letter checks all pass. Automation consistency PASS: scoped passwordless identity, human-auth exclusion, no unrelated roles, real security/audit/fixture outbox, no pending global events or active temporary grants/missing owned resources. Added six aggregate checker regressions to distinguish pending Queue from unavailable query, wrong environment, security/cleanup inconsistency and absent positive evidence. Full gate620 tests/artifacts/secret checks PASS. Exact implementation CI is the remaining closeout action; no VERIFIED claim yet for MB-P7-005.
+
+## 2026-10-10 — MB-P7-005 VERIFIED; Phase 8 contract review begins
+
+Exact implementation 1748c1d passed Platform CI 38101065621 (620 tests, artifacts and Git history secret scan). Authenticated mutation/replay, existing-fixture PARTS-only capability, immutable snapshots, safe failed-run recovery, audit/outbox and real Queue processing all pass; no pending events or active temporary grants/nonterminal owned orders remain. MB-P7-005 is VERIFIED. MB-P8-001 becomes the sole engineering cursor for business contract review, preserving separately parked billing/scanner boundaries and the owner's requirement for separate Phase 8 approval.
+
+## 2026-10-10 — MB-P8-001 proposed contract; owner business decision required
+
+Reviewed accepted Parts/public directory/commission/provider/media boundaries. Prepared `docs/architecture/phase-8-marketplace-proposal.md` as a concrete opt-in reviewed discovery-only approval package; it is explicitly PROPOSED, not approved or implemented. Asked owner approval or amendments. Phase 7 policy expressly requires separate Phase 8 approval and the execution plan stops for unresolved business choices, so MB-P8-001 is HUMAN ACTION REQUIRED; no later checkpoint is eligible. No human authentication, secrets, payment activation or deployment permission is requested.

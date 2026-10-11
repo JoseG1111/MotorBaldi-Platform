@@ -712,7 +712,7 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P7-005 — Remote validation
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P7-006
 - **Objective:** Validate phase in Development.
 - **Scope / required work:** Validate phase in Development.
@@ -726,15 +726,15 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 - **Historical local/CI closeout before owner-directed recovery:** Full gate passes 570 tests (126 unit/444 Worker), including eight smoke and four consistency regressions. Harness/closeout commit 4e1c37e passed [CI 38083420131](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38083420131), including artifact and Git history secret checks. Read-only fixture confirmation finds one verified synthetic Workshop/one active named site but zero PARTS capability. Authenticated mutations and positive Parts Queue evidence remain absent; HUMAN ACTION REQUIRED is unchanged.
 
-- **Owner-directed recovery:** Dedicated automation prerequisite MB-P7-006 is VERIFIED. The authenticated Parts lifecycle and both positive consistency probes now PASS; exact implementation CI is pending before closeout. Historical evidence remains retained; interactive authentication is superseded by the owner directive.
+- **Owner-directed recovery:** Dedicated automation prerequisite MB-P7-006 is VERIFIED. The authenticated Parts lifecycle and both positive consistency probes now PASS; implementation 1748c1d passed [CI 38101065621](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38101065621). Historical evidence remains retained; interactive authentication is superseded by the owner directive.
 
-- **Current autonomous evidence:** 2026-10-10 full gate 620 tests (146 unit/471 Worker/3 signed API+DO) PASS. Secure OS/Cloudflare-backed authentication, full Parts mutation/replay/CAS/origin/frozen-price lifecycle and cleanup PASS. Actual D1/Queue Parts consistency PASS: three canonical references, two offerings, two immutable snapshots and 22 processed Parts events, with matching histories/audits/events, no duplicate event versions, unresolved dead letters or FK violations. Automation consistency PASS: dedicated active identity, no human credentials/MFA/SUPERADMIN or unrelated roles, PARTS on the existing fixed fixture, real accepted/denied security events and processed fixture outbox, zero pending global events/active temporary grants/missing owned resources. Failed-run synthetic history retained; guarded authenticated recovery closed one DRAFT/version2 order and revoked its two grants after runner contract corrections. Exact implementation CI remains outstanding.
+- **Current autonomous evidence:** 2026-10-10 full gate 620 tests (146 unit/471 Worker/3 signed API+DO) PASS. Secure OS/Cloudflare-backed authentication, full Parts mutation/replay/CAS/origin/frozen-price lifecycle and cleanup PASS. Actual D1/Queue Parts consistency PASS: three canonical references, two offerings, two immutable snapshots and 22 processed Parts events, with matching histories/audits/events, no duplicate event versions, unresolved dead letters or FK violations. Automation consistency PASS: dedicated active identity, no human credentials/MFA/SUPERADMIN or unrelated roles, PARTS on the existing fixed fixture, real accepted/denied security events and processed fixture outbox, zero pending global events/active temporary grants/missing owned resources. Failed-run synthetic history retained; guarded authenticated recovery closed one DRAFT/version2 order and revoked its two grants after runner contract corrections. Implementation 1748c1d passed [CI 38101065621](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38101065621), including all 620 tests, artifacts and history secret scan. All required remote mutation, audit/outbox/Queue and cleanup evidence passes; MB-P7-005 is VERIFIED.
 
 ## Phase 8 — Marketplace
 
 ### MB-P8-001 — Marketplace business contract
 
-- **Status:** NOT STARTED
+- **Status:** HUMAN ACTION REQUIRED
 - **Dependencies:** MB-P7-005
 - **Objective:** Resolve listings, transactions, fees, moderation and liability from existing docs or human decision.
 - **Scope / required work:** Resolve listings, transactions, fees, moderation and liability from existing docs or human decision.
@@ -742,7 +742,8 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Contract review against repository and stakeholder decision if needed
 - **Completion criteria:** Business rules explicit before coding.
-- **Human-action conditions:** Human business decision if repository does not establish marketplace rules.
+- **Human-action conditions:** Owner approval or amendments to the concrete [discovery-only proposal](../architecture/phase-8-marketplace-proposal.md). ADR 0026 explicitly reserves public/commercial Phase 8 rules for separate approval; no approved publication consent, public offering fields or marketplace moderation/transaction contract exists. Routine Development authentication is not a boundary.
+- **Evidence:** Reviewed existing public organization directory, approved Parts confidentiality/lifecycle, service-specific commissions, disabled providers and scanner restrictions. Prepared a complete proposed opt-in public discovery contract with scoped submission, reviewed snapshots, eligibility revocation and no orders/payments/fees/media. Proposal remains unapproved; no marketplace code or deployment enabled. Subsequent checkpoints depend on this owner decision.
 
 ### MB-P8-002 — Marketplace domain + authorization
 
