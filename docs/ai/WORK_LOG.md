@@ -132,3 +132,31 @@ Only pending migration0019 applied remotely (14 commands). Four Development appl
 ## 2026-10-10 — MB-P8-005 positive remote verification; CI outstanding
 
 Anonymous and full signed marketplace smokes PASS. Actual synthetic create/private/submit/approve/public privacy/source-price-change hiding/freshreview/reject/revoke/withdraw/replay/mismatch/stale/origin and owned cleanup executed remotely. The empty baseline correctly failed positive evidence; initial consistency probes after writes reported pending, then actual Queue convergence passed. D1 marketplace listing1/history11/processedMarketplace11 with complete matching audit/history/outbox, no gaps/duplicates/privacy/ownership/FK/deadletter violations; listingSUSPENDED/offeringINACTIVE/canonicalARCHIVED preserved history. Parts probe PASS4canonical/3offerings/2snapshots/29processedParts; automationPASS, zero global pending/unresolveddeadletters. Full gate688tests PASS, including16 safe smoke/aggregate-checker regressions. Exact implementation CI remains before VERIFIED; no staging/production or commerce/media activation.
+
+## 2026-10-10 — MB-P8-005 VERIFIED; Phase 9 contract review begins
+
+Exact implementation e8f4c82 passed CI38110062284 (688tests, artifact/history secret checks). All approved discovery/moderation completion evidence passed remotely: signed mutations, positive anonymous privacy/discovery, owned cleanup, real matching immutable D1/history/audit/outbox and 11processed marketplace events with zero pending global events/unresolveddeadletters. No orders/payments/inventory/fees/media/fulfillment implementation claimed. MB-P8-005 VERIFIED; MB-P9-001 sole cursor for event/purpose/privacy contract review. Existing Wompi/scanner limitations unchanged.
+
+## 2026-10-10 — MB-P9-001 bounded operational contract
+
+Repository inspection confirms Foundation operational Queue metrics, accepted minimal-ID versioned events and exact current audit/catalog/own Parts access. ADR0029 bounds Phase9 to transient counts of those same authorized facts, no copied data/new retention/provider/financial or predictive purpose. This is a routine engineering choice within owner-delegated implementation, not a new commercial/data-sharing policy. New analytics workspace uses existing dependencies only; schema/privacy regression work proceeds under001. Broader intelligence/business measures remain unavailable unless their separate requirements exist.
+
+## 2026-10-10 — MB-P9-001 VERIFIED; advance MB-P9-002
+
+Strict version1 current-state report/event contracts pass8 tests including UTC/provenance, exact authorized/owned-synthetic scope, safe totals, genuine zeros versus missing evidence, privacy and disabled capabilities. Typecheck, boundaries, execution and security checks pass. ADR0029 reports only established authorized operational facts with no new retention/data use. Begin current-authority-bound D1 count implementation.
+
+## 2026-10-10 — MB-P9-002 VERIFIED; advance MB-P9-003
+
+Twelve real-D1 tests pass source equality/current discovery/legitimate zero/duplicate delivery and sanitized unavailable evidence. Single authorization-bound aggregate snapshots preserve existing roles and machine-owned scope. Typecheck/lint/format/execution pass; no migrations/materialization/providers. Review and verify privacy/current-access/retention boundaries next.
+
+## 2026-10-10 — MB-P9-003 VERIFIED; advance MB-P9-004
+
+Independent security review and rerun12 D1/8 strict contract tests verify exact current human MFA/roles/site scope, fixed machine ownership/read context/key rotation, SQL-time revocation, machine Queue denial and sanitized evidence failures. No report persistence/source-retention changes or PII. Boundaries/security pass. Begin strict private API and Spanish current-count views; full gate and remote closeout remain required.
+
+## 2026-10-10 — MB-P9-004 VERIFIED; advance MB-P9-005
+
+First full gate741tests PASS, with final report auth-loss/logout refinement separately passing32 focusedtests/typecheck. Nine actual human-MFA API tests and signed owned-report API checks preserve existing authority, no-store, strict read-only queries and machine Queue denial; twelve browser/twelve smoke regressions pass safe current-count views/scope races/sanitized independent evidence. Read-only security review finds no blocker. Begin final gate, changed-app Development deployment, authenticated independent D1/source consistency and exact implementation CI.
+
+## 2026-10-10 — MB-P9-005 deployed and remotely validated; CI pending
+
+Final gate743tests PASS. Development API58f67646-8122-440f-809a-be4fad2c13b0/Portal061f5074-3668-40b1-8ed3-fe2b60b1b32e/Admin0c1793ab-ecaf-4731-9e34-4e09e13d160a deployed; no Worker/migrations. Health/assets/anonymous discovery PASS. Both signed read-only analytics commands PASS exact independent D1 counts/strictprivacy/scope/Queue-denial and existing source audit/history/outbox/Queue probes. OwnedARCHIVED4/INACTIVE3/SUSPENDED1, originalmarketplacehistory11/processed11, global pending/deadletter/FK0. No human login, new fixture, preference, report persistence or new events. Await exact implementation CI before VERIFIED.

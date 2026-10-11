@@ -789,7 +789,7 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P8-005 — Remote validation
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P8-004
 - **Objective:** Validate approved public discovery/moderation in Development.
 - **Scope / required work:** Validate approved publication/review/public reads and synthetic cleanup; commerce/media/fulfillment remain explicitly out of scope.
@@ -799,66 +799,76 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Completion criteria:** Approved discovery/moderation remote mutation/public privacy/cleanup, D1/audit/outbox/Queue consistency, full gate and exact implementation CI pass. No commerce or media implementation is claimed.
 - **Human-action conditions:** Global stop rule; otherwise none.
 
-- **Current evidence:** Migration0019 applied (14commands); Development API73a59fb6-7a9b-4a92-8ad2-a7f82015fae3, Workerf1e7abf6-fb64-4dcd-bea3-baca39791c61, Portal7e41cbcd-f612-4ca4-a1ce-f886e268d078 and Admin0f04c48c-2570-4db6-a67c-a99fc9c544d9 deployed. Post-deploy authentication/isolation, health/HTML and anonymous discovery/capabilities PASS. Full OS-signed remote publication/moderation/privacy/source-price hiding/re-review/replay/conflict/stale/origin/cleanup smoke PASS; no human credentials or preferences used. Actual positive marketplace consistency PASS: one synthetic listing, 11 immutable histories and 11 processed marketplace events with matching audits/outbox/versions and clean terminal ownership. Parts consistency PASS canonical4/offering3/snapshot2/processedParts29; automation consistency PASS. Early pending probes were not counted as success; subsequent real Queue convergence leaves zero global pending events/unresolved dead letters/FK or duplicate/version/privacy violations. Empty baseline correctly rejected MARKETPLACE_EVIDENCE_REQUIRED. Full gate PASS688 tests (174foundation/510Worker/4signedAPI+DO), including eight smoke/eight consistency regressions. Exact implementation CI remains required before VERIFIED.
+- **Current evidence:** Migration0019 applied (14commands); Development API73a59fb6-7a9b-4a92-8ad2-a7f82015fae3, Workerf1e7abf6-fb64-4dcd-bea3-baca39791c61, Portal7e41cbcd-f612-4ca4-a1ce-f886e268d078 and Admin0f04c48c-2570-4db6-a67c-a99fc9c544d9 deployed. Post-deploy authentication/isolation, health/HTML and anonymous discovery/capabilities PASS. Full OS-signed remote publication/moderation/privacy/source-price hiding/re-review/replay/conflict/stale/origin/cleanup smoke PASS; no human credentials or preferences used. Actual positive marketplace consistency PASS: one synthetic listing, 11 immutable histories and 11 processed marketplace events with matching audits/outbox/versions and clean terminal ownership. Parts consistency PASS canonical4/offering3/snapshot2/processedParts29; automation consistency PASS. Early pending probes were not counted as success; subsequent real Queue convergence leaves zero global pending events/unresolved dead letters/FK or duplicate/version/privacy violations. Empty baseline correctly rejected MARKETPLACE_EVIDENCE_REQUIRED. Full gate PASS688 tests (174foundation/510Worker/4signedAPI+DO), including eight smoke/eight consistency regressions. Exact implementation e8f4c82 passed [Platform CI38110062284](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38110062284), including all688tests/artifacts/history secret scan. MB-P8-005 VERIFIED only for approved discovery/moderation.
 
 ## Phase 9 — Intelligence / Analytics
 
 ### MB-P9-001 — Analytics data/event contract
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P8-005
-- **Objective:** Define event schema, provenance and allowed uses from established requirements.
-- **Scope / required work:** Define event schema, provenance and allowed uses from established requirements.
+- **Objective:** Define versioned read-only current-state reports and established event provenance without new data uses.
+- **Scope / required work:** Strict count/report schemas, source provenance, exact existing audit/catalog/own Parts scopes and transient/no-new-retention analytics boundary in ADR0029. No profiling, financial estimates, predictive features or copied source data.
 - **Relevant files/systems:** Contracts, messaging, analytics package
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Schema/privacy tests
 - **Completion criteria:** Events have stable semantics.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Strict version1 count/provenance/resource-scope/privacy and existing event-contract tests PASS8; typecheck, workspace boundaries, execution-state and secret/security checks PASS. ADR0029 preserves existing purposes and authority; no new telemetry/persistence or commercial interpretation.
+
 ### MB-P9-002 — Operational/business analytics
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P9-001
-- **Objective:** Build approved aggregates and measures.
-- **Scope / required work:** Build approved aggregates and measures.
+- **Objective:** Build read-only counts of existing authorized Parts/publication states and Foundation Queue metrics.
+- **Scope / required work:** One authorization-bound D1 snapshot query per report, truthful current states and separate discoverability, no financial/provider predictions or new events/materialization.
 - **Relevant files/systems:** Analytics package, D1/Worker
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Aggregation tests
 - **Completion criteria:** Metrics reproduce source facts.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Twelve actual D1 regressions reproduce canonical/offering/listing and Queue source counts, distinguish current discovery, preserve legitimate zero and duplicate-delivery independence, and reject missing/failed evidence. One authorization-bound aggregate snapshot/query per report; typecheck, lint, formatting and execution checks PASS. No migration or new materialization.
+
 ### MB-P9-003 — Access/privacy/retention
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P9-002
 - **Objective:** Enforce class-based access, PII limits and retention.
-- **Scope / required work:** Enforce class-based access, PII limits and retention.
+- **Scope / required work:** Existing exact assured audit/catalog/own organization-location Parts authority, SQL-time revocation checks, machine-owned synthetic scope, strict count-only DTO/no-store and no report persistence/source-retention changes.
 - **Relevant files/systems:** Authz, analytics, migrations
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Privacy/retention tests
 - **Completion criteria:** Restricted data protected.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Independent read-only security review and re-run12 real-D1/8 strict contract tests PASS exact roles/MFA, own and selected-site privacy, cross-organization denial, SQL-time role/member revocation, fixed synthetic ownership, exact read-context/key rotation, machine Queue denial and sanitized missing evidence. Count-only INTERNAL DTOs are transient with no copied source data or changed source retention; secret/boundary checks PASS. API privileged-session/no-store verification belongs to MB-P9-004.
+
 ### MB-P9-004 — Reporting/UI
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P9-003
 - **Objective:** Expose scoped Spanish-first reports.
-- **Scope / required work:** Expose scoped Spanish-first reports.
+- **Scope / required work:** Strict read-only private report APIs and Spanish current-count views using existing source authority, no-store, safe rendering and workspace/response freshness. No exports, predictive or financial claims.
 - **Relevant files/systems:** API, Portal, Admin
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Report/UI tests
 - **Completion criteria:** Reports accurate and accessible.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
+- **Evidence:** Full gate PASS741 tests (204foundation/532Worker/5signed API+DO), then final auth-loss/logout refinements PASS32 focused contract/UI/smoke tests including12 actual browser tests and typecheck. Nine actual assured-human API tests enforce exact scopes/no-store/query/MFA/current authority; signed API verifies current owned counts without human MFA/global audit permission or new outbox events. Independent API/UI security review and auth-loss cancellation pass. Twelve sanitized smoke/independent-comparison regressions pass; OpenAPI/private-client/runbooks updated. Remote validation remains MB-P9-005.
+
 ### MB-P9-005 — Remote validation
 
-- **Status:** NOT STARTED
+- **Status:** IN PROGRESS
 - **Dependencies:** MB-P9-004
 - **Objective:** Validate analytics in Development.
-- **Scope / required work:** Validate analytics in Development.
+- **Scope / required work:** Deploy only changed Development apps after final gate; compare signed own synthetic report counts against independent D1 aggregates and existing positive audit/history/outbox/Queue consistency. Global Queue API remains intentionally unavailable to machine.
 - **Relevant files/systems:** Development apps/resources
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote smoke and gate
-- **Completion criteria:** Analytics phase verified.
+- **Completion criteria:** Actual signed report/privacy/scope/denial and independent D1 count comparison, positive source audit/outbox/Queue consistency, full final gate and exact implementation CI pass. No broader intelligence, financial or provider verification is inferred.
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
+
+- **Current evidence:** Final full gate PASS743tests (206foundation/532Worker/5signedAPI+DO). Only Development API58f67646-8122-440f-809a-be4fad2c13b0, Portal061f5074-3668-40b1-8ed3-fe2b60b1b32e and Admin0c1793ab-ecaf-4731-9e34-4e09e13d160a deployed; no migration or Worker changes. Health/report assets and anonymous discovery regression PASS. Signed analytics smoke and independent D1/source consistency command bothPASS, with owned current counts canonicalARCHIVED4/offeringINACTIVE3/listingSUSPENDED1,11marketplacehistories/11processed events, matched source audit/outbox/Queue and clean global pending/deadletter/FK constraints. Existing Parts/marketplace/automation checkers PASS. Machine remains denied global Queue API; positive human API verified locally and real remote Queue consistency proven through authorized D1 probes. Exact implementation CI pending; not yet VERIFIED.

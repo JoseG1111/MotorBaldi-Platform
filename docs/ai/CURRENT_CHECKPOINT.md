@@ -1,13 +1,16 @@
 # Current checkpoint
 
-- **Current checkpoint:** MB-P8-005 — Remote validation
+- **Current checkpoint:** MB-P9-005 — Remote validation
 - **Status:** IN PROGRESS
-- **Last verified checkpoint:** MB-P8-004 — Marketplace workflows/UI
-- **Work completed:** Discovery/moderation locally verified; migration 0019 applied (14 commands). Development API 73a59fb6-7a9b-4a92-8ad2-a7f82015fae3, Worker f1e7abf6-fb64-4dcd-bea3-baca39791c61, Portal 7e41cbcd-f612-4ca4-a1ce-f886e268d078, Admin 0f04c48c-2570-4db6-a67c-a99fc9c544d9 deployed.
-- **Verification completed:** Full gate PASS688 tests (174 foundation/510 Worker/4 signed API+DO). Signed remote publication/moderation/review/withdrawal/cleanup and anonymous positive privacy/discovery PASS. Marketplace D1/audit/outbox/Queue PASS: one listing/11 histories/11 processed events; Parts/automation consistency PASS; zero global pending or unresolved dead letters.
-- **Remaining work:** Exact implementation CI and evidence closeout only.
-- **Current blocker:** None. Existing OS-backed dedicated Development authentication is provisioned.
-- **Exact next action:** Commit/push the tested implementation and verify exact Platform CI, then mark MB-P8-005 VERIFIED and advance to eligible Phase 9 contract review.
-- **Relevant files:** `migrations/0019_marketplace_discovery.sql`, `packages/parts/src/marketplace*`, API/Worker and Portal/Admin, `scripts/development/`.
-- **Commands worth rerunning:** `pnpm gate`; `node scripts/development/authentication-smoke.mjs`.
-- **Expected result:** Reviewed synthetic public discovery passes and is withdrawn after testing; preserved immutable evidence and processed events match. Disabled commerce/media stays unavailable.
+- **Last verified checkpoint:** MB-P9-004 — Reporting/UI
+- **Work completed:** Owner-approved Phase 8 remotely verified; bounded Phase 9 contract verified with 8 strict schema/privacy/provenance tests.
+- **Verification completed:** Phase 8 implementation e8f4c82 CI38110062284 and Development positive publication/cleanup/D1/audit/outbox/Queue PASS. Phase 9 contract typecheck/boundaries/execution/security PASS.
+- **Remaining work:** Exact implementation commit/CI closeout remains; final743-test gate, changed-app Development deployment, signed report and independent D1/source audit/outbox/Queue checks PASS.
+- **Current blocker:** None. Existing OS-secured Development automation available.
+- **Exact next action:** Commit/push the tested implementation, wait for exact CI pass, then verify MB-P9-005 and reconcile remaining parked boundaries.
+- **Relevant files:** `packages/analytics/`, `docs/architecture/phase-9-operational-analytics.md`, ADR0029.
+- **Commands worth rerunning:** Analytics focused tests, typecheck and execution check; full gate before deployment.
+- **Constraints:** No new roles, copied data, personal data, financial/predictive uses, commerce/media/providers, staging or Production changes. Existing billing/scanner limitations remain parked.
+- **Human-action conditions:** Global execution-plan stop rule; none for established scoped counts.
+
+- **Current remote evidence:** API58f67646-8122-440f-809a-be4fad2c13b0, Portal061f5074-3668-40b1-8ed3-fe2b60b1b32e and Admin0c1793ab-ecaf-4731-9e34-4e09e13d160a deployed exclusively to Development. Worker unchanged; no migrations required. Health/report assets/anonymous marketplace regression PASS. Both analytics remote commands PASS signed privacy/no-store/GET/query/foreign-scope/machine Queue denial and independent count equality. Owned canonicalARCHIVED4/offeringINACTIVE3/listingSUSPENDED1;11marketplacehistories/11processed events, matching source audits/outbox/history; Parts/marketplace/automation positive consistency PASS, global pending/unresolveddeadletters/FK violations0. No human credentials, copied report data or new events/materialization. Local final gate PASS743tests (206foundation/532Worker/5signedAPI+DO). Exact CI pending; checkpoint not yet VERIFIED.

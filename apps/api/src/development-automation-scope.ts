@@ -163,6 +163,13 @@ export async function automationRoute(
     );
   if (post && path === "/api/v1/development/automation/fixtures/parts/enable")
     return null;
+  // Read-only reports derive the same minimal owned Parts scope. Global Queue authority is never granted.
+  if (get && path === "/api/v1/admin/analytics/parts") return null;
+  if (get && org?.[2] === "analytics/parts") {
+    if (url.searchParams.get("locationId") !== current.location_id)
+      throw missing();
+    return null;
+  }
   const marketplaceAdmin = path.match(
     /^\/api\/v1\/admin\/marketplace\/listings(?:\/([^/]+)\/(approve|reject|suspend))?$/,
   );

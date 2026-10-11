@@ -31,3 +31,5 @@ This is an index of decisions, not a replacement for [master architecture](../ar
 - [ADR 0027](../adr/0027-development-automation-authentication.md) accepts the owner-directed dedicated signed Development automation identity, distinct from human MFA, with fixed synthetic scope, least privilege, OS/Cloudflare secret storage, revocation/rotation and immutable validation evidence. Human MFA and staging/production authentication remain unchanged.
 
 - [ADR 0028](../adr/0028-public-parts-discovery-and-moderation.md) accepts owner-approved Phase 8 optional public parts discovery/moderation: private-default opted-in reviewed snapshots, verified active PARTS partners, general location/indicative prices, audited withdrawal/revocation and existing security. Commerce, fees, media and fulfillment remain disabled.
+
+- [ADR 0029](../adr/0029-scoped-read-only-operational-analytics.md) bounds Phase 9 to transient current-state/Queue counts under existing assured audit/catalog/own Parts authority. No new PII use, scope, financial claims, report persistence, provider or retention policy.

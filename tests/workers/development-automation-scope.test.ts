@@ -254,6 +254,27 @@ describe("Development automation scope", () => {
       )
       .run();
   });
+  it("allows only read-only owned Parts analytics and excludes global audit reports", async () => {
+    for (const path of [
+      "/admin/analytics/parts",
+      `/organizations/${org}/analytics/parts?locationId=${site}`,
+    ])
+      await expect(
+        automationRoute(db, request(path), actor),
+      ).resolves.toBeNull();
+    for (const [path, status] of [
+      ["/admin/analytics/queue", 403],
+      [`/organizations/${org}/analytics/parts`, 404],
+      [`/organizations/${org}/analytics/parts?locationId=foreign`, 404],
+      ["/organizations/foreign/analytics/parts", 404],
+    ] as const)
+      await expect(
+        automationRoute(db, request(path), actor),
+      ).rejects.toMatchObject({ status });
+    await expect(
+      automationRoute(db, request("/admin/analytics/parts", "POST"), actor),
+    ).rejects.toMatchObject({ status: 403 });
+  });
   it("claims creation in D1 and rejects credential rotation and revocation", async () => {
     const claims = automationResourceClaim(
       db,

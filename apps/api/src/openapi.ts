@@ -1407,3 +1407,143 @@ for (const action of ["approve", "reject", "suspend"])
       ),
     },
   });
+
+// Current-state analytics are transient, private and restricted by the source's exact existing authority.
+const analyticsCount = {
+  type: "integer",
+  minimum: 0,
+  maximum: Number.MAX_SAFE_INTEGER,
+};
+const analyticsObject = (properties: Record<string, unknown>) => ({
+  type: "object",
+  additionalProperties: false,
+  required: Object.keys(properties),
+  properties,
+});
+const analyticsStates = (states: string[]) =>
+  analyticsObject(
+    Object.fromEntries(states.map((state) => [state, analyticsCount])),
+  );
+const analyticsAuthorizedScope = analyticsObject({
+  type: { type: "string", enum: ["PLATFORM"] },
+  resourceScope: { type: "string", enum: ["AUTHORIZED", "OWNED_SYNTHETIC"] },
+});
+const analyticsReport = (
+  kind: string,
+  sourceTables: string[],
+  counts: unknown,
+  scope: unknown = analyticsAuthorizedScope,
+) =>
+  analyticsObject({
+    schemaVersion: { type: "integer", enum: [1] },
+    classification: { type: "string", enum: ["INTERNAL"] },
+    kind: { type: "string", enum: [kind] },
+    observedAt: {
+      type: "string",
+      format: "date-time",
+      pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$",
+    },
+    scope,
+    provenance: analyticsObject({
+      mode: { type: "string", enum: ["CURRENT_STATE"] },
+      sourceTables: {
+        type: "array",
+        minItems: sourceTables.length,
+        maxItems: sourceTables.length,
+        items: { type: "string", enum: sourceTables },
+        description: "Exact source table sequence: " + sourceTables.join(", "),
+      },
+    }),
+    counts,
+  });
+const analyticsGet = (
+  summary: string,
+  schema: unknown,
+  parameters: unknown[] = [],
+) => ({
+  ...get(summary, parameters),
+  description:
+    "INTERNAL count-only current D1 facts. Strict query; Cache-Control: no-store. Missing/malformed evidence fails closed. Human privileged sessions retain verified MFA. Development automation sees only owned synthetic Parts records and has no Queue audit authority. No report persistence, exports, profiling or financial estimates.",
+  responses: {
+    "200": {
+      description: "Authorized current-state report",
+      headers: {
+        "Cache-Control": { schema: { type: "string", enum: ["no-store"] } },
+      },
+      content: { "application/json": { schema } },
+    },
+    "400": problem,
+    "401": problem,
+    "403": problem,
+    "404": problem,
+    "405": problem,
+    "429": problem,
+    "503": problem,
+  },
+});
+Object.assign(openapi.paths, {
+  "/api/v1/admin/analytics/parts": {
+    get: analyticsGet(
+      "Current canonical Parts state counts; exact assured catalog staff",
+      analyticsReport(
+        "CANONICAL_PARTS",
+        ["parts_canonical"],
+        analyticsStates(["DRAFT", "ACTIVE", "ARCHIVED"]),
+      ),
+    ),
+  },
+  "/api/v1/admin/analytics/queue": {
+    get: analyticsGet(
+      "Current Queue metrics; exact assured PLATFORM_SUPERADMIN/AUDITOR audit reader",
+      analyticsReport(
+        "PLATFORM_QUEUE",
+        ["integration_outbox_events", "integration_dead_letters"],
+        analyticsStates([
+          "PENDING",
+          "PROCESSING",
+          "PROCESSED",
+          "DEAD",
+          "liveLeases",
+          "unresolvedDeadLetters",
+        ]),
+        analyticsObject({
+          type: { type: "string", enum: ["PLATFORM"] },
+          resourceScope: { type: "string", enum: ["AUTHORIZED"] },
+        }),
+      ),
+    ),
+  },
+  "/api/v1/organizations/{organizationId}/analytics/parts": {
+    get: analyticsGet(
+      "Exact own organization/location Parts and publication counts; separate currently discoverable count",
+      analyticsReport(
+        "ORGANIZATION_PARTS",
+        [
+          "parts_offerings",
+          "marketplace_listings",
+          "marketplace_eligible_sources",
+        ],
+        analyticsObject({
+          offerings: analyticsStates(["DRAFT", "ACTIVE", "INACTIVE"]),
+          listings: analyticsStates([
+            "DRAFT",
+            "PENDING_REVIEW",
+            "PUBLISHED",
+            "SUSPENDED",
+          ]),
+          discoverable: analyticsCount,
+        }),
+        analyticsObject({
+          type: { type: "string", enum: ["ORGANIZATION"] },
+          organizationId: id,
+          locationId: { ...id, nullable: true },
+          resourceScope: {
+            type: "string",
+            enum: ["AUTHORIZED", "OWNED_SYNTHETIC"],
+          },
+        }),
+      ),
+      [orgId, partsLocation],
+    ),
+  },
+});

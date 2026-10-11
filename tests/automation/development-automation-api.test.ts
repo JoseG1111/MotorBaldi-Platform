@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { analyticsReportSchema } from "@motorbaldi/analytics";
 import { authenticateDevelopmentAutomation } from "@motorbaldi/auth";
 import { env, exports as workerExports } from "cloudflare:workers";
 import type { ApiBindings } from "@motorbaldi/config";
@@ -534,6 +535,74 @@ describe("signed Development automation through actual API and coordinator", () 
     ).toBe(404);
     expect(await count("marketplace_listing_history")).toBe(4);
     expect(await count("auth_two_factors")).toBe(0);
+  });
+  it("returns only owned current analytics facts through signed API without human MFA or audit authority", async () => {
+    const outboxBefore = await count("integration_outbox_events");
+    for (const path of [
+      "/admin/analytics/parts",
+      base + "/analytics/parts?locationId=" + locationId,
+    ]) {
+      const response = await signed(path);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      const report = analyticsReportSchema.parse(await response.json());
+      expect(report.scope.resourceScope).toBe("OWNED_SYNTHETIC");
+      expect(report.classification).toBe("INTERNAL");
+      if (report.kind === "CANONICAL_PARTS") {
+        const rows = (
+          await db
+            .prepare(
+              "SELECT c.status,COUNT(*) AS n FROM parts_canonical c JOIN development_automation_resources r ON r.resource_type='canonical' AND r.resource_id=c.id WHERE r.account_id=? GROUP BY c.status",
+            )
+            .bind(accountId)
+            .all<{ status: string; n: number }>()
+        ).results;
+        for (const state of ["DRAFT", "ACTIVE", "ARCHIVED"] as const)
+          expect(report.counts[state]).toBe(
+            rows.find((row) => row.status === state)?.n ?? 0,
+          );
+      } else if (report.kind === "ORGANIZATION_PARTS") {
+        expect(report.scope).toMatchObject({ organizationId, locationId });
+        const rows = (
+          await db
+            .prepare(
+              "SELECT f.status,COUNT(*) AS n FROM parts_offerings f JOIN development_automation_resources r ON r.resource_type='offering' AND r.resource_id=f.id WHERE r.account_id=? AND f.organization_id=? AND f.location_id=? GROUP BY f.status",
+            )
+            .bind(accountId, organizationId, locationId)
+            .all<{ status: string; n: number }>()
+        ).results;
+        for (const state of ["DRAFT", "ACTIVE", "INACTIVE"] as const)
+          expect(report.counts.offerings[state]).toBe(
+            rows.find((row) => row.status === state)?.n ?? 0,
+          );
+      } else throw new Error("Unexpected authorized analytics scope");
+    }
+    expect((await signed("/admin/analytics/queue")).status).toBe(403);
+    expect((await signed(base + "/analytics/parts")).status).toBe(404);
+    expect(
+      (await signed(base + "/analytics/parts?locationId=" + newId())).status,
+    ).toBe(404);
+    expect(
+      (
+        await signed(
+          `/organizations/${newId()}/analytics/parts?locationId=${locationId}`,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (await signed("/admin/analytics/parts?include=contacts")).status,
+    ).toBe(400);
+    expect((await signed("/admin/analytics/parts", {})).status).toBe(403);
+    expect(
+      (
+        await signed("/admin/analytics/parts", undefined, undefined, {
+          signed: false,
+        })
+      ).status,
+    ).toBe(401);
+    expect(await count("integration_outbox_events")).toBe(outboxBefore);
+    expect(await count("auth_two_factors")).toBe(0);
+    expect(await count("auth_credentials")).toBe(0);
   });
   it("rolls back replay, ownership and effects when assurance is revoked before commit", async () => {
     const contextId = newId(),

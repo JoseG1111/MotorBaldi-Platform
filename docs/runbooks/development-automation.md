@@ -67,3 +67,5 @@ node scripts/development/check-consistency.mjs
 Each routine reuses OS-backed signing. The Parts full smoke enables only the owner-approved existing fixture capability, uses its own synthetic resources, preserves historical snapshots and revokes temporary grants after cleanup. Wait for the existing outbox relay/Queue before positive consistency checks; pending events never count as verification.
 
 The [Marketplace runbook](marketplace-development.md) reuses this same identity for owned synthetic publication/review/withdrawal. Public discovery uses unsigned read-only requests. Human staff review, staging/production and all commerce/media restrictions remain unchanged.
+
+The [Analytics validation runbook](analytics-development-validation.md) reuses the same identity for read-only owned synthetic current-state reports and independent D1/source audit/outbox/Queue evidence. No global audit permission or human authentication is added. Future checkpoints reuse this client and preserve their exact existing permissions.

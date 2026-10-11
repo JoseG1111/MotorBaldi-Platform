@@ -6,6 +6,7 @@ import {
   automationRoute,
   validateAutomationCommand,
 } from "./development-automation-scope.js";
+import { analyticsRoutes } from "./analytics-routes.js";
 import { marketplaceRoutes } from "./marketplace-routes.js";
 import { partsRoutes } from "./parts-routes.js";
 import { supportRoutes } from "./support-routes.js";
@@ -608,6 +609,13 @@ async function route(
       { headers: cors },
     );
   }
+  const analyticsResponse = await analyticsRoutes(
+    request,
+    env.DB,
+    businessPrincipal,
+    cors,
+  );
+  if (analyticsResponse) return analyticsResponse;
   const marketplaceResponse = await marketplaceRoutes(
     request,
     env.DB,

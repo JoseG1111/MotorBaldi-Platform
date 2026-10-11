@@ -25,6 +25,7 @@
     "@motorbaldi/workshops": "workspace:*",
     "@motorbaldi/inspections": "workspace:*",
     "@motorbaldi/payments": "workspace:*",
-    "@motorbaldi/parts": "workspace:*"
+    "@motorbaldi/parts": "workspace:*",
+    "@motorbaldi/analytics": "workspace:*"
   }
 }
