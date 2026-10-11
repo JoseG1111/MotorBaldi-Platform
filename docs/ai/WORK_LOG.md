@@ -176,3 +176,5 @@ Implementation431ab13 passed [Platform CI38111171488](https://github.com/JoseG11
 - 2026-10-11: MB-UX-005 VERIFIED: scoped Portal workflows, four synthetic browser tests and51focused Phase1+Parts tests PASS. Main visually inspected customer/workshop/partner views and corrected history/partner composition. MB-UX-006 active for final gate, CI and Development deployment.
 
 - 2026-10-11: MB-UX-006 IMPLEMENTED — NOT VERIFIED pending exact CI. Full gate772tests PASS (745unit/Worker/automation+27browser);59synthetic screenshots, final densePeople/partner/mobilehistory inspected. Development Admin12d6af60/Portal5acd9d9c deployed; four remote anonymous browser checks and signed auth/read-only analytics+D1 consistency PASS. No API/schema/production changes.
+
+- 2026-10-11: Initial UI ad9d7f4 passed CI38175243210. Final visual review corrected inspection creation/detail composition and Workshop/Inspection/CRM re-entry; focused52unit+4Portal browser and full772test gate PASS. Final Development Adminfb72ab80/Portal1ab3bc6f deployed and four remote browser checks PASS. Final polish CI pending; Wompi fresh names-only inventory0/4.

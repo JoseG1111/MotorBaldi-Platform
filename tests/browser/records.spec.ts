@@ -311,6 +311,17 @@ for (const [panel, content] of [
           .analyze()
       ).violations,
     ).toEqual([]);
+    if (panel === "crm") {
+      await page
+        .locator("#lead-list")
+        .getByRole("button", { name: "Laura Pérez" })
+        .click();
+      await expect(page.locator("#lead-list")).toBeHidden();
+      await page.locator('[data-panel="people"]').click();
+      await page.locator('[data-panel="crm"]').click();
+      await expect(page.locator("#lead-list")).toBeVisible();
+      await expect(page.locator("#lead-detail")).toBeEmpty();
+    }
     expect(evidence.unexpected).toEqual([]);
     expect(evidence.errors).toEqual([]);
   });

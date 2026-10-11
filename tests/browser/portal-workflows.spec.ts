@@ -328,6 +328,7 @@ async function workspace(page: Page, value: string) {
     await page.locator("#nav-toggle").click();
 }
 async function quality(page: Page, path: string) {
+  await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path, fullPage: true });
   expect(
     await page.evaluate(
@@ -421,9 +422,24 @@ for (const width of [1440, 390])
     await expect(page.locator("#inspection-detail")).toContainText(
       "Sistema de frenos",
     );
+    await expect(page.locator("#inspection-create-disclosure")).toBeHidden();
     await quality(
       page,
       info.outputPath(`synthetic-portal-inspection-${width}.png`),
+    );
+    // Re-entering a queue after a detail must restore its records.
+    await navigate(page, "workshop");
+    await expect(page.locator("#workshop-list")).toBeVisible();
+    await expect(page.locator("#workshop-list")).toContainText(
+      "Mantenimiento preventivo",
+    );
+    await navigate(page, "inspections");
+    await expect(page.locator("#inspection-list")).toBeVisible();
+    await expect(page.locator("#inspection-create-disclosure")).toBeVisible();
+    await page.locator("#inspection-create-disclosure summary").click();
+    await expect(page.locator("#inspection-create-form")).toBeVisible();
+    await expect(page.locator("#inspection-vehicles option")).toContainText(
+      "Automóvil",
     );
     await navigate(page, "parts");
     await expect(page.locator("#parts-list")).toContainText(offering.name);
