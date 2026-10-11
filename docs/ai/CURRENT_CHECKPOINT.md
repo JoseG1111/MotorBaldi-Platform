@@ -1,13 +1,13 @@
 # Current checkpoint
 
-- **Current checkpoint:** MB-P8-001 — Marketplace business contract
-- **Status:** HUMAN ACTION REQUIRED
-- **Last verified checkpoint:** MB-P7-005 — Remote validation
-- **Work completed:** Development automation and Parts closeout VERIFIED; implementation 1748c1d and Platform CI 38101065621 pass.
-- **Verification completed:** 620 local/CI tests; signed remote Parts mutation/replay/cleanup; positive D1, audit, outbox and Queue checks. Human MFA and staging/production preserved.
-- **Remaining work:** Owner approval or amendments to the completed discovery-only Phase 8 proposal.
-- **Current blocker:** Public publication/marketplace business policy requires separate owner approval under ADR 0026 and the execution stop rule. No secret or routine authentication blocker remains.
-- **Exact next action:** Record the owner decision on `docs/architecture/phase-8-marketplace-proposal.md`; if approved, accept the contract, verify MB-P8-001 and continue to MB-P8-002 autonomously.
-- **Relevant files:** `docs/architecture/phase-8-marketplace-proposal.md`, `docs/architecture/phase-7-partners-parts-assistance.md`, `docs/adr/0026-parts-catalog-and-phase-boundaries.md`, `docs/architecture/phase-5-membership-billing.md`.
-- **Commands worth rerunning:** `pnpm execution:check`.
-- **Expected result:** Explicit owner-approved Phase 8 contract before implementation; routine Development authentication remains autonomous.
+- **Current checkpoint:** MB-P8-005 — Remote validation
+- **Status:** IN PROGRESS
+- **Last verified checkpoint:** MB-P8-004 — Marketplace workflows/UI
+- **Work completed:** Discovery/moderation locally verified; migration 0019 applied (14 commands). Development API 73a59fb6-7a9b-4a92-8ad2-a7f82015fae3, Worker f1e7abf6-fb64-4dcd-bea3-baca39791c61, Portal 7e41cbcd-f612-4ca4-a1ce-f886e268d078, Admin 0f04c48c-2570-4db6-a67c-a99fc9c544d9 deployed.
+- **Verification completed:** Full gate PASS688 tests (174 foundation/510 Worker/4 signed API+DO). Signed remote publication/moderation/review/withdrawal/cleanup and anonymous positive privacy/discovery PASS. Marketplace D1/audit/outbox/Queue PASS: one listing/11 histories/11 processed events; Parts/automation consistency PASS; zero global pending or unresolved dead letters.
+- **Remaining work:** Exact implementation CI and evidence closeout only.
+- **Current blocker:** None. Existing OS-backed dedicated Development authentication is provisioned.
+- **Exact next action:** Commit/push the tested implementation and verify exact Platform CI, then mark MB-P8-005 VERIFIED and advance to eligible Phase 9 contract review.
+- **Relevant files:** `migrations/0019_marketplace_discovery.sql`, `packages/parts/src/marketplace*`, API/Worker and Portal/Admin, `scripts/development/`.
+- **Commands worth rerunning:** `pnpm gate`; `node scripts/development/authentication-smoke.mjs`.
+- **Expected result:** Reviewed synthetic public discovery passes and is withdrawn after testing; preserved immutable evidence and processed events match. Disabled commerce/media stays unavailable.

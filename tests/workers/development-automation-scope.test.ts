@@ -17,7 +17,7 @@ const org = "11111111-1111-4111-8111-111111111111",
   site = "22222222-2222-4222-8222-222222222222";
 beforeAll(async () => {
   await db.exec(
-    `CREATE TABLE governance_environment_metadata(singleton INTEGER,environment TEXT); CREATE TABLE org_organizations(id TEXT,type TEXT,display_name TEXT,status TEXT,verification_status TEXT); CREATE TABLE org_locations(id TEXT,organization_id TEXT,name TEXT,status TEXT); CREATE TABLE org_capabilities(organization_id TEXT,code TEXT); CREATE TABLE development_automation_identities(name TEXT,account_id TEXT,credential_version INTEGER,status TEXT,organization_id TEXT,location_id TEXT,expires_at TEXT); CREATE TABLE development_automation_authorizations(id TEXT,account_id TEXT,credential_version INTEGER,operation TEXT,expires_at TEXT); CREATE TABLE development_automation_resources(account_id TEXT,resource_type TEXT,resource_id TEXT,PRIMARY KEY(resource_type,resource_id)); CREATE TABLE iam_accounts(id TEXT,person_id TEXT,status TEXT); CREATE TABLE iam_people(id TEXT,status TEXT); CREATE TABLE auth_users(id TEXT,email_verified INTEGER,two_factor_enabled INTEGER); CREATE TABLE auth_two_factors(user_id TEXT,verified INTEGER); CREATE TABLE platform_person_roles(person_id TEXT,role_id TEXT); CREATE TABLE authz_roles(id TEXT,scope TEXT,code TEXT); CREATE TABLE authz_role_permissions(role_id TEXT,permission_code TEXT); CREATE TABLE org_memberships(id TEXT,person_id TEXT,organization_id TEXT,status TEXT,valid_from TEXT,valid_to TEXT,location_scope_type TEXT); CREATE TABLE org_membership_roles(membership_id TEXT,role_id TEXT); CREATE TABLE org_membership_locations(membership_id TEXT,organization_id TEXT,location_id TEXT); CREATE TABLE org_location_capabilities(organization_id TEXT,location_id TEXT,code TEXT); CREATE TABLE parts_canonical(id TEXT,name TEXT,status TEXT,brand_key TEXT,reference_key TEXT,compatibility_json TEXT);`,
+    `CREATE TABLE governance_environment_metadata(singleton INTEGER,environment TEXT); CREATE TABLE org_organizations(id TEXT,type TEXT,display_name TEXT,status TEXT,verification_status TEXT); CREATE TABLE org_locations(id TEXT,organization_id TEXT,name TEXT,status TEXT,city TEXT,administrative_area TEXT); CREATE TABLE org_capabilities(organization_id TEXT,code TEXT); CREATE TABLE development_automation_identities(name TEXT,account_id TEXT,credential_version INTEGER,status TEXT,organization_id TEXT,location_id TEXT,expires_at TEXT); CREATE TABLE development_automation_authorizations(id TEXT,account_id TEXT,credential_version INTEGER,operation TEXT,expires_at TEXT); CREATE TABLE development_automation_resources(account_id TEXT,resource_type TEXT,resource_id TEXT,PRIMARY KEY(resource_type,resource_id)); CREATE TABLE iam_accounts(id TEXT,person_id TEXT,status TEXT); CREATE TABLE iam_people(id TEXT,status TEXT); CREATE TABLE auth_users(id TEXT,email_verified INTEGER,two_factor_enabled INTEGER); CREATE TABLE auth_two_factors(user_id TEXT,verified INTEGER); CREATE TABLE platform_person_roles(person_id TEXT,role_id TEXT); CREATE TABLE authz_roles(id TEXT,scope TEXT,code TEXT); CREATE TABLE authz_role_permissions(role_id TEXT,permission_code TEXT); CREATE TABLE org_memberships(id TEXT,person_id TEXT,organization_id TEXT,status TEXT,valid_from TEXT,valid_to TEXT,location_scope_type TEXT); CREATE TABLE org_membership_roles(membership_id TEXT,role_id TEXT); CREATE TABLE org_membership_locations(membership_id TEXT,organization_id TEXT,location_id TEXT); CREATE TABLE org_location_capabilities(organization_id TEXT,location_id TEXT,code TEXT); CREATE TABLE marketplace_listings(id TEXT,organization_id TEXT,offering_id TEXT); CREATE TABLE parts_canonical(id TEXT,name TEXT,status TEXT,brand_key TEXT,reference_key TEXT,compatibility_json TEXT);`,
   );
   await db.batch([
     db.prepare(
@@ -53,7 +53,7 @@ beforeAll(async () => {
       .bind(org),
     db
       .prepare(
-        "INSERT INTO org_locations VALUES(?,?,'MotorBaldi Development Workshop Site','ACTIVE')",
+        "INSERT INTO org_locations VALUES(?,?,'MotorBaldi Development Workshop Site','ACTIVE','Synthetic','Synthetic')",
       )
       .bind(site, org),
     db
@@ -195,6 +195,64 @@ describe("Development automation scope", () => {
     await expect(
       validateAutomationCommand(db, actor, "billing.subscription.create", body),
     ).rejects.toMatchObject({ status: 403 });
+  });
+  it("restricts marketplace moderation to owned synthetic offerings", async () => {
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO marketplace_listings VALUES('owned-listing',?,'owned-offering'),('foreign-listing',?,'foreign-offering')",
+        )
+        .bind(org, org),
+      db.prepare(
+        "INSERT INTO development_automation_resources VALUES('machine','offering','owned-offering')",
+      ),
+      db.prepare(
+        "UPDATE development_automation_authorizations SET operation='marketplace.listing.approve'",
+      ),
+    ]);
+    await expect(
+      automationRoute(
+        db,
+        request("/admin/marketplace/listings/owned-listing/approve", "POST"),
+        actor,
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      automationRoute(
+        db,
+        request("/admin/marketplace/listings/foreign-listing/approve", "POST"),
+        actor,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      validateAutomationCommand(db, actor, "marketplace.listing.approve", {
+        organizationId: org,
+        listingId: "owned-listing",
+        version: 2,
+        reason: "Synthetic review",
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      validateAutomationCommand(db, actor, "marketplace.listing.approve", {
+        organizationId: org,
+        listingId: "foreign-listing",
+        version: 2,
+        reason: "Synthetic review",
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      validateAutomationCommand(db, actor, "marketplace.listing.approve", {
+        organizationId: org,
+        listingId: "owned-listing",
+        version: 2,
+        reason: "Publish customer data",
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    await db
+      .prepare(
+        "UPDATE development_automation_authorizations SET operation='parts.canonical.create'",
+      )
+      .run();
   });
   it("claims creation in D1 and rejects credential rotation and revocation", async () => {
     const claims = automationResourceClaim(

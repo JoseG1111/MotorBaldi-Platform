@@ -1,4 +1,6 @@
 import {
+  marketplaceCommandEventRegistry,
+  marketplaceEventHandlers,
   partsCommandEventRegistry,
   partsEventHandlers,
 } from "@motorbaldi/parts";
@@ -186,6 +188,7 @@ const registry = new Map<string, EventContract>(
   ]),
 );
 for (const [key, contract] of [
+  ...marketplaceCommandEventRegistry,
   ...partsCommandEventRegistry,
   ...supportCommandEventRegistry,
   ...membershipNotificationEventRegistry,
@@ -232,6 +235,8 @@ export default {
           throw new Error("INVALID_DEVELOPMENT_FIXTURE_EVENT");
       },
     );
+    for (const [key, handler] of marketplaceEventHandlers(env.DB))
+      scopedHandlers.set(key, handler);
     for (const [key, handler] of partsEventHandlers(env.DB))
       scopedHandlers.set(key, handler);
     for (const [key, handler] of supportEventHandlers(env.DB))

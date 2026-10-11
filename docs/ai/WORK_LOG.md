@@ -104,3 +104,31 @@ Exact implementation 1748c1d passed Platform CI 38101065621 (620 tests, artifact
 ## 2026-10-10 — MB-P8-001 proposed contract; owner business decision required
 
 Reviewed accepted Parts/public directory/commission/provider/media boundaries. Prepared `docs/architecture/phase-8-marketplace-proposal.md` as a concrete opt-in reviewed discovery-only approval package; it is explicitly PROPOSED, not approved or implemented. Asked owner approval or amendments. Phase 7 policy expressly requires separate Phase 8 approval and the execution plan stops for unresolved business choices, so MB-P8-001 is HUMAN ACTION REQUIRED; no later checkpoint is eligible. No human authentication, secrets, payment activation or deployment permission is requested.
+
+## 2026-10-10 — MB-P8-001 APPROVED; contract review VERIFIED
+
+Owner explicitly approved optional public parts discovery/moderation and autonomous Development implementation. Accepted ADR 0028 reconciles partner ownership, private defaults, staff approval, general business location and indicative prices with existing Parts/security patterns. Commerce, media, fees, fulfillment remain out of scope; billing/scanner verification limitations preserved. Registry uses VERIFIED for completed contract review and records APPROVED as owner evidence. MB-P8-002 is the sole engineering cursor; no new approval or authentication is required.
+
+## 2026-10-10 — MB-P8-002 VERIFIED; API/Queue integration begins
+
+Full gate PASS650 tests (150 foundation/497 Worker/3 signed API+DO). Domain/schema tests verify25 real-D1 marketplace invariants, synthetic ownership, current authority/replay, explicit review, source eligibility, privacy, immutable history, CAS/rollback and refreshed general location. Independent read-only security review confirmed old/new location mutation-time checks and no remaining blocker. Two LOW implementation/test agents and one LOW read-only review agent used exclusive files. No marketplace remote verification claimed; MB-P8-003 becomes sole engineering cursor.
+
+## 2026-10-10 — MB-P8-003 VERIFIED; UI integration begins
+
+Full gate PASS663 tests. Public API keeps private defaults and eligibility freshness; exact scoped partner/staff actions use current MFA/origin/idempotency and audited snapshots. Twelve human-auth/API/Queue and one added signed Development API/DO regression pass. Worker validates historical event versions against real immutable history/audit, supports duplicate delivery and rejects forgery with sanitized errors. OpenAPI/website contract describe discovery only; commerce/media remain disabled. Independent read-only review found no blocker. MB-P8-004 is sole engineering cursor; no remote marketplace success claimed yet.
+
+## 2026-10-10 — MB-P8-004 integrated UI recovery
+
+Eight focused marketplace browser regressions passed. Full gate caught one unused test helper, then integration found optional publication loading blocked existing Parts screens and old VM harnesses lacked the new browser API/read endpoint fixtures. Removed unused helper, isolated marketplace loading with current-generation error handling, caught public startup failures, and updated existing browser fixtures with URLSearchParams and empty marketplace-read responses. All158 foundation tests now pass; full integrated gate rerunning. No deployment or remote success claimed during recovery.
+
+## 2026-10-10 — MB-P8-004 VERIFIED; Development remote validation begins
+
+Full gate PASS672 tests (158 foundation/510 Worker/4 signed API+DO), all security/artifacts/audit checks. Spanish public discovery, own-partner private opt-in/submission/withdrawal and staff pending/published/suspended moderation verified with eight real-script VM regressions; additional actual API published-list revocation passes. Startup/load isolation preserves existing Parts. Commerce/media are out of scope, not implemented. MB-P8-005 becomes sole cursor for actual Development migrations/deployment/signed smoke/D1/Queue/CI evidence.
+
+## 2026-10-10 — MB-P8-005 Development deployment
+
+Only pending migration0019 applied remotely (14 commands). Four Development applications deployed: API73a59fb6/Workerf1e7abf6/Portal7e41cbcd/Admin0f04c48c. Health/dependencies, Portal/Admin marketplace HTML, anonymous discovery and disabled-commerce capabilities return200. Existing dedicated authentication/replay/freshness/path/workflow-isolation smokePASS after deployment. Actual marketplace mutation/positive public discovery/Queue closeout and final harness gate/CI remain required, so IN PROGRESS persists. No staging/production deployment or commerce/media activation.
+
+## 2026-10-10 — MB-P8-005 positive remote verification; CI outstanding
+
+Anonymous and full signed marketplace smokes PASS. Actual synthetic create/private/submit/approve/public privacy/source-price-change hiding/freshreview/reject/revoke/withdraw/replay/mismatch/stale/origin and owned cleanup executed remotely. The empty baseline correctly failed positive evidence; initial consistency probes after writes reported pending, then actual Queue convergence passed. D1 marketplace listing1/history11/processedMarketplace11 with complete matching audit/history/outbox, no gaps/duplicates/privacy/ownership/FK/deadletter violations; listingSUSPENDED/offeringINACTIVE/canonicalARCHIVED preserved history. Parts probe PASS4canonical/3offerings/2snapshots/29processedParts; automationPASS, zero global pending/unresolveddeadletters. Full gate688tests PASS, including16 safe smoke/aggregate-checker regressions. Exact implementation CI remains before VERIFIED; no staging/production or commerce/media activation.

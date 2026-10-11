@@ -734,7 +734,7 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P8-001 — Marketplace business contract
 
-- **Status:** HUMAN ACTION REQUIRED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P7-005
 - **Objective:** Resolve listings, transactions, fees, moderation and liability from existing docs or human decision.
 - **Scope / required work:** Resolve listings, transactions, fees, moderation and liability from existing docs or human decision.
@@ -742,12 +742,12 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Contract review against repository and stakeholder decision if needed
 - **Completion criteria:** Business rules explicit before coding.
-- **Human-action conditions:** Owner approval or amendments to the concrete [discovery-only proposal](../architecture/phase-8-marketplace-proposal.md). ADR 0026 explicitly reserves public/commercial Phase 8 rules for separate approval; no approved publication consent, public offering fields or marketplace moderation/transaction contract exists. Routine Development authentication is not a boundary.
-- **Evidence:** Reviewed existing public organization directory, approved Parts confidentiality/lifecycle, service-specific commissions, disabled providers and scanner restrictions. Prepared a complete proposed opt-in public discovery contract with scoped submission, reviewed snapshots, eligibility revocation and no orders/payments/fees/media. Proposal remains unapproved; no marketplace code or deployment enabled. Subsequent checkpoints depend on this owner decision.
+- **Human-action conditions:** None for approved discovery/moderation. New commercial scope remains a separate owner decision.
+- **Evidence:** OWNER DECISION MB-P8-001 APPROVED on 2026-10-10. [ADR 0028](../adr/0028-public-parts-discovery-and-moderation.md) and [approved contract](../architecture/phase-8-marketplace-proposal.md) record optional public discovery, staff-reviewed private-default listings, verified active PARTS sellers, indicative prices/general location, revocation/audit and disabled commerce/media. APPROVED is the owner's business decision; VERIFIED records completed contract review within supported execution statuses.
 
 ### MB-P8-002 — Marketplace domain + authorization
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P8-001
 - **Objective:** Model marketplace entities and context permissions.
 - **Scope / required work:** Model marketplace entities and context permissions.
@@ -757,9 +757,11 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Completion criteria:** Default-deny business invariants hold.
 - **Human-action conditions:** Global stop rule; otherwise none.
 
+- **Evidence:** Full local gate PASS 650 tests (150 foundation/497 Worker/3 signed API+DO), including 25 real-D1 marketplace regressions and four strict discovery-only contract tests. Additive migration 0019/domain enforce private defaults, exact assured staff/partner scope, explicit versioned submission/approval/withdrawal, allowlisted public snapshots, current source/canonical/business/location eligibility, resubmission after location changes, old/new scope at commit, immutable history and atomic audit/outbox/replay. Independent read-only security review found no remaining blocker. No remote marketplace deployment or API/UI/Queue verification claimed here.
+
 ### MB-P8-003 — Listings/discovery/moderation
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P8-002
 - **Objective:** Implement listing lifecycle, discovery and moderation.
 - **Scope / required work:** Implement listing lifecycle, discovery and moderation.
@@ -769,9 +771,11 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Completion criteria:** Unsafe/unapproved listings excluded.
 - **Human-action conditions:** Global stop rule; otherwise none.
 
+- **Evidence:** Full gate PASS663 tests (150 foundation/509 Worker/4 signed API+DO). Twelve actual human-MFA API/Queue tests verify public privacy/no-store, strict query/body/path/method/origin controls, exact roles/current authority before replay, pre-enrollment session denial, global public rate limiting, legitimate historical events/duplicate delivery and sanitized forged-event dead letters. Signed Development API/DO regression covers synthetic create/submit/approve/public/replay/permission-revocation/withdraw without human MFA. API and Worker retain accepted assurance/authorization; public CORS adds only configured origins, preserving lead policy. OpenAPI and website client contract updated. Read-only security review found no blocker. Remote deployment remains MB-P8-005.
+
 ### MB-P8-004 — Marketplace workflows/UI
 
-- **Status:** NOT STARTED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P8-003
 - **Objective:** Expose approved flows in Portal/Admin.
 - **Scope / required work:** Expose approved flows in Portal/Admin.
@@ -781,17 +785,21 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Completion criteria:** Spanish-first accessible workflows pass.
 - **Human-action conditions:** Global stop rule; otherwise none.
 
+- **Evidence:** Full gate PASS672 tests (158 foundation/510 Worker/4 signed API+DO). Eight actual VM browser regressions cover anonymous Spanish discovery, safe explicit rendering/COP/Consultar/privacy, encoded pagination/search race rejection, scoped explicit opt-in/CAS/version/reason, stale workspace controls, assured staff review/revoke and retained retry keys. Existing Parts/public boot recovery verified by all foundation tests; optional marketplace errors do not block catalog. Staff published/suspended filtering and revocation regression passes. No commerce/media controls or claims added. Development deployment/remote consistency remain MB-P8-005.
+
 ### MB-P8-005 — Remote validation
 
-- **Status:** NOT STARTED
+- **Status:** IN PROGRESS
 - **Dependencies:** MB-P8-004
-- **Objective:** Validate marketplace Development behavior.
-- **Scope / required work:** Validate marketplace Development behavior.
+- **Objective:** Validate approved public discovery/moderation in Development.
+- **Scope / required work:** Validate approved publication/review/public reads and synthetic cleanup; commerce/media/fulfillment remain explicitly out of scope.
 - **Relevant files/systems:** Development apps/resources
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote smoke and gate
-- **Completion criteria:** Marketplace verified.
+- **Completion criteria:** Approved discovery/moderation remote mutation/public privacy/cleanup, D1/audit/outbox/Queue consistency, full gate and exact implementation CI pass. No commerce or media implementation is claimed.
 - **Human-action conditions:** Global stop rule; otherwise none.
+
+- **Current evidence:** Migration0019 applied (14commands); Development API73a59fb6-7a9b-4a92-8ad2-a7f82015fae3, Workerf1e7abf6-fb64-4dcd-bea3-baca39791c61, Portal7e41cbcd-f612-4ca4-a1ce-f886e268d078 and Admin0f04c48c-2570-4db6-a67c-a99fc9c544d9 deployed. Post-deploy authentication/isolation, health/HTML and anonymous discovery/capabilities PASS. Full OS-signed remote publication/moderation/privacy/source-price hiding/re-review/replay/conflict/stale/origin/cleanup smoke PASS; no human credentials or preferences used. Actual positive marketplace consistency PASS: one synthetic listing, 11 immutable histories and 11 processed marketplace events with matching audits/outbox/versions and clean terminal ownership. Parts consistency PASS canonical4/offering3/snapshot2/processedParts29; automation consistency PASS. Early pending probes were not counted as success; subsequent real Queue convergence leaves zero global pending events/unresolved dead letters/FK or duplicate/version/privacy violations. Empty baseline correctly rejected MARKETPLACE_EVIDENCE_REQUIRED. Full gate PASS688 tests (174foundation/510Worker/4signedAPI+DO), including eight smoke/eight consistency regressions. Exact implementation CI remains required before VERIFIED.
 
 ## Phase 9 — Intelligence / Analytics
 

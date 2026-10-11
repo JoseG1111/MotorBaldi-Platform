@@ -1247,3 +1247,163 @@ Object.assign(openapi.paths, {
       ),
     },
 });
+
+const marketplaceListingId = {
+  name: "listingId",
+  in: "path",
+  required: true,
+  schema: id,
+};
+const marketplaceReason = { type: "string", minLength: 1, maxLength: 500 };
+const marketplacePublicListing = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    listingId: id,
+    ...partsFields,
+    priceMinor: { type: "integer", minimum: 0, nullable: true },
+    currency: { type: "string", enum: ["COP"] },
+    priceIndicative: { type: "boolean", enum: [true] },
+    availability: {
+      type: "string",
+      enum: ["UNKNOWN", "AVAILABLE", "UNAVAILABLE"],
+    },
+    lastUpdatedAt: { type: "string", format: "date-time" },
+    partnerBusinessName: { type: "string" },
+    country: { type: "string" },
+    generalLocation: { type: "string", maxLength: 160 },
+    compatibilityNotice: { type: "string" },
+    availabilityNotice: { type: "string" },
+  },
+};
+Object.assign(openapi.paths, {
+  "/api/v1/public/parts": {
+    get: {
+      ...get(
+        "Public opt-in staff-reviewed currently eligible parts discovery; indicative prices, no commerce or media",
+        [
+          ...partsPage,
+          ...["q", "category"].map((name) => ({
+            name,
+            in: "query",
+            schema: { type: "string", maxLength: 100 },
+          })),
+        ],
+        false,
+      ),
+      responses: {
+        "200": {
+          description: "Reviewed public snapshots only",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  items: { type: "array", items: marketplacePublicListing },
+                  nextCursor: { ...id, nullable: true },
+                },
+              },
+            },
+          },
+        },
+        "400": problem,
+        "429": problem,
+      },
+    },
+  },
+  "/api/v1/public/parts/capabilities": {
+    get: get(
+      "Discovery enabled; orders, checkout, payments, reservations, inventory, fees, media and fulfillment disabled",
+      [],
+      false,
+    ),
+  },
+  "/api/v1/public/parts/{listingId}": {
+    get: {
+      ...get(
+        "Read currently eligible reviewed public snapshot",
+        [marketplaceListingId],
+        false,
+      ),
+      responses: {
+        "200": {
+          description: "Allowlisted public snapshot",
+          content: { "application/json": { schema: marketplacePublicListing } },
+        },
+        "404": problem,
+        "429": problem,
+      },
+    },
+  },
+  "/api/v1/organizations/{organizationId}/marketplace-listings": {
+    get: get("Own exact-scoped private publication records", [
+      orgId,
+      ...partsPage,
+    ]),
+    post: partsPost(
+      "Create private DRAFT opt-in listing for own ACTIVE offering",
+      [orgId],
+      {
+        offeringId: id,
+        generalLocation: { type: "string", minLength: 1, maxLength: 160 },
+        reason: marketplaceReason,
+      },
+      ["offeringId", "generalLocation"],
+    ),
+  },
+  "/api/v1/organizations/{organizationId}/marketplace-listings/{listingId}": {
+    get: get("Read own exact-scoped private publication record", [
+      orgId,
+      marketplaceListingId,
+    ]),
+  },
+  "/api/v1/admin/marketplace/listings": {
+    get: get(
+      "Exact assured catalog staff review and revoke publication snapshots",
+      [
+        ...partsPage,
+        {
+          name: "status",
+          in: "query",
+          schema: {
+            type: "string",
+            enum: ["DRAFT", "PENDING_REVIEW", "PUBLISHED", "SUSPENDED"],
+            default: "PENDING_REVIEW",
+          },
+        },
+      ],
+    ),
+  },
+});
+for (const action of ["submit", "withdraw"])
+  Object.assign(openapi.paths, {
+    [`/api/v1/organizations/{organizationId}/marketplace-listings/{listingId}/${action}`]:
+      {
+        post: partsPost(
+          "Assured scoped partner " +
+            action +
+            " with current version, reason and idempotency",
+          [orgId, marketplaceListingId],
+          { version: partsVersion, reason: marketplaceReason },
+          ["version", "reason"],
+        ),
+      },
+  });
+for (const action of ["approve", "reject", "suspend"])
+  Object.assign(openapi.paths, {
+    [`/api/v1/admin/marketplace/listings/{listingId}/${action}`]: {
+      post: partsPost(
+        "Assured exact MotorBaldi catalog staff " +
+          action +
+          " with current reviewed snapshot/version",
+        [marketplaceListingId],
+        {
+          organizationId: id,
+          version: partsVersion,
+          reason: marketplaceReason,
+        },
+        ["organizationId", "version", "reason"],
+      ),
+    },
+  });

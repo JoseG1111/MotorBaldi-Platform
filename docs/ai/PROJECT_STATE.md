@@ -45,3 +45,11 @@ Actual authenticated full Parts lifecycle/cleanup and positive Parts/automation 
 ## Phase 8 business boundary
 
 MB-P8-001 reviewed repository policy after verified Phase 7 closeout. Public organization discovery does not authorize public parts disclosure; Phase 7 ACTIVE offerings remain private and service commission agreements do not establish marketplace fees. A complete [discovery-only proposal](../architecture/phase-8-marketplace-proposal.md) is prepared for owner approval: opt-in reviewed public snapshots, verified sellers, current eligibility, informational prices/compatibility and no commerce, paid providers or media. Status HUMAN ACTION REQUIRED solely for this separately reserved business decision. No later engineering checkpoint has verified prerequisites; routine Development validation remains autonomous. Billing full-smoke/provider verification and the scanner deferral remain separately documented, not VERIFIED.
+
+## Owner-approved Phase 8 implementation
+
+The subsequent owner decision APPROVED MB-P8-001 and supersedes its historical business boundary above. ADR 0028 accepts public discovery/moderation only; marketplace commerce/media remain disabled. MB-P8-001 contract review is VERIFIED; MB-P8-002 domain/authorization is IN PROGRESS. Development authentication remains reusable without human intervention.
+
+## Phase 8 Development implementation and remote evidence
+
+MB-P8-002/003/004 VERIFIED by guarded domain, actual human/signed API+DO, Queue and browser regressions. Only approved public discovery/moderation is implemented. Migration0019 and all four Development applications deployed; anonymous and full signed publication/moderation/privacy/source-refresh/cleanup smoke PASS. Marketplace positive D1/audit/outbox/Queue checks PASS with one retainedSUSPENDED synthetic listing,11immutablehistories/11processed marketplace events. Linked owned offeringINACTIVE/canonicalARCHIVED; no public synthetic record, pending global events or unresolveddeadletters. Parts probe4canonical/3offering/2snapshot/29processed events and automation probePASS. Full gate688tests PASS. MB-P8-005 remains IN PROGRESS solely for exact implementation CI; no payment, checkout, inventory, fees, media or fulfillment is claimed. Historical owner-approval boundaries are superseded by ADR0028; parked Wompi/scanner limitations persist.

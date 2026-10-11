@@ -24,6 +24,7 @@ import m15 from "../../migrations/0015_support.sql?raw";
 import m16 from "../../migrations/0016_support_history_boundary.sql?raw";
 import m17 from "../../migrations/0017_parts_catalog.sql?raw";
 import m18 from "../../migrations/0018_development_automation.sql?raw";
+import m19 from "../../migrations/0019_marketplace_discovery.sql?raw";
 const bindings = env as unknown as ApiBindings;
 const db = bindings.DB;
 const worker = (
@@ -120,6 +121,7 @@ beforeAll(async () => {
     m16,
     m17,
     m18,
+    m19,
   ])
     await db.exec(migration.replace(/--[^\n]*/g, "").replace(/\n/g, " "));
   await db
@@ -426,6 +428,111 @@ describe("signed Development automation through actual API and coordinator", () 
         "code='DEVELOPMENT_AUTOMATION_AUTHENTICATED'",
       ),
     ).toBeGreaterThan(10);
+    expect(await count("auth_two_factors")).toBe(0);
+  });
+  it("validates owned synthetic marketplace submission and moderation through signed API and coordinator", async () => {
+    await call("/development/automation/fixtures/parts/enable", {
+      organizationId,
+      locationId,
+      reason: "Synthetic Development PARTS fixture enable",
+    });
+    const input = {
+      name: "Synthetic marketplace fixture",
+      category: "VALIDATION",
+      brand: "Synthetic Development",
+      manufacturerReference: newId(),
+      unit: "each",
+      compatibility: [],
+      reason,
+    };
+    const canonical = await call("/admin/parts", input);
+    await call("/admin/parts/" + canonical.partId + "/transition", {
+      version: 1,
+      toStatus: "ACTIVE",
+      reason,
+    });
+    const offering = await call(base + "/parts-offerings", {
+      ...input,
+      locationId,
+      canonicalPartId: canonical.partId,
+      partnerSku: "PRIVATE",
+      priceMinor: 12000,
+      availability: "AVAILABLE",
+    });
+    await call(
+      base + "/parts-offerings/" + offering.offeringId + "/transition",
+      { version: 1, toStatus: "ACTIVE", reason },
+    );
+    const listing = await call(base + "/marketplace-listings", {
+      offeringId: offering.offeringId,
+      generalLocation: "Synthetic, Synthetic",
+      reason,
+    });
+    const path = base + "/marketplace-listings/" + listing.listingId;
+    expect(
+      (
+        await signed(
+          "/public/parts/" + listing.listingId,
+          undefined,
+          undefined,
+          { signed: false },
+        )
+      ).status,
+    ).toBe(404);
+    await call(path + "/submit", { version: 1, reason });
+    const reviewKey = newId(),
+      reviewBody = { organizationId, version: 2, reason };
+    const reviewPath =
+      "/admin/marketplace/listings/" + listing.listingId + "/approve";
+    expect(
+      (
+        await signed(reviewPath, reviewBody, newId(), {
+          origin: "https://evil.test",
+        })
+      ).status,
+    ).toBe(403);
+    const approved = await call(reviewPath, reviewBody, reviewKey);
+    expect(approved.status).toBe("PUBLISHED");
+    expect((await call(reviewPath, reviewBody, reviewKey)).replayed).toBe(true);
+    const publicResponse = await signed(
+      "/public/parts/" + listing.listingId,
+      undefined,
+      undefined,
+      { signed: false },
+    );
+    expect(publicResponse.status).toBe(200);
+    const publicBody = (await publicResponse.json()) as Record<string, unknown>;
+    expect(publicBody).toMatchObject({
+      listingId: listing.listingId,
+      priceMinor: 12000,
+      priceIndicative: true,
+      generalLocation: "Synthetic, Synthetic",
+    });
+    expect(publicBody).not.toHaveProperty("partnerSku");
+    expect(publicBody).not.toHaveProperty("organizationId");
+    await db
+      .prepare(
+        "DELETE FROM authz_role_permissions WHERE role_id='platform-development-automation' AND permission_code='platform.catalog.manage'",
+      )
+      .run();
+    expect((await signed(reviewPath, reviewBody, reviewKey)).status).toBe(403);
+    await db
+      .prepare(
+        "INSERT INTO authz_role_permissions(role_id,permission_code) VALUES('platform-development-automation','platform.catalog.manage')",
+      )
+      .run();
+    await call(path + "/withdraw", { version: 3, reason });
+    expect(
+      (
+        await signed(
+          "/public/parts/" + listing.listingId,
+          undefined,
+          undefined,
+          { signed: false },
+        )
+      ).status,
+    ).toBe(404);
+    expect(await count("marketplace_listing_history")).toBe(4);
     expect(await count("auth_two_factors")).toBe(0);
   });
   it("rolls back replay, ownership and effects when assurance is revoked before commit", async () => {

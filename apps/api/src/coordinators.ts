@@ -8,6 +8,10 @@ import {
 } from "./development-automation-scope.js";
 import { assessDevelopmentAutomationCommand } from "@motorbaldi/auth";
 import {
+  marketplaceCommandInputs,
+  authorizeMarketplaceCommand,
+  prepareMarketplaceCommand,
+  type MarketplaceOperation,
   parsePartsCommand,
   authorizePartsCommand,
   preparePartsCommand,
@@ -108,6 +112,22 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
     const db = this.env.DB;
     if (operation === "development.fixture.parts.enable")
       return prepareDevelopmentPartsFixture(db, actor!, request, requestId);
+    if (operation.startsWith("marketplace.")) {
+      const op = operation as MarketplaceOperation;
+      if (!Object.hasOwn(marketplaceCommandInputs, op))
+        throw new Problem(
+          400,
+          "UNKNOWN_IDEMPOTENCY_OPERATION",
+          "Unknown operation",
+        );
+      return prepareMarketplaceCommand(
+        db,
+        actor!,
+        op,
+        marketplaceCommandInputs[op].parse(request) as Record<string, Json>,
+        requestId,
+      );
+    }
     if (operation.startsWith("parts."))
       return preparePartsCommand(
         db,
@@ -265,6 +285,21 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ) {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation.startsWith("marketplace.")) {
+      const op = operation as MarketplaceOperation;
+      if (!Object.hasOwn(marketplaceCommandInputs, op))
+        throw new Problem(
+          400,
+          "UNKNOWN_IDEMPOTENCY_OPERATION",
+          "Unknown operation",
+        );
+      await authorizeMarketplaceCommand(
+        db,
+        actor,
+        op,
+        marketplaceCommandInputs[op].parse(request) as Record<string, Json>,
+      );
+    }
     if (operation.startsWith("parts."))
       await authorizePartsCommand(
         db,

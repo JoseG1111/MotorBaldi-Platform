@@ -6,6 +6,7 @@ import {
   automationRoute,
   validateAutomationCommand,
 } from "./development-automation-scope.js";
+import { marketplaceRoutes } from "./marketplace-routes.js";
 import { partsRoutes } from "./parts-routes.js";
 import { supportRoutes } from "./support-routes.js";
 import { notificationRoutes } from "./notification-routes.js";
@@ -144,7 +145,11 @@ export function forwardAuthResponse(
   return new Response(response.body, { status: response.status, headers });
 }
 const routeCorsOrigins = (pathname: string, c: ReturnType<typeof apiConfig>) =>
-  pathname === "/api/v1/public/leads" ? c.publicCorsOrigins : c.corsOrigins;
+  pathname === "/api/v1/public/leads"
+    ? c.publicCorsOrigins
+    : pathname.startsWith("/api/v1/public/parts")
+      ? [...new Set([...c.publicCorsOrigins, ...c.corsOrigins])]
+      : c.corsOrigins;
 
 function requireTrustedMutationOrigin(
   request: Request,
@@ -603,6 +608,25 @@ async function route(
       { headers: cors },
     );
   }
+  const marketplaceResponse = await marketplaceRoutes(
+    request,
+    env.DB,
+    businessPrincipal,
+    async (operation, body, organizationId) =>
+      idempotentCommand(
+        env,
+        request.headers,
+        operation,
+        (await businessPrincipal()).accountId,
+        body,
+        requestId,
+        requiredKey(request),
+        organizationId,
+      ),
+    () => boundedJson(request),
+    cors,
+  );
+  if (marketplaceResponse) return marketplaceResponse;
   const partsResponse = await partsRoutes(
     request,
     env.DB,

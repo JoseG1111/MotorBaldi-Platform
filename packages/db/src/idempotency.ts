@@ -5,6 +5,13 @@ export const maxIdempotencyResponseBytes = 8192;
 
 export const idempotencyOperationRegistry = {
   "foundation.test": 3600,
+  "marketplace.listing.create": 604800,
+  "marketplace.listing.submit": 604800,
+  "marketplace.listing.approve": 604800,
+  "marketplace.listing.reject": 604800,
+  "marketplace.listing.withdraw": 604800,
+  "marketplace.listing.suspend": 604800,
+
   "development.fixture.parts.enable": 604800,
   "parts.canonical.create": 604800,
   "parts.canonical.update": 604800,

@@ -15,6 +15,12 @@ const denied = () =>
   new Problem(403, "DEVELOPMENT_AUTOMATION_SCOPE", "Automation scope denied");
 const missing = () => new Problem(404, "NOT_FOUND", "Resource unavailable");
 const operations = new Set([
+  "marketplace.listing.create",
+  "marketplace.listing.submit",
+  "marketplace.listing.approve",
+  "marketplace.listing.reject",
+  "marketplace.listing.withdraw",
+  "marketplace.listing.suspend",
   "parts.canonical.create",
   "parts.canonical.update",
   "parts.canonical.transition",
@@ -121,7 +127,7 @@ export async function automationRoute(
       items: (
         await db
           .prepare(
-            "SELECT id,name,status FROM org_locations WHERE id=? AND organization_id=?",
+            "SELECT id,name,status,city||', '||administrative_area AS generalLocation FROM org_locations WHERE id=? AND organization_id=?",
           )
           .bind(current.location_id, current.organization_id)
           .all()
@@ -157,6 +163,28 @@ export async function automationRoute(
     );
   if (post && path === "/api/v1/development/automation/fixtures/parts/enable")
     return null;
+  const marketplaceAdmin = path.match(
+    /^\/api\/v1\/admin\/marketplace\/listings(?:\/([^/]+)\/(approve|reject|suspend))?$/,
+  );
+  const marketplaceOwned = org?.[2]?.match(
+    /^marketplace-listings(?:\/([^/]+)(?:\/(submit|withdraw))?)?$/,
+  );
+  if (get && /^\/api\/v1\/public\/parts(?:\/[^/]+)?$/.test(path)) return null;
+  if (marketplaceAdmin || marketplaceOwned) {
+    if (!get && !post) throw denied();
+    const listingId = marketplaceAdmin?.[1] ?? marketplaceOwned?.[1];
+    if (listingId) {
+      const row = await db
+        .prepare(
+          "SELECT offering_id FROM marketplace_listings WHERE id=? AND organization_id=?",
+        )
+        .bind(listingId, current.organization_id)
+        .first<{ offering_id: string }>();
+      if (!row) throw missing();
+      await owned(db, actor, "offering", row.offering_id);
+    }
+    return null;
+  }
   const canonical = path.match(
       /^\/api\/v1\/admin\/parts(?:\/([^/]+)(?:\/(update|transition))?)?$/,
     ),
@@ -350,6 +378,18 @@ export async function validateAutomationCommand(
     )
       throw denied();
     return;
+  }
+  if (operation.startsWith("marketplace.")) {
+    if (typeof body.listingId === "string") {
+      const row = await db
+        .prepare(
+          "SELECT offering_id FROM marketplace_listings WHERE id=? AND organization_id=?",
+        )
+        .bind(body.listingId, current.organization_id)
+        .first<{ offering_id: string }>();
+      if (!row) throw missing();
+      await owned(db, actor, "offering", row.offering_id);
+    }
   }
   for (const [field, type] of [
     ["partId", "canonical"],

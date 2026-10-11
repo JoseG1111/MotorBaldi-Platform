@@ -88,9 +88,19 @@ function browserHarness(
   };
   const context = createContext({
     document,
-    fetch: fetcher,
+    fetch: (path: string, init?: RequestInit) => {
+      if (
+        (!init?.method || init.method === "GET") &&
+        (path.startsWith("/api/v1/public/parts") ||
+          path.includes("/marketplace-listings") ||
+          path.startsWith("/api/v1/admin/marketplace/listings"))
+      )
+        return Promise.resolve(Response.json({ items: [], nextCursor: null }));
+      return fetcher(path, init);
+    },
     Response,
     URL,
+    URLSearchParams,
     location: { href: "https://portal.test/", pathname: "/" },
     history: { replaceState() {} },
     crypto: { randomUUID: () => "test-uuid" },

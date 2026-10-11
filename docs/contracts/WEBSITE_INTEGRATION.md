@@ -32,3 +32,13 @@ The endpoint records a CRM lead and a versioned outbox event in one D1 batch. It
 Configure the website's exact HTTPS origin in `PUBLIC_CORS_ORIGINS`, separately from Portal/Admin `CORS_ORIGINS` and Better Auth trusted origins. The Turnstile widget action must be exactly `lead`. Its sitekey is public; the secret belongs only to the Platform API Worker, which calls Siteverify server-side. The token is ephemeral transport data and is never part of the CRM lead or application idempotency fingerprint. Keep the application `Idempotency-Key` stable while retrying an unchanged logical lead, but obtain or reset the widget token after every attempted submission because Turnstile tokens are single-use. A fresh token changes the Siteverify retry UUID while preserving MotorBaldi's business replay key.
 
 `GET /api/v1/public/plans` remains reserved for a later phase and is not implemented.
+
+## Public parts discovery
+
+Owner-approved Phase 8 discovery exposes `GET /api/v1/public/parts`, with optional `q`, `category`, UUID `cursor` and integer `limit` (1–50, default20). Unknown or duplicate query fields are rejected. Results contain `items` and `nextCursor`; follow a non-null cursor with unchanged filters. `GET /api/v1/public/parts/{listingId}` returns a reviewed eligible snapshot or404. Responses are `no-store`: source/eligibility changes must immediately stop discovery, including detail reads.
+
+Public snapshots contain only approved part descriptive/compatibility fields, opaque listing reference, partner business name/country/general city-region, optional integer COP minor-unit indicative price, availability and update date. Missing price displays “Consultar”. Availability and compatibility are informational; stock is not guaranteed and workshops must confirm fitment. No partner SKU, private customer/vehicle information, street address, coordinates, VIN/plate lookup, internal commercial fields or media is included.
+
+Public access is read-only and uses existing API rate limiting and configured public/Portal origins. Optional partner publication is private by default and requires assured staff review; an ACTIVE private offering is not publication consent. Source version, canonical state, business identity/general location and current seller eligibility are checked before each public read. Do not cache or reuse withdrawn/stale snapshots as a current offer.
+
+`GET /api/v1/public/parts/capabilities` explicitly describes discovery and disabled commerce/media. There are no orders, checkout, payments, reservations, inventory deductions, marketplace fees/commissions, media uploads or fulfillment in this contract. “Consultar” does not establish a seller messaging workflow. Remote verification evidence is tracked separately in MB-P8-005.
