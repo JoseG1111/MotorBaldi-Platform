@@ -16,7 +16,7 @@ Confirmed runtime defect: showCommissions reads commissions/settlements while ca
 
 ## Verification ledger
 
-UX-002 through UX-005 verified below; UX-006 local gate and Development verification complete; CI pending. Synthetic browser fixtures are visual/interaction evidence only, never proof of real remote authorization or backend workflows. Remote verification recorded separately.
+UX-001 through UX-006 VERIFIED with the evidence and limits below. Synthetic browser fixtures are visual/interaction evidence only, never proof of real remote authorization or backend workflows. Remote verification recorded separately.
 
 ### UX-002 foundation evidence
 
@@ -44,8 +44,10 @@ Development only deployed: Admin `fb72ab80-d7b3-4bf4-880b-341b9abd9264`, Portal 
 
 Actual remote browser checks at1440/390 for both apps PASS: HTTP200, official logo bytes match, CSP present, anonymous private API denied401, zero axe/page errors and no overflow. Main viewed remote Admin desktop login and Portal mobile discovery/login screenshots under ignored `.local/ux/remote-evidence/`. Remote check is read-only, anonymous and contains no credentials/private records. `node scripts/development/authentication-smoke.mjs` independently passes signed machine assurance/replay/freshness/path/workflow restrictions. `node scripts/analytics/development-smoke.mjs` passes read-only scope/privacy/denial and independent canonical D1 consistency. Human privileged MFA browser sessions were not impersonated or expanded; full remote human-session workflow replay is not claimed. Existing local Worker auth/session/MFA regressions pass.
 
-CI for the exact implementation is pending. Wompi, marketplace commerce and real antimalware/public private-media release remain disabled/deferred under established policy.
+Final implementation01b7796 passed Platform CI38175650011. Wompi, marketplace commerce and real antimalware/public private-media release remain disabled/deferred under established policy.
 
 Final additional review inspected Admin1280, Portal768, operational analytics, professionals and mobile inspection detail. Inspection creation now uses a contextual disclosure hidden while reading a report; returning to Workshop/Inspection/CRM restores the list.52focused unit tests, four Portal browser tests and the complete772test gate PASS after this correction; mobile inspection screenshot re-inspected. Final screenshots preserved under ignored `.local/ux/evidence/` (59synthetic images); source tests regenerate them. Repeated final frontend deployments and four remote browser checks PASS with the versions above. Fresh names-only Wompi inventory remains0/4.
 
-Initial implementation `ad9d7f4` passed [Platform CI38175243210](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38175243210), including browser checks and Git history secret scan. Final navigation polish CI remains pending on [PR1](https://github.com/JoseG1111/MotorBaldi-Platform/pull/1). To reproduce browser QA on a fresh checkout: `pnpm exec playwright install --with-deps chromium`, then `pnpm test:ui`.
+Initial implementation `ad9d7f4` passed [Platform CI38175243210](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38175243210), including browser checks and Git history secret scan. Final navigation polish01b7796 passed [Platform CI38175650011](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38175650011) on [PR1](https://github.com/JoseG1111/MotorBaldi-Platform/pull/1). To reproduce browser QA on a fresh checkout: `pnpm exec playwright install --with-deps chromium`, then `pnpm test:ui`.
+
+MB-UX-006 VERIFIED after final implementation CI success. Repository cursor returns to the existing MB-P5-005 human configuration boundary; no eligible approved engineering remains. The UI implementation is deployed in Development and available in PR1. Documentation-only closeout does not change runtime artifacts.

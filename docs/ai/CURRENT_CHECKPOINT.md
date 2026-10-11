@@ -1,10 +1,10 @@
 # Current checkpoint
 
-- **Current checkpoint:** MB-UX-006 — Quality and final polish
-- **Status:** IMPLEMENTED — NOT VERIFIED
-- **Last verified checkpoint:** MB-UX-005 — Portal transformation
-- **Work completed:** Official brand, shared responsive shell, bounded Admin record management, domain-specific Admin layouts, customer/workshop/partner Portal workflows and role-aware navigation. Runtime commission contract, malformed responses, stale requests and exact COP input corrected. Implementation complete; final CI pending.
-- **Verification completed:** Full pnpm gate PASS:208unit+532Worker+5automation+27browser tests.59synthetic screenshots generated; representative layouts visually inspected. Signed Development authentication and read-only analytics/D1 consistency PASS. Admin/Portal deployed; four anonymous remote browser/axe/CSP/logo/denial checks PASS.
-- **Remaining work:** Exact implementation CI; then verify UX-006 and restore parked provider cursor. No application deployment remains.
-- **Exact next action:** Verify final navigation-polish CI on PR1 (`codex/premium-enterprise-ui`), then mark UX-006 VERIFIED and return to parked MB-P5-005. Initial ad9d7f4 passed CI38175243210; final772test gate and repeated Development deployments pass. Logs under `.local/ux/`; screenshot provenance and deployment versions in UX_EVIDENCE.md.
-- **Constraints:** Development only; unchanged backend/auth/scopes/Phase8 policies. Synthetic browser evidence is distinct from remote authorization. Wompi MB-P5-005 and antimalware MB-P3-005 remain separately parked and disabled.
+- **Current checkpoint:** MB-P5-005 — Remote validation
+- **Status:** HUMAN ACTION REQUIRED
+- **Last verified checkpoint:** MB-UX-006 — Quality and final polish
+- **Work completed:** MB-UX-001 through MB-UX-006 VERIFIED. Official MotorBaldi shared design system, responsive Admin/Portal shell, bounded record management and customer/workshop/partner workflows implemented. Runtime contract, malformed-response, stale-request and list/detail navigation defects corrected. Changes in PR1 (`codex/premium-enterprise-ui`); no eligible engineering checkpoint remains.
+- **Verification completed:** Final local `pnpm gate` PASS:208unit+532Worker+5automation+27browser tests. Implementation01b7796 passed [Platform CI38175650011](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38175650011).59synthetic screenshots preserved in `.local/ux/evidence/`; representative visual reviews at all four requested sizes. Final Development Adminfb72ab80/Portal1ab3bc6f deployed; four remote anonymous browser checks PASS. Signed Development auth and read-only analytics/D1 consistency PASS. See UX_EVIDENCE.md for exact evidence and limits.
+- **Remaining work:** Wompi merchant/provider Sandbox validation remains unverified: fresh names-only Development inventory0/4. MB-P3-005 real antimalware remains DEFERRED — OWNER APPROVED; private quarantine and public-file restriction preserved. Human-session remote browser replay was not claimed or impersonated.
+- **Exact next action:** Reconcile external boundaries on resume. MB-P5-005 requires authorized Sandbox merchant configuration through the existing [Wompi runbook](../runbooks/wompi-development.md), with secrets provisioned directly in the Development Worker and sandbox event URL configured. Never request secrets in chat/files. Then resume the real financial validation matrix. Do not repeat completed UX discovery.
+- **Constraints:** Development only. Existing auth/MFA/scopes/Phase8 policies retained; no staging/production/marketing/DNS changes, paid providers, live payments or public private-media release.

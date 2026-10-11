@@ -944,7 +944,7 @@ Preserves all Phase 8/9 decisions and parked external boundaries. Development on
 
 ### MB-UX-006 — Quality and final polish
 
-- **Status:** IMPLEMENTED — NOT VERIFIED
+- **Status:** VERIFIED
 - **Dependencies:** MB-UX-005
 - **Objective:** Quality and final polish.
 - **Scope / required work:** Cross-module accessibility, responsive screenshots, regression tests, full pnpm gate and existing Development deployment verification.
@@ -953,4 +953,4 @@ Preserves all Phase 8/9 decisions and parked external boundaries. Development on
 - **Verification:** Focused tests and rendered synthetic browser evidence; final gate/deployment in MB-UX-006.
 - **Completion criteria:** Cross-module accessibility, responsive screenshots, regression tests, full pnpm gate and existing Development deployment verification.
 - **Human-action conditions:** Global stop rule only.
-- **Evidence:** Full pnpm gate PASS (208unit/532Worker/5automation/27browser),59synthetic screenshots and actual representative visual review. Development Admin/Portal deployed and four anonymous remote browser/axe/CSP/logo/denial checks PASS; signed auth and read-only analytics/D1 consistency PASS. Exact implementation CI pending; see UX_EVIDENCE.md.
+- **Evidence:** Full pnpm gate PASS (208unit/532Worker/5automation/27browser),59synthetic screenshots and actual representative visual review. Development Admin/Portal deployed and four anonymous remote browser/axe/CSP/logo/denial checks PASS; signed auth and read-only analytics/D1 consistency PASS. Final implementation01b7796 passed [Platform CI38175650011](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38175650011), including browser and history secret checks; see UX_EVIDENCE.md.
