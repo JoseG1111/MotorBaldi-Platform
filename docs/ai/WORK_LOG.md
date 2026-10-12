@@ -206,3 +206,7 @@ Real local vehicle/expiry/maintenance/pending-subscription persistence and four 
 ## 2026-10-12 — MB-VS-006 integrated verification
 
 Full817 gate PASS (208 foundation/555 Worker/5 automation/49 browser), actual desktop/mobile image review and four viewport upgrade/vehicle axe checks. Development0020–0023 applied; API/Worker/Portal/Admin deployed. Actual Free15 cron/outbox/Queue disposition UNAVAILABLE/TRANSPORT_UNAVAILABLE and PROCESSED verified; independent cleanup and FK/index checks PASS. Final anonymous remote browser/session/origin tests PASS. Fixed generated JavaScript validation boot regression before final deployment; seven focused vehicle browser tests PASS. CI/repeat final-version cron probe pending; no checkout/external delivery or remote human MFA claimed.
+
+## 2026-10-12 — MB-VS-006 closeout and parked boundaries
+
+Implementation654a60f passed CI38241277277 including817tests and Git history secret scan. Repeat final Worker cron/outbox/Queue PASS, with disabled synthetic fixture independently checked and FK clean. Exact remote public prices/periods/limits and six unauthenticated new-route denials PASS; isolated authentication smoke PASS. MB-VS006 VERIFIED for available engineering scope; cursor returns QA008 genuine human MFA validation. MB-VS007 tracks unavailable external notification provider configuration/verification. Wompi and scanner remain separately governed. PR1 open/unmerged; no overall production/commercial readiness claim.

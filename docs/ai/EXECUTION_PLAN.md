@@ -1134,7 +1134,7 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 
 ### MB-VS-006 — Integrated verification and Development closeout
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-VS-005
 - **Objective:** Integrated verification and Development closeout.
 - **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
@@ -1143,4 +1143,17 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
 - **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
 - **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
-- **Evidence:** Full815test gate passed before final availability metadata correction; focused12billing/typecheck passed afterward. Final gate, Development migration/deployment, real cron/Queue and CI closeout remain.
+- **Evidence:** Final817test pnpm gate PASS (208foundation/555Worker/5automation/49browser), four viewport axe/overflow and actual1440/390image review. Development0020–0023 and final API/Worker/Portal/Admin rollout PASS. Actual final-version cron/outbox/Queue Free15-only UNAVAILABLE/PROCESSED and independently checked fixture cleanup/FK/index PASS; deployed anonymous session/browser/origin/private denial and exact public pricing PASS. Implementation654a60f passed [CI38241277277](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38241277277), including history secret scan. PR1 OPEN/unmerged; genuine remote human MFA and unavailable external payments/delivery remain separately parked. Detailed evidence in VEHICLE_SERVICES_EXECUTION_PLAN.md.
+
+### MB-VS-007 — External notification delivery verification
+
+- **Status:** HUMAN ACTION REQUIRED
+- **Dependencies:** MB-VS-006
+- **Objective:** Verify real configured external email/WhatsApp delivery without fabricated success.
+- **Scope / required work:** Approved provider integration, consent, idempotency/retry and actual delivery evidence for expiry reminders; monthly automatic summary delivery separately verified before claiming available.
+- **Relevant files/systems:** Existing notification policy, Messaging, canonical outbox/Queue, approved provider configuration and Development.
+- **Constraints:** No new paid services without approval, no owner secrets in chat, no production changes or weakening delivery/consent gates. Staffed interactive WhatsApp already works and is not blocked by this checkpoint.
+- **Verification:** Real approved provider acceptance/reconciliation/delivery and failure/retry tests; never infer delivery from cron or processed outbox.
+- **Completion criteria:** Actual configured-channel verification with retained privacy-safe audit and current consent, otherwise unavailable state remains explicit.
+- **Human-action conditions:** Owner identifies the authorized existing email/WhatsApp notification provider and makes required configuration available through approved secure infrastructure; no credentials pasted into chat. No provider transport is configured and the existing delivery policy stays closed. Resume engineering when the authorized integration is available; staffing is already approved.
+- **Evidence:** Final Development cron/Queue correctly records UNAVAILABLE/TRANSPORT_UNAVAILABLE. No external delivery was performed or claimed. Wompi remains MB-P5-005; remote human MFA remains MB-QA-008.
