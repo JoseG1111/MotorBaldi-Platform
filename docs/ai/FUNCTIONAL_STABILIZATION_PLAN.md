@@ -74,3 +74,7 @@ Final Development versions: API f886caa3-4b8a-4282-97e8-c61955b58f1d (unchanged 
 ## Required human verification (after independent closeout)
 
 Use your own browser in Development: sign in normally with MFA, open a protected screen, choose Cerrar sesión in Admin and Portal, refresh and use Back, confirm private content does not return, then log in normally again with MFA. Report only pass/fail and surface/error category; never share passwords, cookies, OTPs or recovery codes. This genuine remote interactive evidence is unavailable to the autonomous tooling. Local real MFA and remote dedicated automation are not substitutes. Do not recommend unconditional PR approval or production readiness until this explicit limitation is accepted/resolved.
+
+## CI recovery
+
+Implementation d1c8095 CI38198181208 stopped at Workers: two existing multi-operation tests timed out at5000ms (vehicle-commands:1181 dedicated inspection/media workflow and marketplace-api:821 duplicate Queue delivery). No assertion failure was reported for these two cases; full local537Worker tests pass in24.52s while CI contention extends the job to57s. Bound CI isolate concurrency to2 (local remains4), retaining all tests/assertions/deadlines and production behavior. CI-mode focused validation PASS:31tests in four affected suites at two workers,8.74s; fresh exact-revision CI pending; do not mark QA007 verified from the local gate alone.

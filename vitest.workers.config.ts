@@ -4,8 +4,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["tests/workers/**/*.test.ts"],
-    // Bound isolate startup contention as the real D1/API suite grows.
-    maxWorkers: 4,
+    // CI runners contend on isolate startup and crypto-heavy D1 workflows.
+    // Keep every test and its deadline; bound concurrency on those runners.
+    maxWorkers: process.env.CI ? 2 : 4,
     pool: cloudflarePool({
       wrangler: { configPath: "apps/api/wrangler.jsonc" },
       miniflare: {
