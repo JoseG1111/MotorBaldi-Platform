@@ -6,7 +6,7 @@ The registry remains [EXECUTION_PLAN.md](EXECUTION_PLAN.md); [CURRENT_CHECKPOINT
 
 Free COP0, one active owner vehicle, five manual maintenance entries, basic manual SOAT/RTM and email15days. Premium COP29,900/month or COP288,000/year, identical benefits, three vehicles, unlimited reasonable manual history, email30/15/7/1days, unlimited eligible human assistance and personalized technical support. No monthly request quota. Staffing is approved; hours/contact/integration configuration must be factual. Preserve privacy/security/account rights channels for Free, all historical data after downgrade, role/organization permissions independently of personal subscriptions. External insurance/CDA transactions and payments remain gated.
 
-## Reusable implementation and gaps
+## Initial discovery (superseded by implementation evidence below)
 
 - Existing billing plans already store approved prices in COP minor units (2990000/28800000), but vehicle limit defaults2 and membership Free reports2. Existing signed payment confirmations/admin grants establish entitlement; pending subscription is not Premium. Historical period prices are immutable snapshots.
 - Existing customer vehicle access is explicit canonical grants; garage is not ownership. Registration currently staff-only; no first-class expiry or manual maintenance interface exists.
@@ -27,7 +27,7 @@ Free COP0, one active owner vehicle, five manual maintenance entries, basic manu
 
 ## Recovery
 
-Current MB-VS-006. Canonical catalog/db entitlement, billing overview, support purposes/vehicle context/official WhatsApp, vehicle commands/routes/UI, reminder scheduler/Worker, migrations0020–0022 and regressions implemented. Real local browser exposed missing central idempotency registration (mock/browser and direct domain tests did not catch it); registration ops now registered. Real local journey and four viewport new vehicle workflows PASS. Three prepared-command authorization races reproduced and fixed with canonical permission/active account guards. Full815gate PASS, followed by focused12billing/typecheck for honest availability metadata; final gate pending. Exact next action: final gate, Development0020–0022 migration/deploy, infrastructure-only cron/Queue probe, remote browser/protocol/CI.
+MB-VS001–006 VERIFIED within their recorded engineering scope. The sole recovery cursor is MB-QA008 HUMAN ACTION REQUIRED for actual remote human Development login/MFA/logout/refresh/Back/new-login and opening the Premium/vehicle pages. Final full817 gate, deployed runtime checks, real final-version cron/outbox/Queue and implementation CI38241277277 PASS. Source654a60f is pushed on the existing open PR1 branch. Final documentation-only closeout CI is being checked before reporting; no runtime changes after verified deployment. Next autonomous action: reconcile owner human validation and secure approved external provider readiness, then resume the matching existing registry checkpoint. Do not repeat completed brand/UI/domain discovery.
 
 ## Operational limitations and evidence
 
@@ -37,7 +37,7 @@ Official interactive WhatsApp https://wa.me/573104602615 was read from public mo
 
 Shared customer catalog/design-scoped vehicle controls; DB current entitlement/idempotency registry; payments membership; canonical vehicle commands/routes/permission predicate; support purposes/context/contact policy; reminders/Worker cron;0020–0022 migrations; browser/domain/Foundation fixture regressions; ADR0030/OpenAPI. Real browser found missing idempotency registry. Security race tests demonstrated writes after prepared account suspension/read or mileage-grant revocation; now rejected atomically. Support form gained a second action, so native submitter now controls loading/disabled state; real persisted test pauses actual POST to assert correct button without mocking success. Maintenance history now uses scoped chronological cursor ordering.
 
-## Development rollout recovery
+## Historical Development rollout recovery
 
 0020–0022 applied to named Development D1. First annotated SQL attempt failed with7500 before any migration applied; pure SQL statements passed unchanged business schema. API a99d8c8d-0ab7-4b0f-af2d-eca286cdcc55 deployed. Worker/Portal rollout pending. Simultaneous final lint inspected Wrangler transient generated JavaScript under apps/api/.wrangler/tmp; exclude generated **/.wrangler/**, retaining all source checks. Final asynchronous vehicle selection regression passes focused browser; final full gate/CI must include it. Exact next action: finish Worker deploy, deploy Portal, execute infrastructure-only reminder probe and remote checks, then frozen-source full gate/commit/CI.
 
