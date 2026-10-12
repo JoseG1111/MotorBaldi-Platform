@@ -52,7 +52,7 @@ export function createResendTransport(
     expectedId?: string,
   ): Promise<DeliveryReceipt> {
     try {
-      const response = await fetcher(url, { ...init, redirect: "error" });
+      const response = await fetcher(url, { ...init, redirect: "manual" });
       if (!response.ok) {
         // A generic 429, timeout or server error does not prove non-acceptance.
         return expectedId === undefined &&

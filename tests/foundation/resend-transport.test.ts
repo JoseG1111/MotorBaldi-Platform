@@ -55,7 +55,7 @@ describe("development Resend transport", () => {
     expect(url).toBe("https://api.resend.com/emails");
     expect(init).toMatchObject({
       method: "POST",
-      redirect: "error",
+      redirect: "manual",
       headers: {
         Authorization: "Bearer test-placeholder",
         "Content-Type": "application/json",
@@ -152,7 +152,7 @@ describe("development Resend transport", () => {
         method: "GET",
         headers: { Authorization: "Bearer test-placeholder" },
         signal: input.signal,
-        redirect: "error",
+        redirect: "manual",
       },
     ]);
     expect(

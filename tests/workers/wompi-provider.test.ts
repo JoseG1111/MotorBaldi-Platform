@@ -39,6 +39,7 @@ function transport(
 ) {
   const calls: { url: string; init: RequestInit }[] = [];
   const fetcher = (async (url: RequestInfo | URL, init: RequestInit = {}) => {
+    new Request(String(url), init); // Exercise native Workerd redirect compatibility before the fixture.
     calls.push({ url: String(url), init });
     return handler(String(url), init);
   }) as typeof fetch;
@@ -408,7 +409,7 @@ describe("Wompi sandbox-first cryptographic adapter", () => {
       signature: await wompiIntegritySignature({ ...config, ...charge }),
       recurrent: true,
     });
-    expect(calls[0]?.init.redirect).toBe("error");
+    expect(calls[0]?.init.redirect).toBe("manual");
     expect(calls[0]?.url).toBe("https://sandbox.wompi.co/v1/transactions");
     expect(request).not.toHaveProperty("idempotency_key");
     expect(adapter).not.toHaveProperty("findByReference");
@@ -616,3 +617,21 @@ describe("Wompi sandbox-first cryptographic adapter", () => {
     ).rejects.toMatchObject({ code: "WOMPI_RESPONSE_INVALID" });
   });
 });
+
+it.each([302, 307])(
+  "does not follow Wompi redirect%s or turn ambiguous charging into a definite rejection",
+  async (status) => {
+    const { calls, fetcher } = transport(
+      async () =>
+        new Response(null, {
+          status,
+          headers: { Location: "https://example.invalid/forbidden-target" },
+        }),
+    );
+    await expect(
+      createWompiAdapter({ ...config, fetch: fetcher }).chargeSource(charge),
+    ).resolves.toMatchObject({ status: "UNKNOWN", id: null });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.init.redirect).toBe("manual");
+  },
+);

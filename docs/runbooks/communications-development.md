@@ -95,3 +95,19 @@ The template must be UTILITY with exactly three BODY parameters in order: docume
 7. Close/remove the scoped permit immediately, confirm global policy remains0 and sending disabled, disable synthetic preferences/revoke fixture access as appropriate while preserving immutable audit/outbox/status history. Mark only actually observed channel/stage VERIFIED. Email, monthly automatic summary delivery and Wompi remain separate boundaries.
 
 Until approval and the above prerequisites, only mocked acceptance/status tests and internal generation are verified. A webhook200 or processed outbox is not E2E delivery evidence. The preflight uses Meta's [official API collection](https://www.postman.com/meta/whatsapp-business-platform/documentation/wlk6lh4/whatsapp-cloud-api), not an additional provider.
+
+## Autonomous Cloudflare recovery and runtime correction
+
+Cloudflare login is now restored. Sourcecbb57db CI38303598651 passed959 tests; guards deployed and live metadata independently checked using the stored Development token, without extracting it. Exact app/system-user type and valid token, both messaging/management scopes, configured phone in approved WABA, app subscription, version/template/language and UTILITY three-parameter contract all pass. Actual template is PENDING. Messages-field subscription remains separately owner-reported. D1 has zero verified enabled transactional WhatsApp preferences, so recipient consent is not established merely by provider setup. General policy0 and external ledger0 confirmed before/after deployment.
+
+Repeat the read-only check with existing authorized Cloudflare access:
+
+```bash
+pnpm exec wrangler dev scripts/communications/meta-readiness-preview.mjs --config apps/worker/wrangler.jsonc --env development --remote --port 8799 --inspector-port 9239
+```
+
+In a second local terminal, `curl --fail http://localhost:8799/` returns only allowlisted readiness booleans/status/error codes. Stop the preview with Ctrl+C afterwards. It uses the existing named Development Worker secrets, performs Graph GETs only and never prints token, recipient, raw errors or template text. Its standalone main override does not deploy/replace the application's Worker. Do not target any other environment. No hidden local Meta token input is needed with this mechanism; the Python preflight remains an alternative. Approval check must remain read-only while PENDING.
+
+This live preview exposed native Cloudflare fetch rejecting redirect:error before HTTP. Meta, Resend and Wompi now use redirect:manual and never follow a redirect to another host. Wompi redirect responses remain UNKNOWN (potential financial side effect is not asserted rejected); no automatic retry added. Native Workerd Request regression prevents mocked transports hiding this runtime failure. Full960 local gate passed; the final payment adjustment passed71focused cases/typecheck/lint, and final integrated CI follows without another full local run. Final Worker143290f8-2af5-4ce6-a576-60427c9a10a8/API85e10a4c-156d-4bb4-8f14-5c11eed6137b deployed with --keep-vars. No real messages/payments, new provider, paid service or Production changes.
+
+Actual APPROVED status, verified account phone/explicit notification opt-in, Meta test-number allowlisting and permitted no-cost conditions remain prerequisites. Then implement/review the exact expiring test permission described above; general policy remains closed. Do not fabricate opt-in/phone verification, directly send outside canonical tracking, or report E2E delivery from metadata checks.

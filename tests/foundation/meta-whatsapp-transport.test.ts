@@ -97,7 +97,7 @@ describe("development-only Meta WhatsApp transport", () => {
     expect(url).toBe("https://graph.facebook.com/v26.0/123456789/messages");
     expect(init).toMatchObject({
       method: "POST",
-      redirect: "error",
+      redirect: "manual",
       signal: request.signal,
       headers: {
         Authorization: "Bearer test-token-placeholder",

@@ -100,7 +100,7 @@ export function createMetaWhatsAppTransport(
           `https://graph.facebook.com/${settings.apiVersion}/${settings.phoneNumberId}/messages`,
           {
             method: "POST",
-            redirect: "error",
+            redirect: "manual",
             headers: {
               Authorization: `Bearer ${settings.accessToken}`,
               "Content-Type": "application/json",

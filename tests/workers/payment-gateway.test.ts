@@ -373,7 +373,7 @@ describe("sandbox payment gateway boundary", () => {
     expect(new Headers(calls[0]?.init?.headers).get("authorization")).toBe(
       "Bearer " + bindings.WOMPI_PRIVATE_KEY,
     );
-    expect(calls[0]?.init?.redirect).toBe("error");
+    expect(calls[0]?.init?.redirect).toBe("manual");
   });
 
   it("rejects authoritative amount/reference mismatches against the internal ledger", async () => {

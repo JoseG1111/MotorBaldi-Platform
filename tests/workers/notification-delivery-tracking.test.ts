@@ -567,3 +567,48 @@ it("retains an early signed status and reconciles it after provider acceptance i
   ).toEqual({ status: "PROCESSED" });
   expect(f.sendMock).toHaveBeenCalledOnce();
 });
+
+it("Meta HTTP is compatible with Cloudflare native Request redirect modes", async () => {
+  const { createMetaWhatsAppTransport } =
+    await import("../../packages/messaging/src/meta-whatsapp.js");
+  const { sha256Hex } = await import("@motorbaldi/shared");
+  const transport = createMetaWhatsAppTransport(
+    {
+      environment: "development",
+      enabled: true,
+      accessToken: "synthetic-local-only",
+      phoneNumberId: "123456789",
+      apiVersion: "v26.0",
+      approvedTemplateName: "vehicle_document_expiry",
+      templateLanguage: "es",
+      templateStatus: "APPROVED",
+      testRecipientSha256: await sha256Hex("+573000000000"),
+    },
+    async (url, init) => {
+      const request = new Request(url, init);
+      expect(request.redirect).toBe("manual");
+      return Response.json({
+        messaging_product: "whatsapp",
+        messages: [{ id: "wamid.native_request_fixture" }],
+      });
+    },
+  );
+  expect(
+    await transport.send("WHATSAPP", {
+      id: "native-request-fixture",
+      idempotencyKey: "native-request-fixture",
+      requestId: "native-request-id",
+      recipient: "+573000000000",
+      template: "vehicle_document_expiry",
+      variables: {
+        documentType: "RTM",
+        expiresOn: "2026-12-31",
+        daysBefore: "15",
+      },
+      signal: new AbortController().signal,
+    }),
+  ).toEqual({
+    status: "ACCEPTED",
+    providerReference: "wamid.native_request_fixture",
+  });
+});
