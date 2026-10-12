@@ -1052,7 +1052,7 @@ The [functional stabilization plan](FUNCTIONAL_STABILIZATION_PLAN.md) tracks def
 
 ### MB-QA-008 — Readiness assessment and PR closeout
 
-- **Status:** HUMAN ACTION REQUIRED
+- **Status:** VERIFIED
 - **Dependencies:** MB-QA-007
 - **Objective:** Readiness assessment and PR closeout.
 - **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
@@ -1060,8 +1060,8 @@ The [functional stabilization plan](FUNCTIONAL_STABILIZATION_PLAN.md) tracks def
 - **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
 - **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
 - **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
-- **Human-action conditions:** Owner completes normal MFA login/logout/refresh/Back/new-login in Admin and Portal Development using their own browser, reports outcome without secrets. Available autonomous tooling has no access to that genuine human session. All independent automated work is complete; do not merge automatically.
-- **Evidence:** Readiness assessment written: seven reproduced defects fixed, full788test gate and implementation CI PASS, Development deployed/automated checks PASS, PR1 open/unmerged. Actual remote human MFA/logout validation remains pending; no unconditional approval or production-readiness claim. See FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Human-action conditions:** Owner confirmation received 2026-10-12 in response to the requested normal Development login/MFA/logout/refresh/Back/new-login check: “Everything is fine, continue autonomously motorbaldi.” This is operator attestation, not independent browser observation or proof of every role/mutation. No further QA008 action is required; do not merge automatically.
+- **Evidence:** Owner-reported human validation accepted 2026-10-12 following the explicit secure browser request; no owner secrets or private screenshots collected. Seven reproduced stabilization defects remain fixed; subsequent full817 gate, Development rollout and final documentation head a0d41c9 [CI38242380502](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38242380502) PASS. Fresh PR1 OPEN/unmerged with green verify check; no universal role/mutation coverage or commercial/production-readiness claim. Detailed attestation and limitations in FUNCTIONAL_STABILIZATION_PLAN.md.
 
 ## Owner-approved vehicle services workstream — 2026-10-11
 
@@ -1143,7 +1143,7 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
 - **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
 - **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
-- **Evidence:** Final817test pnpm gate PASS (208foundation/555Worker/5automation/49browser), four viewport axe/overflow and actual1440/390image review. Development0020–0023 and final API/Worker/Portal/Admin rollout PASS. Actual final-version cron/outbox/Queue Free15-only UNAVAILABLE/PROCESSED and independently checked fixture cleanup/FK/index PASS; deployed anonymous session/browser/origin/private denial and exact public pricing PASS. Implementation654a60f passed [CI38241277277](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38241277277), including history secret scan. PR1 OPEN/unmerged; genuine remote human MFA and unavailable external payments/delivery remain separately parked. Detailed evidence in VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Evidence:** Final817test pnpm gate PASS (208foundation/555Worker/5automation/49browser), four viewport axe/overflow and actual1440/390image review. Development0020–0023 and final API/Worker/Portal/Admin rollout PASS. Actual final-version cron/outbox/Queue Free15-only UNAVAILABLE/PROCESSED and independently checked fixture cleanup/FK/index PASS; deployed anonymous session/browser/origin/private denial and exact public pricing PASS. Implementation654a60f passed [CI38241277277](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38241277277), including history secret scan. PR1 OPEN/unmerged; owner-reported human validation subsequently closes QA008, while external payments/delivery remain separately parked. Detailed evidence in VEHICLE_SERVICES_EXECUTION_PLAN.md.
 
 ### MB-VS-007 — External notification delivery verification
 
@@ -1156,4 +1156,4 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Verification:** Real approved provider acceptance/reconciliation/delivery and failure/retry tests; never infer delivery from cron or processed outbox.
 - **Completion criteria:** Actual configured-channel verification with retained privacy-safe audit and current consent, otherwise unavailable state remains explicit.
 - **Human-action conditions:** Owner identifies the authorized existing email/WhatsApp notification provider and makes required configuration available through approved secure infrastructure; no credentials pasted into chat. No provider transport is configured and the existing delivery policy stays closed. Resume engineering when the authorized integration is available; staffing is already approved.
-- **Evidence:** Final Development cron/Queue correctly records UNAVAILABLE/TRANSPORT_UNAVAILABLE. No external delivery was performed or claimed. Wompi remains MB-P5-005; remote human MFA remains MB-QA-008.
+- **Evidence:** Final Development cron/Queue correctly records UNAVAILABLE/TRANSPORT_UNAVAILABLE. No external delivery was performed or claimed. Wompi remains MB-P5-005; QA008 is closed by owner attestation, not independently observed human automation.

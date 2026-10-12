@@ -210,3 +210,7 @@ Full817 gate PASS (208 foundation/555 Worker/5 automation/49 browser), actual de
 ## 2026-10-12 — MB-VS-006 closeout and parked boundaries
 
 Implementation654a60f passed CI38241277277 including817tests and Git history secret scan. Repeat final Worker cron/outbox/Queue PASS, with disabled synthetic fixture independently checked and FK clean. Exact remote public prices/periods/limits and six unauthenticated new-route denials PASS; isolated authentication smoke PASS. MB-VS006 VERIFIED for available engineering scope; cursor returns QA008 genuine human MFA validation. MB-VS007 tracks unavailable external notification provider configuration/verification. Wompi and scanner remain separately governed. PR1 open/unmerged; no overall production/commercial readiness claim.
+
+## 2026-10-12 — Owner attestation closes QA008
+
+Owner “Everything is fine, continue autonomously motorbaldi.” accepted as contextual operator confirmation of the preceding explicit human Development login/MFA/logout/refresh/Back/new-login request. QA008 VERIFIED with operator-attestation limitation, no independently observed human session or all-role mutation claim. Fresh PR1 OPEN/unmerged, a0d41c9 CI38242380502 green. Names-only Development Wompi0/4, Worker no configured secret names; existing external boundaries unchanged. Provider-name-only question sent; no credentials requested. No runtime changes or deployments; cursor advances P5-005. Focused execution/document checks and documentation commit/CI follow.

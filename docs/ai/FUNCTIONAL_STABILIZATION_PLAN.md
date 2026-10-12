@@ -71,7 +71,7 @@ All seven confirmed engineering defects have passing regression evidence; no con
 
 Final Development versions: API f886caa3-4b8a-4282-97e8-c61955b58f1d (unchanged after initial QA deploy), Admin81aa5d15-e112-447a-a634-6d7bfe7a9654, Portal5d000615-56c0-422d-b50f-5b15440c2262. Repeated anonymous protocol PASS both apps; signed Development authentication smoke PASS without broadening machine authority. Final remote browser checks PASS at1440/390 for both apps: deployed shell/logo/CSP/anonymous denial/axe/no overflow or page exceptions. Exact implementation CI pending. No migrations/Queue Worker/production/marketing/DNS changes.
 
-## Required human verification (after independent closeout)
+## Historical requested human verification (owner response recorded below)
 
 Use your own browser in Development: sign in normally with MFA, open a protected screen, choose Cerrar sesión in Admin and Portal, refresh and use Back, confirm private content does not return, then log in normally again with MFA. Report only pass/fail and surface/error category; never share passwords, cookies, OTPs or recovery codes. This genuine remote interactive evidence is unavailable to the autonomous tooling. Local real MFA and remote dedicated automation are not substitutes. Do not recommend unconditional PR approval or production readiness until this explicit limitation is accepted/resolved.
 
@@ -79,10 +79,18 @@ Use your own browser in Development: sign in normally with MFA, open a protected
 
 Implementation d1c8095 CI38198181208 stopped at Workers: two existing multi-operation tests timed out at5000ms (vehicle-commands:1181 dedicated inspection/media workflow and marketplace-api:821 duplicate Queue delivery). No assertion failure was reported for these two cases; full local537Worker tests pass in24.52s while CI contention extends the job to57s. Bound CI isolate concurrency to2 (local remains4), retaining all tests/assertions/deadlines and production behavior. CI-mode focused validation PASS:31tests in four affected suites at two workers,8.74s; final33237dc [Platform CI38198741515](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38198741515) PASS including537Worker/38browser/history secret checks; do not mark QA007 verified from the local gate alone.
 
-## Readiness assessment and recovery
+## Historical readiness assessment before owner confirmation
 
 Seven confirmed defects have executed before/after regression evidence and are fixed in deployed code; no confirmed P0/P1 remains unfixed in the investigated paths. The P0 classification applies to the reproduced local storage-fault false-success, not an asserted actual owner-session exposure in Development. Baseline772tests preserved;16new cases added. CI33237dc passes every existing gate with bounded CI concurrency and unchanged test deadlines. Source implementation d1c8095, runner fix33237dc; final docs-only closeout changes no runtime.
 
 PR1 remains OPEN/unmerged and contains the UI plus stabilization revisions. Automated technical review can proceed; unconditional approval is withheld pending the genuine owner-browser check. Actual remote human MFA/session evidence is still pending, so the overall stabilization closeout QA008 is HUMAN ACTION REQUIRED rather than falsely verified. Wompi credentials/merchant validation and owner-deferred antimalware remain separately governed; no production-readiness assertion. Exact next action is the secure browser procedure above. On owner confirmation, record operator attestation and remaining limits, then close QA008; never claim independent automation of that human action.
 
 Final history review confirms WORK_LOG retains all pre-QA entries (append-only diff). Functional/UX plans are not competing registries: EXECUTION_PLAN alone owns checkpoint statuses, CURRENT_CHECKPOINT owns recovery. Persistent logs `.local/qa/`, browser sources under tests/browser, synthetic images under test-results/browser; real local MFA tests deliberately generate no screenshots/traces/video. No screenshots or private fixtures committed.
+
+## 2026-10-12 owner validation and QA008 closeout
+
+After the explicit request to validate normal Development login/MFA, logout, refresh, Back and new login in Admin and Portal, the owner responded: “Everything is fine, continue autonomously motorbaldi.” Treat this context-specific reply as owner-reported confirmation of the requested check. It is operator attestation; autonomous tooling did not independently observe that human session, capture per-step evidence, or verify all roles and remote mutations. No passwords, cookies, OTPs, recovery codes or private screenshots were requested/collected.
+
+MB-QA008 is VERIFIED with that evidence limit plus the retained automated regressions. Subsequent customer-services engineering passes817 tests and final a0d41c9 CI38242380502; PR1 remains OPEN/unmerged with green verify check. No runtime changes or new deployment are necessary for this documentation-only closeout. General code review may proceed; merchant/payment readiness, external automated delivery and deferred scanner remain separate release restrictions. No production-readiness or automatic merge is implied.
+
+Recovery advances to earliest remaining MB-P5-005 HUMAN ACTION REQUIRED. Fresh names-only Development API inventory still finds0/4 Wompi names; Worker secret inventory is empty and external transport remains unavailable. MB-VS007 awaits authorized provider identification/configuration, with a concise name-only question sent to the owner. Resume the corresponding checkpoint when its actual condition clears; do not repeat completed UX/domain/QA implementation.
