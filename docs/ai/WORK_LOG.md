@@ -234,3 +234,9 @@ Full936gate PASS (289foundation/588Worker/5automation/54browser). Final API3aec3
 ## 2026-10-12 — VS008 workspace loading guard
 
 Final review of the new accessible initialization marker found workspace changes could leave aria-busy true after the stale bootstrap is discarded. The current refresh now releases its loading marker independently of the selected workspace while still discarding stale profile data. Controlled actual-select regression plus four viewport/help/contacts and actual LOCAL persisted journey:7browser PASS. Prior full936gate remains passing; final CI includes the additional regression (937 expected). No timeout increase or authorization change. Portal follow-up deployment and source CI pending.
+
+## Product reconciliation — billing smoke policy correction
+
+Corrected stale two-vehicle assertions to shared approved Premium3, four-fixture over-limit verification, exact configured pricing and GET-only anonymous mode.10 focused regressions/typecheck/lint and actual anonymous Development smoke PASS. Previous source CI38265551019/38266571357 SUCCESS. Final integrated gate pending; no external credentials, payments or sending activated.
+
+Final integrated pnpm gate PASS947 (299foundation/588Worker/5automation/55browser), including security/history-compatible checks, audit, artifacts and real local persisted journeys. Evidence: .local/qa/product-final-947-gate.log. Billing-only CLI changes require no application redeployment. Source CI next.
