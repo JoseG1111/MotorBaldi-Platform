@@ -10,6 +10,7 @@ import {
 } from "@motorbaldi/db";
 import { newId, type Json } from "@motorbaldi/shared";
 import {
+  assistanceOverview,
   parseSupportCommand,
   prepareSupportCommand,
   authorizeSupportCommand,
@@ -33,6 +34,7 @@ import m13 from "../../migrations/0013_payment_provider_evidence.sql?raw";
 import m14 from "../../migrations/0014_notifications.sql?raw";
 import m15 from "../../migrations/0015_support.sql?raw";
 import m16 from "../../migrations/0016_support_history_boundary.sql?raw";
+import m20 from "../../migrations/0020_customer_plans.sql?raw";
 const db = (env as unknown as ApiBindings).DB;
 type Actor = { accountId: string; personId: string; mfaEnabled: boolean };
 beforeAll(async () => {
@@ -53,6 +55,7 @@ beforeAll(async () => {
     m14,
     m15,
     m16,
+    m20,
   ])
     await db.exec(m.replace(/--[^\n]*/g, "").replace(/\n/g, " "));
 });
@@ -94,10 +97,146 @@ async function command(
 }
 const create = (actor: Actor) =>
   command(actor, "support.case.create", {
+    purpose: "ACCOUNT",
     subject: "Private subject",
     body: "Private message",
   });
 describe("private general support domain", () => {
+  it("keeps statutory channels Free and denies new personalized requests without valid Premium", async () => {
+    const owner = await member();
+    for (const purpose of ["TECHNICAL", "VEHICLE_ASSISTANCE"]) {
+      await expect(
+        command(owner, "support.case.create", {
+          purpose,
+          subject: "New request",
+          body: "Details",
+        }),
+      ).rejects.toMatchObject({ code: "PREMIUM_REQUIRED" });
+    }
+    for (const purpose of ["PRIVACY", "SECURITY", "ACCOUNT", "COMPLAINT"]) {
+      const result = await command(owner, "support.case.create", {
+        purpose,
+        subject: "Rights request",
+        body: "Details",
+      });
+      expect((await getSupportCase(db, owner, result.caseId)).purpose).toBe(
+        purpose,
+      );
+    }
+  });
+  it("allows many Premium requests and preserves history after expiry without new technical access", async () => {
+    const owner = await member(),
+      subscriptionId = newId();
+    await db
+      .prepare(
+        "INSERT INTO billing_subscriptions(id,account_id,plan_code,status) VALUES(?,?,'ACOMPANAMIENTO_MONTHLY','PENDING_ACTIVATION')",
+      )
+      .bind(subscriptionId, owner.accountId)
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO billing_admin_grants(id,subscription_id,starts_at,ends_at,authorized_by_account_id,reason) VALUES(?,?,'2020-01-01T00:00:00.000Z','2099-01-01T00:00:00.000Z',?,'Synthetic authorized grant')",
+      )
+      .bind(newId(), subscriptionId, owner.accountId)
+      .run();
+    await db
+      .prepare(
+        "UPDATE billing_subscriptions SET status='ACTIVE',current_period_start='2020-01-01T00:00:00.000Z',current_period_end='2099-01-01T00:00:00.000Z',version=version+1 WHERE id=?",
+      )
+      .bind(subscriptionId)
+      .run();
+    expect(await assistanceOverview(db, owner)).toMatchObject({
+      premium: true,
+      requestQuota: null,
+      channel: { url: "https://wa.me/573104602615" },
+      automatedDelivery: false,
+    });
+    const vehicleId = newId();
+    await db
+      .prepare("INSERT INTO vehicle_vehicles(id,kind_code) VALUES(?,'CAR')")
+      .bind(vehicleId)
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO vehicle_relationships(id,vehicle_id,relationship_type,person_id) VALUES(?,?,'OWNER',?)",
+      )
+      .bind(newId(), vehicleId, owner.personId)
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO vehicle_access_grants(id,vehicle_id,person_id,permission_code,granted_by_account_id) VALUES(?,?,?,'vehicle.read',?)",
+      )
+      .bind(newId(), vehicleId, owner.personId, owner.accountId)
+      .run();
+    await expect(
+      command(owner, "support.case.create", {
+        purpose: "VEHICLE_ASSISTANCE",
+        vehicleId: newId(),
+        subject: "Foreign vehicle",
+        body: "Details",
+      }),
+    ).rejects.toMatchObject({ code: "VEHICLE_UNAVAILABLE" });
+    let last: { caseId: string; version: number; status: string } | undefined;
+    for (let index = 0; index < 6; index++)
+      last = await command(owner, "support.case.create", {
+        purpose: "VEHICLE_ASSISTANCE",
+        vehicleId,
+        subject: "Assistance",
+        body: "Please coordinate eligible services",
+      });
+    const readRevoked = await prepareSupportCommand(
+      db,
+      owner,
+      "support.case.create",
+      {
+        purpose: "VEHICLE_ASSISTANCE",
+        vehicleId,
+        subject: "Prepared vehicle request",
+        body: "Details",
+      },
+      newId(),
+    );
+    await db
+      .prepare(
+        "UPDATE vehicle_access_grants SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE vehicle_id=? AND person_id=? AND revoked_at IS NULL",
+      )
+      .bind(vehicleId, owner.personId)
+      .run();
+    await expect(commitPreparedCommand(db, readRevoked)).rejects.toThrow();
+    const prepared = await prepareSupportCommand(
+      db,
+      owner,
+      "support.case.create",
+      { purpose: "TECHNICAL", subject: "Pending request", body: "Details" },
+      newId(),
+    );
+    await db
+      .prepare(
+        "UPDATE billing_subscriptions SET status='EXPIRED',version=version+1 WHERE id=?",
+      )
+      .bind(subscriptionId)
+      .run();
+    await expect(commitPreparedCommand(db, prepared)).rejects.toThrow();
+    await expect(
+      command(owner, "support.case.create", {
+        purpose: "TECHNICAL",
+        subject: "New request",
+        body: "Details",
+      }),
+    ).rejects.toMatchObject({ code: "PREMIUM_REQUIRED" });
+    expect((await getSupportCase(db, owner, last!.caseId)).purpose).toBe(
+      "VEHICLE_ASSISTANCE",
+    );
+    await command(owner, "support.case.reply", {
+      caseId: last!.caseId,
+      version: 1,
+      body: "Historical follow-up",
+    });
+    await command(owner, "support.case.close", {
+      caseId: last!.caseId,
+      version: 2,
+    });
+  });
   it("bounds detail history and explicitly reports omitted older entries", async () => {
     const owner = await member(),
       c = await create(owner);
@@ -147,10 +286,15 @@ describe("private general support domain", () => {
 
   it("validates bounded strict commands without contextual authority", () => {
     for (const body of [
-      { subject: " ", body: "hello" },
-      { subject: "subject", body: "hello", staff: true },
-      { subject: "subject", body: "hello", vehicleId: newId() },
-      { subject: "subject", body: "x".repeat(4001) },
+      { purpose: "ACCOUNT", subject: " ", body: "hello" },
+      { purpose: "ACCOUNT", subject: "subject", body: "hello", staff: true },
+      {
+        purpose: "ACCOUNT",
+        subject: "subject",
+        body: "hello",
+        vehicleId: "invalid-vehicle",
+      },
+      { purpose: "ACCOUNT", subject: "subject", body: "x".repeat(4001) },
     ])
       expect(() =>
         parseSupportCommand("support.case.create", body as unknown as Json),
@@ -247,6 +391,7 @@ describe("private general support domain", () => {
         .run(),
     ).rejects.toThrow();
     const follow = await command(owner, "support.case.create", {
+      purpose: "ACCOUNT",
       subject: "Follow up",
       body: "New request",
       previousCaseId: c.caseId,
@@ -256,6 +401,7 @@ describe("private general support domain", () => {
     ).toBe(c.caseId);
     await expect(
       command(await member(), "support.case.create", {
+        purpose: "ACCOUNT",
         subject: "Other",
         body: "request",
         previousCaseId: c.caseId,
@@ -351,6 +497,7 @@ describe("private general support domain", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
       command(owner, "support.case.create", {
+        purpose: "ACCOUNT",
         subject: "Follow up",
         body: "request",
         previousCaseId: c.caseId,
@@ -361,7 +508,11 @@ describe("private general support domain", () => {
   it("records atomic replay and redacts private body and resolution from event/audit", async () => {
     const owner = await member(),
       requestId = newId(),
-      body = { subject: "Secret subject", body: "Secret body" },
+      body = {
+        purpose: "ACCOUNT",
+        subject: "Secret subject",
+        body: "Secret body",
+      },
       scope = buildIdempotencyScope({
         accountId: owner.accountId,
         operation: "support.case.create",

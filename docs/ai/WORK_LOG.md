@@ -190,3 +190,19 @@ Implementation431ab13 passed [Platform CI38111171488](https://github.com/JoseG11
 - 2026-10-11: Implementation d1c8095 CI38198181208 reported two existing5000ms Worker workflow deadlines (inspection/media and duplicate Marketplace Queue delivery). CI concurrency bounded to2 while preserving tests/assertions/deadlines;31CI-mode focused cases PASS in8.74s. Production code and Development versions unchanged. QA007 remains unverified pending fresh CI.
 
 - 2026-10-11: QA007 VERIFIED after33237dc [Platform CI38198741515](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38198741515) PASS including full Worker/browser/history gates. Seven reproduced defects fixed and deployed;788localtests, real local normal-MFA/persisted browser flows and remote permitted checks PASS. QA008 HUMAN ACTION REQUIRED only for actual owner-browser Development logout/MFA; PR1 OPEN/unmerged, no unconditional approval. All independent work complete; Wompi/scanner boundaries unchanged.
+
+## 2026-10-11 — Vehicle services workstream opened
+
+Owner approved exact Free/Premium prices and unlimited assistance. Existing prices match, old vehicle limit2/general-support rules need correction. New independent MB-VS001 cursor; QA008 human MFA and external providers remain parked. PR1 open; no merge.
+
+## 2026-10-11 — VS001/002 verified; integrated vehicle journey
+
+Approved catalog/server entitlement and Premium support policy pass focused realD1 tests. Upgrade landing passes four responsive/axe checks and six existing Portal browserflows; actual desktop/mobile images reviewed. VS003 active; real local browser revealed missing central idempotency registrations, corrected. New domain/notification source tests alone had not established complete routing. Providers/humanMFA remain accurately pending.
+
+## 2026-10-11 — VS003–005 verified; VS006 closeout active
+
+Real local vehicle/expiry/maintenance/pending-subscription persistence and four viewport form tests PASS. Three prepared authorization races reproduced/fixed with canonical guards. Full815gate PASS; final honest operational benefit metadata passes12focused billing/typecheck. Reminder external delivery remains unavailable; real Development cron/Queue probe planned without impersonated human login.
+
+## 2026-10-12 — MB-VS-006 integrated verification
+
+Full817 gate PASS (208 foundation/555 Worker/5 automation/49 browser), actual desktop/mobile image review and four viewport upgrade/vehicle axe checks. Development0020–0023 applied; API/Worker/Portal/Admin deployed. Actual Free15 cron/outbox/Queue disposition UNAVAILABLE/TRANSPORT_UNAVAILABLE and PROCESSED verified; independent cleanup and FK/index checks PASS. Final anonymous remote browser/session/origin tests PASS. Fixed generated JavaScript validation boot regression before final deployment; seven focused vehicle browser tests PASS. CI/repeat final-version cron probe pending; no checkout/external delivery or remote human MFA claimed.

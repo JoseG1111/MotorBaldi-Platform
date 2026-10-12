@@ -4,6 +4,7 @@ import { portalPage, portalScript } from "../../apps/portal/src/page.js";
 import { adminPage, adminScript } from "../../apps/admin/src/page.js";
 
 type Node = {
+  elements: { purpose: { onchange?: unknown } };
   textContent: string;
   value: string;
   children: Node[];
@@ -87,6 +88,7 @@ async function browser(
   const nodes = new Map<string, Node>(),
     calls: { path: string; init?: RequestInit }[] = [];
   const node = (): Node => ({
+    elements: { purpose: {} },
     textContent: "",
     value: "",
     children: [],

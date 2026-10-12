@@ -3,6 +3,7 @@ import { createContext, runInContext } from "node:vm";
 import { portalPage, portalScript } from "../../apps/portal/src/page.js";
 import { adminPage, adminScript } from "../../apps/admin/src/page.js";
 type FakeNode = {
+  elements: { purpose: { onchange?: unknown } };
   children: FakeNode[];
   textContent: string;
   value?: string;
@@ -41,6 +42,7 @@ function browserHarness(
 ) {
   const nodes = new Map<string, FakeNode>();
   const node = (): FakeNode => ({
+    elements: { purpose: {} },
     reset() {},
     remove() {},
     children: [],

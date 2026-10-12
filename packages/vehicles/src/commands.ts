@@ -7,6 +7,12 @@ import {
 import { outboxStatement, type EventRegistry } from "@motorbaldi/db";
 import { newId, utcNow, type Json } from "@motorbaldi/shared";
 import { hasVehiclePermission } from "./index.js";
+import {
+  customerServiceInputs,
+  authorizeCustomerService,
+  prepareCustomerService,
+  customerVehicleWriteGuard,
+} from "./services.js";
 
 type Actor = Principal & { personId: string };
 const id = z.string().uuid();
@@ -37,6 +43,7 @@ export const vehiclePermissions = [
   "vehicle.workshop.write",
 ] as const;
 export const vehicleCommandInputs = {
+  ...customerServiceInputs,
   "vehicle.create": z
     .object({
       kindCode: code,
@@ -183,6 +190,10 @@ export async function authorizeVehicleCommand(
   operation: VehicleOperation,
   body: Record<string, Json>,
 ) {
+  if (operation in customerServiceInputs) {
+    await authorizeCustomerService(db, actor, operation, body);
+    return;
+  }
   if (staffOperations.has(operation)) {
     await requirePlatformPermission(db, actor, "platform.vehicle.manage", {
       mfa: true,
@@ -190,6 +201,15 @@ export async function authorizeVehicleCommand(
     return;
   }
   const vehicleId = String(body.vehicleId);
+  if (operation === "vehicle.odometer.append") {
+    const owner = await db
+      .prepare(
+        "SELECT 1 FROM vehicle_relationships WHERE person_id=? AND vehicle_id=? AND relationship_type='OWNER' AND ended_at IS NULL",
+      )
+      .bind(actor.personId, vehicleId)
+      .first();
+    if (owner) await authorizeCustomerService(db, actor, operation, body);
+  }
   if (operation === "vehicle.garage.remove") return;
   const permission =
     operation === "vehicle.odometer.append"
@@ -297,6 +317,8 @@ export async function prepareVehicleCommand(
   body: Record<string, Json>,
   requestId: string,
 ) {
+  if (operation in customerServiceInputs)
+    return prepareCustomerService(db, actor, operation, body, requestId);
   const vehicleId =
     operation === "vehicle.create" ? newId() : String(body.vehicleId);
   const statements: D1PreparedStatement[] = [];
@@ -325,6 +347,24 @@ export async function prepareVehicleCommand(
       .first();
     if (!exists)
       throw new Problem(404, "VEHICLE_NOT_FOUND", "Vehicle not found");
+  }
+  if (operation === "vehicle.odometer.append") {
+    const owner = !!(await db
+      .prepare(
+        "SELECT 1 FROM vehicle_relationships WHERE person_id=? AND vehicle_id=? AND relationship_type='OWNER' AND ended_at IS NULL",
+      )
+      .bind(actor.personId, vehicleId)
+      .first());
+    statements.push(
+      customerVehicleWriteGuard(
+        db,
+        actor,
+        vehicleId,
+        requestId,
+        "vehicle.odometer.write",
+        owner,
+      ),
+    );
   }
   switch (operation) {
     case "vehicle.create":

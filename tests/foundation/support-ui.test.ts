@@ -3,6 +3,7 @@ import { createContext, runInContext } from "node:vm";
 import { portalPage, portalScript } from "../../apps/portal/src/page.js";
 import { adminPage, adminScript } from "../../apps/admin/src/page.js";
 type FakeNode = {
+  elements: { purpose: { onchange?: unknown } };
   children: FakeNode[];
   textContent: string;
   value?: string;
@@ -37,6 +38,7 @@ function browserHarness(
 ) {
   const nodes = new Map<string, FakeNode>();
   const node = (): FakeNode => ({
+    elements: { purpose: {} },
     reset() {},
     children: [],
     textContent: "",
@@ -167,12 +169,14 @@ describe("Support browser workflows", () => {
     );
     const form = nodes.get("support-create-form")!;
     form.fields = new Map([
+      ["purpose", "ACCOUNT"],
       ["subject", "Consulta"],
       ["body", "Mi solicitud"],
       ["previousCaseId", "previous-1"],
     ]);
     await form.listeners.submit!({ preventDefault() {}, currentTarget: form });
     expect(JSON.parse(String(writes[0]!.body))).toEqual({
+      purpose: "ACCOUNT",
       subject: "Consulta",
       body: "Mi solicitud",
       previousCaseId: "previous-1",
@@ -221,6 +225,8 @@ describe("Support browser workflows", () => {
                 ...{
                   caseId: "case-1",
                   subject: "Consulta",
+                  purpose: "VEHICLE_ASSISTANCE",
+                  vehicleId: "synthetic-vehicle-context",
                   status: closed ? "CLOSED" : "OPEN",
                   version,
                 },
@@ -236,6 +242,11 @@ describe("Support browser workflows", () => {
             context,
           );
         await runInContext("openSupportCase('case-1')", context);
+        const detailText = contents(nodes.get("support-detail")!);
+        expect(detailText).toContain("Acompañamiento del vehículo");
+        expect(detailText).toContain(
+          "Vehículo asociado: synthetic-vehicle-context",
+        );
         const submit = async (title: string, value: string) => {
           const form = nodes
             .get("support-detail")!

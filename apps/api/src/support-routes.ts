@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Problem, type Principal } from "@motorbaldi/contracts";
 import {
+  assistanceOverview,
   getSupportCase,
   listSupportCases,
   parseSupportCommand,
@@ -16,6 +17,19 @@ export async function supportRoutes(
   cors: Record<string, string>,
 ): Promise<Response | null> {
   const url = new URL(request.url);
+  if (url.pathname === "/api/v1/me/assistance") {
+    if (request.method !== "GET")
+      throw new Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed");
+    const vehicleId = z
+      .string()
+      .uuid()
+      .optional()
+      .parse(url.searchParams.get("vehicleId") ?? undefined);
+    return Response.json(
+      await assistanceOverview(db, await principal(), vehicleId),
+      { headers: { ...cors, "cache-control": "no-store" } },
+    );
+  }
   const match = url.pathname.match(
     /^\/api\/v1\/(me|admin)\/support-cases(?:\/([0-9a-f-]{36})(?:\/(reply|assign|close))?)?$/,
   );
@@ -64,6 +78,17 @@ export async function supportRoutes(
   const schemas = {
     create: z
       .object({
+        purpose: z
+          .enum([
+            "TECHNICAL",
+            "VEHICLE_ASSISTANCE",
+            "PRIVACY",
+            "SECURITY",
+            "ACCOUNT",
+            "COMPLAINT",
+          ])
+          .optional(),
+        vehicleId: z.string().uuid().nullable().optional(),
         subject: z.string(),
         body: z.string(),
         previousCaseId: z.string().uuid().nullable().optional(),

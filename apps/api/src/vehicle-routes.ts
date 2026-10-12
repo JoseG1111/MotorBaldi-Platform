@@ -8,6 +8,7 @@ import { requirePlatformPermission } from "@motorbaldi/authz";
 import {
   hasVehiclePermission,
   parseVehicleCommand,
+  customerVehicleState,
 } from "@motorbaldi/vehicles";
 import type { Json } from "@motorbaldi/shared";
 import { z } from "zod";
@@ -58,6 +59,174 @@ export async function vehicleRoutes(
     await requirePlatformPermission(db, actor, permission, { mfa: true });
     return actor;
   };
+  if (path === "/api/v1/me/vehicles") {
+    if (request.method === "POST") return command("vehicle.customer.register");
+    method("GET");
+    const actor = await principal();
+    const rows = await db
+      .prepare(
+        `SELECT DISTINCT v.id,v.kind_code,v.specification_json,v.version FROM vehicle_vehicles v JOIN vehicle_relationships r ON r.vehicle_id=v.id WHERE r.person_id=? AND r.relationship_type='OWNER' AND r.effective_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now') AND EXISTS(SELECT 1 FROM vehicle_access_grants g WHERE g.vehicle_id=v.id AND g.person_id=? AND g.permission_code='vehicle.read' AND g.revoked_at IS NULL AND g.granted_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now') AND (g.expires_at IS NULL OR g.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now'))) AND v.id>? ORDER BY v.id LIMIT 31`,
+      )
+      .bind(
+        actor.personId,
+        actor.personId,
+        url.searchParams.get("cursor") ?? "",
+      )
+      .all<{
+        id: string;
+        kind_code: string;
+        specification_json: string;
+        version: number;
+      }>();
+    const items = [];
+    for (const row of rows.results.slice(0, 30))
+      if (await hasVehiclePermission(db, actor, row.id, "vehicle.read")) {
+        const state = await customerVehicleState(db, actor, row.id);
+        items.push({
+          ...row,
+          specification: JSON.parse(row.specification_json),
+          writable: state.writable,
+          active: state.owned,
+        });
+      }
+    return reply({
+      items,
+      nextCursor: rows.results.length > 30 ? rows.results[29]!.id : null,
+    });
+  }
+  const service = path.match(
+    new RegExp(
+      "^/api/v1/vehicles/(" +
+        id +
+        ")/(services|compliance|maintenance|registration|retire)$",
+    ),
+  );
+  if (service) {
+    const vehicleId = service[1]!,
+      collection = service[2]!;
+    if (request.method === "POST") {
+      const operations: Record<string, string> = {
+        compliance: "vehicle.compliance.update",
+        maintenance: "vehicle.maintenance.append",
+        registration: "vehicle.registration.update",
+        retire: "vehicle.customer.retire",
+      };
+      if (!operations[collection])
+        throw new Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed");
+      return command(operations[collection]!, { vehicleId });
+    }
+    if (collection !== "services")
+      throw new Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed");
+    method("GET");
+    const actor = await principal();
+    if (!(await hasVehiclePermission(db, actor, vehicleId, "vehicle.read")))
+      throw new Problem(404, "VEHICLE_NOT_FOUND", "Vehicle not found");
+    const state = await customerVehicleState(db, actor, vehicleId);
+    const compliance = await db
+      .prepare(
+        `SELECT e.* FROM vehicle_compliance_entries e WHERE vehicle_id=? AND NOT EXISTS(SELECT 1 FROM vehicle_compliance_entries newer WHERE newer.vehicle_id=e.vehicle_id AND newer.document_type=e.document_type AND (newer.created_at,newer.id)>(e.created_at,e.id)) ORDER BY document_type`,
+      )
+      .bind(vehicleId)
+      .all();
+    const cursorId = z
+      .string()
+      .uuid()
+      .optional()
+      .parse(url.searchParams.get("cursor") ?? undefined);
+    const cursor = cursorId
+      ? await db
+          .prepare(
+            "SELECT performed_on,id FROM vehicle_manual_maintenance WHERE id=? AND vehicle_id=?",
+          )
+          .bind(cursorId, vehicleId)
+          .first<{ performed_on: string; id: string }>()
+      : null;
+    if (cursorId && !cursor)
+      throw new Problem(
+        404,
+        "MAINTENANCE_CURSOR_UNAVAILABLE",
+        "History cursor unavailable",
+      );
+    const maintenance = await db
+      .prepare(
+        `SELECT id,performed_on,title,notes,mileage,created_at FROM vehicle_manual_maintenance WHERE vehicle_id=? ${cursor ? "AND (performed_on<? OR (performed_on=? AND id<?))" : ""} ORDER BY performed_on DESC,id DESC LIMIT 31`,
+      )
+      .bind(
+        vehicleId,
+        ...(cursor
+          ? [cursor.performed_on, cursor.performed_on, cursor.id]
+          : []),
+      )
+      .all<{ id: string }>();
+    const count = await db
+      .prepare(
+        "SELECT COUNT(*) n FROM vehicle_manual_maintenance WHERE recorded_by_person_id=?",
+      )
+      .bind(actor.personId)
+      .first<{ n: number }>();
+    const month = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+    }).format(new Date());
+    const monthStart = month + "-01";
+    const monthlyMaintenance = await db
+      .prepare(
+        "SELECT COUNT(*) AS entries FROM vehicle_manual_maintenance WHERE vehicle_id=? AND performed_on>=? AND performed_on<date(?,'+1 month')",
+      )
+      .bind(vehicleId, monthStart, monthStart)
+      .first<{ entries: number }>();
+    const latestMileage = await db
+      .prepare(
+        "SELECT reading_value,unit,observed_at FROM vehicle_odometer_readings WHERE vehicle_id=? ORDER BY observed_at DESC,id DESC LIMIT 1",
+      )
+      .bind(vehicleId)
+      .first();
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const monthlySummary =
+      state.entitlements.premium && state.writable
+        ? {
+            month,
+            manualMaintenanceEntries: monthlyMaintenance?.entries ?? 0,
+            latestMileage,
+            expirations: compliance.results.map((entry) => ({
+              documentType: entry.document_type,
+              expiresOn: entry.expires_on,
+              status: String(entry.expires_on) < today ? "EXPIRED" : "CURRENT",
+              verificationStatus: entry.verification_status,
+            })),
+            automaticDeliveryAvailable: false,
+          }
+        : null;
+    return reply({
+      monthlySummary,
+      compliance: compliance.results.map((entry) => ({
+        ...entry,
+        expiration_status:
+          String(entry.expires_on) < today
+            ? "EXPIRED"
+            : Math.round(
+                  (Date.parse(String(entry.expires_on) + "T00:00:00Z") -
+                    Date.parse(today + "T00:00:00Z")) /
+                    86400000,
+                ) <= 30
+              ? "DUE_SOON"
+              : "CURRENT",
+      })),
+      maintenance: maintenance.results.slice(0, 30),
+      nextCursor:
+        maintenance.results.length > 30 ? maintenance.results[29]!.id : null,
+      writable: state.writable,
+      owned: state.owned,
+      entitlements: state.entitlements,
+      manualEntriesUsed: count?.n ?? 0,
+    });
+  }
   if (path === "/api/v1/admin/vehicles") {
     if (request.method === "POST") return command("vehicle.create");
     method("GET");

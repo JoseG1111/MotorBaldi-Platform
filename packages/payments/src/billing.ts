@@ -1,8 +1,10 @@
+import { CUSTOMER_OPERATIONAL_BENEFITS } from "@motorbaldi/shared/customer-plans";
 import { z } from "zod";
 import { Problem, type Principal } from "@motorbaldi/contracts";
 import { requirePlatformPermission } from "@motorbaldi/authz";
 import { hasVehiclePermission } from "@motorbaldi/vehicles";
 import {
+  getCustomerEntitlements,
   outboxStatement,
   type EventRegistry,
   type PreparedCommand,
@@ -460,23 +462,10 @@ export async function membershipOverview(db: D1Database, actor: BillingActor) {
     ) ??
     subscriptions[0] ??
     null;
-  let premium = false;
+  const customer = await getCustomerEntitlements(db, actor);
+  const premium = customer.premium;
   const vehicles: { vehicle_id: string }[] = [];
   if (subscription) {
-    const now = utcNow();
-    if (!["SUSPENDED", "EXPIRED"].includes(subscription.status)) {
-      const evidence = await db
-        .prepare(
-          `SELECT 1 FROM billing_subscriptions s WHERE s.id=? AND (
-      EXISTS(SELECT 1 FROM billing_admin_grants g WHERE g.subscription_id=s.id AND g.starts_at<=? AND g.ends_at>?)
-      OR EXISTS(SELECT 1 FROM billing_periods p WHERE p.subscription_id=s.id AND p.status='PAID' AND p.starts_at<=? AND p.ends_at>?
-        AND EXISTS(SELECT 1 FROM billing_payments pay JOIN billing_payment_confirmations c ON c.payment_id=pay.id WHERE pay.period_id=p.id AND pay.status='APPROVED' AND c.amount_minor=p.amount_minor AND c.currency=p.currency AND c.provider_environment=pay.provider_environment AND c.provider_transaction_id=pay.provider_transaction_id))
-      )`,
-        )
-        .bind(subscription.id, now, now, now, now)
-        .first();
-      premium = !!evidence;
-    }
     const selected = (
       await db
         .prepare(
@@ -499,19 +488,16 @@ export async function membershipOverview(db: D1Database, actor: BillingActor) {
   return {
     subscription,
     premium,
-    vehicleLimit: subscription?.vehicle_limit ?? 2,
+    vehicleLimit: customer.vehicleLimit,
+    manualMaintenanceLimit: customer.manualMaintenanceLimit,
+    assistedRequestLimit: customer.assistedRequestLimit,
+    personalizedSupport: customer.personalizedSupport,
+    reminderDays: customer.reminderDays,
     vehicles,
     entitlements: premium ? benefitDefinitions.map(([code]) => code) : [],
-    benefits: [
-      ...benefitDefinitions,
-      ["preventive_recommendations", "Recomendaciones preventivas"],
-      ["monthly_summaries", "Resúmenes mensuales"],
-      ["parts_assistance", "Acompañamiento en repuestos"],
-      ["future_vehicle_feature", "Funciones futuras del vehículo"],
-    ].map(([code, label]) => ({
-      code,
-      label,
-      available: false,
+    benefits: CUSTOMER_OPERATIONAL_BENEFITS.map((benefit) => ({
+      ...benefit,
+      available: premium && benefit.readiness === "READY",
     })),
     checkoutAvailable: false,
   };

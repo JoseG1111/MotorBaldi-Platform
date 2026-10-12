@@ -45,7 +45,6 @@ describe("configured human guidance policy", () => {
     { enabled: true },
     { ...policy, timeZone: undefined },
     { ...policy, weekly: [] },
-    { ...policy, usage: undefined },
     { ...policy, unlimited: true },
     { ...policy, enabled: "true" },
     { ...policy, timeZone: "Imaginary/Timezone" },
@@ -259,65 +258,23 @@ describe("configured human guidance policy", () => {
     },
   );
 
-  it("proposes a count from an atomic durable snapshot without consuming it in memory", () => {
-    const snapshot = { windowStartedAt: instant, requestCount: 1 };
-    const a = evaluateSupportUsage(
-        policy,
-        "2026-10-12T14:30:00.000Z",
-        snapshot,
-      ),
-      b = evaluateSupportUsage(policy, "2026-10-12T14:30:00.000Z", snapshot);
-    expect(a).toEqual({
-      allowed: true,
-      reason: "ALLOWED",
-      windowStartedAt: instant,
-      windowEndsAt: "2026-10-12T15:00:00.000Z",
-      currentCount: 1,
-      nextCount: 2,
-    });
-    expect(b).toEqual(a);
-    expect(snapshot.requestCount).toBe(1);
+  it("never blocks approved unlimited assistance with a legacy quota or count", () => {
+    for (const requestCount of [0, 2, 1000, Number.MAX_SAFE_INTEGER]) {
+      expect(
+        evaluateSupportUsage(policy, instant, {
+          windowStartedAt: instant,
+          requestCount,
+        }),
+      ).toMatchObject({
+        allowed: true,
+        reason: "ALLOWED",
+        nextCount: null,
+        windowEndsAt: null,
+      });
+    }
     expect(
-      evaluateSupportUsage(policy, "2026-10-12T14:30:00.000Z", {
-        ...snapshot,
-        requestCount: 2,
-      }),
-    ).toMatchObject({
-      allowed: false,
-      reason: "LIMIT_REACHED",
-      nextCount: null,
-    });
-  });
-
-  it("starts a usage window only as a proposal and resets at the exact UTC boundary", () => {
-    expect(
-      evaluateSupportUsage(policy, instant, {
-        windowStartedAt: null,
-        requestCount: 0,
-      }),
-    ).toMatchObject({
-      allowed: true,
-      windowStartedAt: instant,
-      currentCount: 0,
-      nextCount: 1,
-    });
-    expect(
-      evaluateSupportUsage(policy, "2026-10-12T14:59:59.999Z", {
-        windowStartedAt: instant,
-        requestCount: 2,
-      }),
-    ).toMatchObject({ allowed: false, reason: "LIMIT_REACHED" });
-    expect(
-      evaluateSupportUsage(policy, "2026-10-12T15:00:00.000Z", {
-        windowStartedAt: instant,
-        requestCount: 2,
-      }),
-    ).toMatchObject({
-      allowed: true,
-      windowStartedAt: "2026-10-12T15:00:00.000Z",
-      currentCount: 0,
-      nextCount: 1,
-    });
+      parseSupportPolicy({ ...policy, usage: undefined }),
+    ).not.toHaveProperty("usage");
   });
 
   it.each([

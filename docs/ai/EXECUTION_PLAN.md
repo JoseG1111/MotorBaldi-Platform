@@ -1062,3 +1062,85 @@ The [functional stabilization plan](FUNCTIONAL_STABILIZATION_PLAN.md) tracks def
 - **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
 - **Human-action conditions:** Owner completes normal MFA login/logout/refresh/Back/new-login in Admin and Portal Development using their own browser, reports outcome without secrets. Available autonomous tooling has no access to that genuine human session. All independent automated work is complete; do not merge automatically.
 - **Evidence:** Readiness assessment written: seven reproduced defects fixed, full788test gate and implementation CI PASS, Development deployed/automated checks PASS, PR1 open/unmerged. Actual remote human MFA/logout validation remains pending; no unconditional approval or production-readiness claim. See FUNCTIONAL_STABILIZATION_PLAN.md.
+
+## Owner-approved vehicle services workstream — 2026-10-11
+
+Independent of parked QA008/provider boundaries; detailed scope and evidence in [vehicle services plan](VEHICLE_SERVICES_EXECUTION_PLAN.md).
+
+### MB-VS-001 — Approved customer entitlements
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-007
+- **Objective:** Approved customer entitlements.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** Approved shared prices/limits, canonical current entitlement and atomic Premium support gate implemented. Focused109realD1tests PASS across billing/support/vehicles/reminders; no role grants Premium.
+
+### MB-VS-002 — Premium upgrade experience
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-VS-001
+- **Objective:** Premium upgrade experience.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** Four viewport upgrade browser/axe/overflow checks PASS plus six existing Portal workflows. Actual1440/390screenshots reviewed; monthly/annual catalog prices and real pending request, no fake checkout. Main visually reviewed both images.
+
+### MB-VS-003 — Vehicle compliance and history
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-VS-002
+- **Objective:** Vehicle compliance and history.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** Canonical registration/edit/retirement, SOAT/RTM, append-only manual history and scoped Premium summary implemented.29vehicleWorker tests PASS including three reproduced authorization races; real local password/API/D1/browser persistence, limits and non-activating request PASS. Four viewport forms/axe/overflow and actual desktop/mobile review PASS. New commands registered centrally after real browser exposed missing idempotency registration.
+
+### MB-VS-004 — Expiry reminders
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-VS-003
+- **Objective:** Expiry reminders.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** Six realD1/Queue reminder regressions PASS: Free15/Premium30,15,7,1, consent/current permission/coverage/date revision, deduplication, bounded progress and actual Queue retry. Provider policy remains closed; UNAVAILABLE never delivery. Remote cron verification belongs to VS006.
+
+### MB-VS-005 — Unlimited assisted services
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-VS-004
+- **Objective:** Unlimited assisted services.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** 82support regressions PASS, including server/transaction Premium gate, unlimited eligible cases, immutable covered vehicle context, statutory Free channels, downgrade historical access and verified official interactive contact. Actual local support persisted browser readback PASS; no automatic WhatsApp claimed.
+
+### MB-VS-006 — Integrated verification and Development closeout
+
+- **Status:** IN PROGRESS
+- **Dependencies:** MB-VS-005
+- **Objective:** Integrated verification and Development closeout.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** Full815test gate passed before final availability metadata correction; focused12billing/typecheck passed afterward. Final gate, Development migration/deployment, real cron/Queue and CI closeout remain.

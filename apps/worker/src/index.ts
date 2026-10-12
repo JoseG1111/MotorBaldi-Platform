@@ -10,6 +10,9 @@ import {
   createMembershipNotification,
   membershipNotificationEventRegistry,
   notificationCommandEventRegistry,
+  vehicleReminderEventRegistry,
+  vehicleReminderEventHandlers,
+  scheduleVehicleReminders,
   type Handler,
 } from "@motorbaldi/messaging";
 import type { EventContract } from "@motorbaldi/db";
@@ -193,6 +196,7 @@ for (const [key, contract] of [
   ...supportCommandEventRegistry,
   ...membershipNotificationEventRegistry,
   ...notificationCommandEventRegistry,
+  ...vehicleReminderEventRegistry,
 ])
   registry.set(key, contract);
 const handlers = new Map<string, Handler>(
@@ -238,6 +242,8 @@ export default {
     for (const [key, handler] of marketplaceEventHandlers(env.DB))
       scopedHandlers.set(key, handler);
     for (const [key, handler] of partsEventHandlers(env.DB))
+      scopedHandlers.set(key, handler);
+    for (const [key, handler] of vehicleReminderEventHandlers(env.DB))
       scopedHandlers.set(key, handler);
     for (const [key, handler] of supportEventHandlers(env.DB))
       scopedHandlers.set(key, handler);
@@ -306,6 +312,7 @@ export default {
     ctx.waitUntil(expireMembershipRequests(env.DB));
     ctx.waitUntil(expireCredentials(env.DB));
     ctx.waitUntil(expireMemberships(env.DB, newId()));
+    ctx.waitUntil(scheduleVehicleReminders(env.DB));
     if (env.OUTBOX_COORDINATOR) {
       ctx.waitUntil(
         env.OUTBOX_COORDINATOR.getByName(c.environment).fetch(

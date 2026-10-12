@@ -166,10 +166,10 @@ export function parseSupportPolicy(input: unknown = {}): SupportPolicy {
       ),
     );
   }
-  let usage: SupportPolicy["usage"];
+
   if (value.usage !== undefined) {
     const row = object(value.usage, ["windowSeconds", "maxRequests"]);
-    usage = Object.freeze({
+    Object.freeze({
       windowSeconds: integer(
         row.windowSeconds,
         1,
@@ -196,13 +196,13 @@ export function parseSupportPolicy(input: unknown = {}): SupportPolicy {
       throw new SupportPolicyError("INVALID_SUPPORT_POLICY");
     whatsapp = Object.freeze({ phoneE164: row.phoneE164, link });
   }
-  if (enabled && (!timeZone || !weekly?.length || !usage))
+  if (enabled && (!timeZone || !weekly?.length))
     throw new SupportPolicyError("INVALID_SUPPORT_POLICY");
   return Object.freeze({
     enabled,
     ...(timeZone ? { timeZone } : {}),
     ...(weekly ? { weekly } : {}),
-    ...(usage ? { usage } : {}),
+    // Legacy quota input is validated for migration safety but never becomes a benefit limit.
     ...(whatsapp ? { whatsapp } : {}),
   });
 }
@@ -249,7 +249,7 @@ export type SupportUsageSnapshot = Readonly<{
   windowStartedAt: string | null;
   requestCount: number;
 }>;
-/** A read-only decision for an atomic D1 quota snapshot. The caller must validate authorization/schedule and persist the proposed count/window in the same transaction as case creation; this does not reserve a request. */
+/** Legacy snapshot validation only. Approved Premium assistance is unlimited; no usage count reserves or blocks a request. Authorization and operating hours remain separate. */
 export function evaluateSupportUsage(
   policy: unknown,
   nowUtc: string,
@@ -284,20 +284,12 @@ export function evaluateSupportUsage(
       currentCount: 0,
       nextCount: null,
     };
-  const windowMs = validated.usage!.windowSeconds * 1000;
-  const expired = start === null || now.getTime() >= start.getTime() + windowMs;
-  const windowStartedAt = expired ? nowUtc : start!.toISOString(),
-    currentCount = expired ? 0 : count;
-  const windowEndsAt = new Date(
-    new Date(windowStartedAt).getTime() + windowMs,
-  ).toISOString();
-  const allowed = currentCount < validated.usage!.maxRequests;
   return {
-    allowed,
-    reason: allowed ? ("ALLOWED" as const) : ("LIMIT_REACHED" as const),
-    windowStartedAt,
-    windowEndsAt,
-    currentCount,
-    nextCount: allowed ? currentCount + 1 : null,
+    allowed: true,
+    reason: "ALLOWED" as const,
+    windowStartedAt: null,
+    windowEndsAt: null,
+    currentCount: count,
+    nextCount: null,
   };
 }

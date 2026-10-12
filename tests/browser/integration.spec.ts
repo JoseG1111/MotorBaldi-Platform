@@ -72,12 +72,28 @@ test("LOCAL real Portal profile/support persist and logout invalidates session r
   await page.locator("[data-panel=support]").click();
   await page.getByText("Crear caso de soporte", { exact: true }).click();
   await page
+    .locator("#support-create-form [name=purpose]")
+    .selectOption("ACCOUNT");
+  await page
     .locator("#support-create-form [name=subject]")
     .fill("LOCAL persisted support");
   await page
     .locator("#support-create-form [name=body]")
     .fill("LOCAL real browser saved support message.");
-  await page.locator("#support-create-form button").click();
+  let releaseSupport!: () => void;
+  const supportPause = new Promise<void>((resolve) => {
+    releaseSupport = resolve;
+  });
+  await page.route("**/api/v1/me/support-cases", async (route) => {
+    if (route.request().method() === "POST") await supportPause;
+    await route.continue();
+  });
+  await page.locator("#support-create-form button[type=submit]").click();
+  await expect(
+    page.locator("#support-create-form button[type=submit]"),
+  ).toBeDisabled();
+  await expect(page.locator("#support-upgrade")).toBeEnabled();
+  releaseSupport();
   await expect(page.locator("#support-detail")).toContainText(
     "LOCAL real browser saved support message.",
   );

@@ -3,6 +3,7 @@ import { createContext, runInContext } from "node:vm";
 import { portalPage, portalScript } from "../../apps/portal/src/page.js";
 import { adminPage, adminScript } from "../../apps/admin/src/page.js";
 type FakeNode = {
+  elements: { purpose: { onchange?: unknown } };
   children: FakeNode[];
   textContent: string;
   value?: string;
@@ -37,6 +38,7 @@ function browserHarness(
 ) {
   const nodes = new Map<string, FakeNode>();
   const node = (): FakeNode => ({
+    elements: { purpose: {} },
     reset() {},
     children: [],
     textContent: "",
@@ -333,7 +335,10 @@ describe("Parts scoped browser workflows", () => {
     );
     expect(contents(nodes.get("parts-list")!)).toContain("Consultar");
     expect(
-      portalScript.slice(portalScript.indexOf("let partsGeneration")),
+      portalScript.slice(
+        portalScript.indexOf("let partsGeneration"),
+        portalScript.indexOf("let vehicleServicesGeneration"),
+      ),
     ).not.toContain("innerHTML");
   });
   it("discards an offering list after switching organizations", async () => {

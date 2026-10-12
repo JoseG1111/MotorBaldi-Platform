@@ -50,7 +50,13 @@
       "@motorbaldi/parts": ["packages/parts/src/index.ts"],
       "@motorbaldi/analytics": ["packages/analytics/src/index.ts"],
       "@motorbaldi/shared/ui": ["packages/shared/src/ui.ts"],
-      "@motorbaldi/shared/brand": ["packages/shared/src/brand.ts"]
+      "@motorbaldi/shared/brand": ["packages/shared/src/brand.ts"],
+      "@motorbaldi/shared/customer-plans": [
+        "packages/shared/src/customer-plans.ts"
+      ],
+      "@motorbaldi/shared/vehicle-services-ui": [
+        "packages/shared/src/vehicle-services-ui.ts"
+      ]
     }
   },
   "include": [

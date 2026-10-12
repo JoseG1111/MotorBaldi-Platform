@@ -7,3 +7,5 @@ export * from "./notification-templates.js";
 
 export * from "./support.js";
 export * from "./support-events.js";
+
+export * from "./vehicle-reminders.js";

@@ -2,6 +2,124 @@ export const openapi = {
   openapi: "3.0.3",
   info: { title: "MotorBaldi Platform Foundation", version: "0.1.0" },
   paths: {
+    "/api/v1/me/vehicles": {
+      get: {
+        summary: "List authorized owner vehicles, preserving read-only history",
+        responses: {
+          "200": { description: "Bounded owner vehicles" },
+          "401": { description: "Authentication required" },
+        },
+      },
+      post: {
+        summary:
+          "Register a user-declared owner vehicle within authoritative Free/Premium limit",
+        responses: {
+          "200": { description: "Canonical vehicle and grants created" },
+          "403": { description: "Plan limit or account denied" },
+        },
+      },
+    },
+    "/api/v1/vehicles/{vehicleId}/services": {
+      parameters: [
+        {
+          name: "vehicleId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      get: {
+        summary:
+          "Authorized compliance, manual history and factual Premium summary",
+        responses: {
+          "200": { description: "History and current entitlement" },
+          "404": { description: "Vehicle unavailable" },
+        },
+      },
+    },
+    "/api/v1/vehicles/{vehicleId}/compliance": {
+      parameters: [
+        {
+          name: "vehicleId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      post: {
+        summary:
+          "Append user-declared SOAT/RTM expiry, never official verification",
+        responses: {
+          "200": { description: "Immutable expiry revision" },
+          "403": { description: "Owner write or plan denied" },
+        },
+      },
+    },
+    "/api/v1/vehicles/{vehicleId}/maintenance": {
+      parameters: [
+        {
+          name: "vehicleId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      post: {
+        summary: "Append manual maintenance with server plan limit",
+        responses: {
+          "200": { description: "Immutable maintenance entry" },
+          "403": { description: "Owner write or plan denied" },
+        },
+      },
+    },
+    "/api/v1/vehicles/{vehicleId}/registration": {
+      parameters: [
+        {
+          name: "vehicleId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      post: {
+        summary: "Update declared registration with optimistic concurrency",
+        responses: {
+          "200": { description: "Registration updated" },
+          "409": { description: "Version conflict" },
+        },
+      },
+    },
+    "/api/v1/vehicles/{vehicleId}/retire": {
+      parameters: [
+        {
+          name: "vehicleId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      post: {
+        summary:
+          "Retire own active registration preserving authorized historical access",
+        responses: {
+          "200": { description: "Owner relationship ended; history retained" },
+          "404": { description: "Owned vehicle unavailable" },
+        },
+      },
+    },
+    "/api/v1/me/assistance": {
+      get: {
+        summary:
+          "Current customer assistance availability and Premium-only verified interactive contact",
+        responses: {
+          "200": {
+            description:
+              "Entitlement, real configured channel and explicit delivery limitations",
+          },
+          "404": { description: "Optional vehicle context unavailable" },
+        },
+      },
+    },
     "/health": {
       get: { responses: { "200": { description: "Worker responding" } } },
     },

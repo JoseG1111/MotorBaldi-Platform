@@ -6,7 +6,9 @@
   "exports": {
     ".": "./src/index.js",
     "./ui": "./src/ui.ts",
-    "./brand": "./src/brand.ts"
+    "./brand": "./src/brand.ts",
+    "./customer-plans": "./src/customer-plans.ts",
+    "./vehicle-services-ui": "./src/vehicle-services-ui.ts"
   },
   "dependencies": {
     "uuid": "^13.0.0"

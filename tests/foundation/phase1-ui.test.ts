@@ -328,6 +328,8 @@ describe("Phase 1 browser assets", () => {
 });
 
 type FakeNode = {
+  elements: { purpose: { onchange?: unknown } };
+  dataset: Record<string, string>;
   children: FakeNode[];
   textContent: string;
   fields?: Map<string, unknown>;
@@ -349,6 +351,7 @@ type FakeNode = {
   replaceChildren(): void;
   addEventListener(type: string, listener: FakeNode["listeners"][string]): void;
   querySelector(): FakeNode;
+  querySelectorAll(): FakeNode[];
 };
 
 function descendants(node: FakeNode): FakeNode[] {
@@ -380,6 +383,8 @@ function browserHarness(
 ) {
   const nodes = new Map<string, FakeNode>();
   const node = (): FakeNode => ({
+    elements: { purpose: {} },
+    dataset: {},
     children: [],
     textContent: "",
     listeners: {},
@@ -411,6 +416,9 @@ function browserHarness(
     },
     addEventListener(type, listener) {
       this.listeners[type] = listener;
+    },
+    querySelectorAll() {
+      return [];
     },
     querySelector() {
       return node();
@@ -873,10 +881,12 @@ describe("Membership browser controls", () => {
     expect(text(nodes.get("membership-detail")!)).toContain(
       "no realiza un cobro",
     );
-    expect(portalPage).toContain("ACOMPAÑAMIENTO MOTORBALDI");
-    expect(portalPage).toContain("TODO SOBRE TU VEHÍCULO. SIEMPRE CONTIGO.");
-    expect(portalPage).toContain("sin membresía");
-    expect(portalPage).toContain("no sustituye un diagnóstico profesional");
+    expect(portalScript).toContain("MotorBaldi Premium");
+    expect(portalScript).toContain(
+      "Tu vehículo tiene quien esté pendiente de él.",
+    );
+    expect(portalScript).toContain("Continuar con Gratis");
+    expect(portalScript).toContain("diagnóstico");
     expect(portalPage).not.toContain("24/7");
     const future = allNodes(nodes.get("membership-benefits")!).find(
       (node) => node.textContent === "Beneficio futuro · próximamente",
