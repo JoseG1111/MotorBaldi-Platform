@@ -1039,7 +1039,7 @@ The [functional stabilization plan](FUNCTIONAL_STABILIZATION_PLAN.md) tracks def
 
 ### MB-QA-007 — End-to-end regression and remote verification
 
-- **Status:** IMPLEMENTED — NOT VERIFIED
+- **Status:** VERIFIED
 - **Dependencies:** MB-QA-006
 - **Objective:** End-to-end regression and remote verification.
 - **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
@@ -1048,11 +1048,11 @@ The [functional stabilization plan](FUNCTIONAL_STABILIZATION_PLAN.md) tracks def
 - **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
 - **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
 - **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
-- **Evidence:** Final local788test gate and Development API/frontend deployments plus anonymous protocol/browser, signed auth/Parts lifecycle/D1/Queue/analytics checks PASS. Exact implementation CI pending. Remote human MFA validation is independently pending in QA-008; see functional ledger.
+- **Evidence:** Final local788test gate and Development API/frontend deployments plus anonymous protocol/browser, signed auth/Parts lifecycle/D1/Queue/analytics checks PASS. Final implementation33237dc passed [Platform CI38198741515](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38198741515) including full Worker/browser/history-secret gates. Remote human MFA validation is independently pending in QA-008; see functional ledger.
 
 ### MB-QA-008 — Readiness assessment and PR closeout
 
-- **Status:** NOT STARTED
+- **Status:** HUMAN ACTION REQUIRED
 - **Dependencies:** MB-QA-007
 - **Objective:** Readiness assessment and PR closeout.
 - **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
@@ -1060,5 +1060,5 @@ The [functional stabilization plan](FUNCTIONAL_STABILIZATION_PLAN.md) tracks def
 - **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
 - **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
 - **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
-- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
-- **Evidence:** Pending.
+- **Human-action conditions:** Owner completes normal MFA login/logout/refresh/Back/new-login in Admin and Portal Development using their own browser, reports outcome without secrets. Available autonomous tooling has no access to that genuine human session. All independent automated work is complete; do not merge automatically.
+- **Evidence:** Readiness assessment written: seven reproduced defects fixed, full788test gate and implementation CI PASS, Development deployed/automated checks PASS, PR1 open/unmerged. Actual remote human MFA/logout validation remains pending; no unconditional approval or production-readiness claim. See FUNCTIONAL_STABILIZATION_PLAN.md.
