@@ -1,6 +1,6 @@
 # Vehicle services and Free/Premium execution
 
-The registry remains [EXECUTION_PLAN.md](EXECUTION_PLAN.md); [CURRENT_CHECKPOINT.md](CURRENT_CHECKPOINT.md) is the sole recovery cursor. Owner directive 2026-10-11 authorizes this independent work after verified QA007. QA008 actual remote human MFA, Wompi P5-005 and scanner P3-005 remain parked, never treated as verified dependencies. PR1 is OPEN on codex/premium-enterprise-ui; no merge.
+The registry remains [EXECUTION_PLAN.md](EXECUTION_PLAN.md); [CURRENT_CHECKPOINT.md](CURRENT_CHECKPOINT.md) is the sole recovery cursor. Owner directive 2026-10-11 authorizes this independent work after verified QA007. QA008 is now verified by owner attestation within its documented scope; Wompi P5-005 and scanner P3-005 remain separately parked, never treated as verified dependencies. PR1 is OPEN on codex/premium-enterprise-ui; no merge.
 
 ## Approved policy
 
@@ -27,7 +27,7 @@ Free COP0, one active owner vehicle, five manual maintenance entries, basic manu
 
 ## Recovery
 
-MB-VS008 is IMPLEMENTED — NOT VERIFIED pending final source CI. Current code, canonical tests and deployed Development were reconciled against the approved product, independently of historical prompts. Full936gate PASS:289foundation/588Worker/5automation/54browser. Selected Resend/Meta transports and signed-status/dispatch preparation, genuine Free help and workshop request/reply, RTM browser persistence and initialization-race correction are implemented. Development0024–0026 and API/Worker/Portal deployed; final source CI and documentation closeout next. P5-005 remains parked (Sandbox0/4; supplied production credentials incompatible and unused), VS007 remains parked for actual configured provider delivery, scanner remains owner-deferred. No external charge/delivery, paid activation, production/DNS change or merge.
+MB-VS008 is VERIFIED for bounded engineering reconciliation/preparation. Full947 gate PASS (299foundation/588Worker/5automation/55browser); source7e0f48d CI38271964112 SUCCESS, including history secret scan. Selected Resend/Meta adapters, signed-status/dispatch/early-callback tracking, genuine Free help/workshop request/reply, actual RTM persistence, initialization guards and billing-smoke catalog correction are implemented and tested. Development0024–0026/API/Worker/Portal deployed and actual remote checks passed. Authoritative cursor returns to P5-005 HUMAN ACTION REQUIRED (Sandbox0/4); VS007 is independently parked for actual configured provider delivery and scanner remains owner-deferred. No external charge/delivery, paid activation, production/DNS change or merge.
 
 ## Operational limitations and evidence
 
@@ -111,3 +111,5 @@ Resend: verify the owned sender domain, securely configure Worker API key/verifi
 Final accessibility follow-up: selecting an organization during bootstrap previously could leave the new aria-busy marker set. Current-refresh completion now releases that marker while retaining stale-profile guards. Added an actual workspace-select regression; focused7browser tests PASS. Full936gate preceded this small marker change; final CI runs all937 cases. No runtime authentication/domain change or increased timeout.
 
 Billing smoke reconciliation: the previous tool incorrectly required Premium vehicle_limit2. It now derives exact prices/periods and Premium3 from the shared catalog, requires four authorized fixtures for fourth-vehicle rejection, and keeps anonymous mode strictly GET-only.10 focused regressions, lint/typecheck and actual anonymous Development catalog/protection/UI checks PASS. Source CI38265551019 and38266571357 passed (latest937 cases); final billing-tool source gate/CI follows. No authenticated billing mutation or payment verification claimed.
+
+Final closeout: full947 gate and source7e0f48d [CI38271964112](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38271964112) PASS. Final Portal79fc6984-0a1d-462f-9615-757007bf5fed source marker and repeated remote browser/session checks PASS. Billing CLI anonymous Development GET-only smoke PASS; authenticated financial mutation/external payment remain unavailable. MBVS008 VERIFIED; cursor P5-005, independent provider verification VS007 awaits secure setup.

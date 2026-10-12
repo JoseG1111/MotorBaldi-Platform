@@ -1160,7 +1160,7 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 
 ### MB-VS-008 — Product reconciliation and independent provider preparation
 
-- **Status:** IMPLEMENTED — NOT VERIFIED
+- **Status:** VERIFIED
 - **Dependencies:** MB-VS-006
 - **Objective:** Reconcile approved product reality and complete independently implementable provider/Free self-service gaps.
 - **Scope / required work:** Ten-item evidence matrix; selected Resend/Meta Development transports, durable dispatch/status tracking and secure provisioning; genuine Free help/workshop discovery/contact gap corrections. External delivery verification remains VS007; Wompi remains P5-005.
@@ -1169,4 +1169,4 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Verification:** Focused protocol/ledger/domain/browser tests, full gate, Development fail-closed and actual rendered checks, CI. Provider acceptance/delivery needs actual authorized external evidence before VERIFIED at VS007.
 - **Completion criteria:** Available engineering implementation and executed evidence, with per-feature external/remaining limits recorded accurately.
 - **Human-action conditions:** Global boundaries only; all independent preparation proceeds without Resend/Meta credentials/live number or Wompi keys. Supplied production Wompi credentials are unsuitable for Sandbox and are not used or recorded.
-- **Evidence:** Full936gate PASS (289foundation/588Worker/5automation/54browser), real LOCAL RTM/SOAT/workshop persistence and four viewport/visual review. Selected adapters, signed status tracking/early-callback convergence, secure hidden provisioning, consented Free help/workshop request/reply implemented. Development0024–0026/API/Worker/Portal and remote closed-gate/session/pricing/denial checks plus real cron/Queue/cleanup PASS; source CI pending. Ten-item matrix and precise external limits in vehicle services plan.
+- **Evidence:** Full936gate PASS (289foundation/588Worker/5automation/54browser), real LOCAL RTM/SOAT/workshop persistence and four viewport/visual review. Selected adapters, signed status tracking/early-callback convergence, secure hidden provisioning, consented Free help/workshop request/reply implemented. Development0024–0026/API/Worker/Portal and remote closed-gate/session/pricing/denial checks plus real cron/Queue/cleanup PASS; source7e0f48d CI38271964112 SUCCESS; final integrated947gate PASS (299foundation/588Worker/5automation/55browser), including billing catalog regression. Ten-item matrix and precise external limits in vehicle services plan.
