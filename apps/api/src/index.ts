@@ -2550,7 +2550,26 @@ async function route(
       (c.environment !== "local" || c.emailProvider !== "DEVELOPMENT_SINK")
     )
       throw new Problem(404, "NOT_FOUND", "Not found");
+    // Better Auth can swallow adapter deletion errors. Confirm canonical revocation
+    // before forwarding a successful sign-out or expired cookies to the browser.
+    const signingOut = path === "/sign-out" && request.method === "POST";
+    const previousSession = signingOut
+      ? await auth.auth.api.getSession({ headers: request.headers })
+      : null;
     const response = await auth.auth.handler(request);
+    if (signingOut && response.ok && previousSession) {
+      const remaining = await env.DB.prepare(
+        "SELECT 1 FROM auth_sessions WHERE id=?",
+      )
+        .bind(previousSession.session.id)
+        .first();
+      if (remaining)
+        throw new Problem(
+          503,
+          "SESSION_INVALIDATION_FAILED",
+          "Session invalidation failed",
+        );
+    }
     if (path === "/sign-in/email" && !response.ok)
       ctx.waitUntil(
         env.DB.prepare(

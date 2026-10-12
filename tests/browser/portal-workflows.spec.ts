@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
 
 const org = "00000000-0000-4000-8000-000000000010",
@@ -288,12 +288,16 @@ const paths: Record<string, unknown> = {
   [`/organizations/${denied}/locations`]: { items: [] },
   [`/organizations/${denied}/capabilities`]: [],
 };
-async function setup(page: Page) {
+async function setup(
+  page: Page,
+  override?: (route: Route, path: string) => Promise<boolean>,
+) {
   const errors: string[] = [],
     unexpected: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname.replace("/api/v1", "");
+    if (override && (await override(route, path))) return;
     if (route.request().method() !== "GET" || !Object.hasOwn(paths, path)) {
       unexpected.push(`${route.request().method()} ${path}`);
       await route.fulfill({
@@ -515,3 +519,74 @@ test("A late organization response cannot restore permissions after switching to
   expect(evidence.errors).toEqual([]);
   expect(evidence.unexpected).toEqual([]);
 });
+
+for (const module of ["workshop", "inspections"] as const) {
+  test(`${module} bounded cursor controls reach later records and retry failed pages`, async ({
+    page,
+  }) => {
+    let failNext = true;
+    const endpoint = `/organizations/${org}/${module === "workshop" ? "workshop/orders" : "inspections"}`;
+    const root = module === "workshop" ? "#workshop-list" : "#inspection-list";
+    const first =
+      module === "workshop"
+        ? {
+            id: "qa-first",
+            status: "DRAFT",
+            description: "Registro primero QA",
+          }
+        : {
+            id: "qa-first",
+            status: "DRAFT",
+            content_json: JSON.stringify({ summary: "Registro primero QA" }),
+          };
+    const last =
+      module === "workshop"
+        ? { ...first, id: "qa-last", description: "Registro posterior QA" }
+        : {
+            ...first,
+            id: "qa-last",
+            content_json: JSON.stringify({ summary: "Registro posterior QA" }),
+          };
+    const evidence = await setup(page, async (route, path) => {
+      if (path !== endpoint) return false;
+      const cursor = new URL(route.request().url()).searchParams.get("cursor");
+      if (cursor && failNext) {
+        failNext = false;
+        await route.fulfill({ status: 503, json: { code: "UNAVAILABLE" } });
+      } else
+        await route.fulfill({
+          json: {
+            items: [cursor ? last : first],
+            nextCursor: cursor ? null : "qa-first",
+          },
+        });
+      return true;
+    });
+    await workspace(page, org);
+    await navigate(page, module);
+    await expect(page.locator(root)).toContainText("Registro primero QA");
+    await page
+      .locator(root)
+      .getByRole("button", { name: "Siguiente", exact: true })
+      .click();
+    await expect(page.locator(root)).toContainText("No fue posible");
+    await expect(page.locator(root)).toContainText("Registro primero QA");
+    await page
+      .locator(root)
+      .getByRole("button", { name: "Reintentar", exact: true })
+      .click();
+    await expect(page.locator(root)).toContainText("Registro posterior QA");
+    await expect(
+      page
+        .locator(root)
+        .getByRole("button", { name: "Siguiente", exact: true }),
+    ).toBeDisabled();
+    await page
+      .locator(root)
+      .getByRole("button", { name: "Anterior", exact: true })
+      .click();
+    await expect(page.locator(root)).toContainText("Registro primero QA");
+    expect(evidence.errors).toEqual([]);
+    expect(evidence.unexpected).toEqual([]);
+  });
+}

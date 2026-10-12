@@ -954,3 +954,111 @@ Preserves all Phase 8/9 decisions and parked external boundaries. Development on
 - **Completion criteria:** Cross-module accessibility, responsive screenshots, regression tests, full pnpm gate and existing Development deployment verification.
 - **Human-action conditions:** Global stop rule only.
 - **Evidence:** Full pnpm gate PASS (208unit/532Worker/5automation/27browser),59synthetic screenshots and actual representative visual review. Development Admin/Portal deployed and four anonymous remote browser/axe/CSP/logo/denial checks PASS; signed auth and read-only analytics/D1 consistency PASS. Final implementation01b7796 passed [Platform CI38175650011](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38175650011), including browser and history secret checks; see UX_EVIDENCE.md.
+
+## Functional stabilization — owner authorized 2026-10-11
+
+The [functional stabilization plan](FUNCTIONAL_STABILIZATION_PLAN.md) tracks defects and coverage; this registry remains the sole checkpoint authority. UX checkpoints retain their established visual evidence, without implying real human-session workflow verification. Wompi and scanner boundaries remain independently parked.
+
+### MB-QA-001 — Authentication and session reliability
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-UX-006
+- **Objective:** Authentication and session reliability.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Deployed missing-media-type logout reproduced415 in both apps, corrected JSON signout and canonical deletion confirmation; four real auth/D1 tests and five browser regressions PASS. Remote anonymous cookie/CSRF/cache/session protocol checks PASS. Local normal MFA browser enrollment/fresh login works; remote human MFA validation remains explicitly pending. See functional ledger.
+
+### MB-QA-002 — Navigation and frontend runtime reliability
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-001
+- **Objective:** Navigation and frontend runtime reliability.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Full gate788tests PASS including38browser cases: session expiry/back/refresh, stale/error/cursor cases, role-aware navigation, keyboard/responsive/axe. UI visual snapshots inspected; exact scope and limits in functional ledger.
+
+### MB-QA-003 — Admin functional workflows
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-002
+- **Objective:** Admin functional workflows.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Real local normal-MFA Admin browser creates/completes CRM task with canonical API persisted version readback; bounded vehicle-target/search regression and existing People/org/CRM/detail browser cases PASS. Current537Worker tests cover domain writes, permissions and persistence. No remote human-session claim.
+
+### MB-QA-004 — Portal customer workflows
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-003
+- **Objective:** Portal customer workflows.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Real local Portal password login, profile save/readback/reload, support creation/readback and logout/replay401 PASS. Garage/history/membership/notification/support browser and real Worker regressions PASS. Remote human MFA remains pending.
+
+### MB-QA-005 — Workshop and partner workflows
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-004
+- **Objective:** Workshop and partner workflows.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Operational cursor UI retry/back tests and authorization-aware real D1 pages (>30with mixed invisibility) PASS; Workshop/Inspection/Parts/Marketplace Worker workflows PASS. Signed Development Parts canonical/offering/immutable-snapshot lifecycle and independent D1/Queue consistency PASS; machine scope not human MFA.
+
+### MB-QA-006 — Cross-module integration and error handling
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-005
+- **Objective:** Cross-module integration and error handling.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Full pnpm gate788tests PASS:208foundation/537Worker/5automation/38browser. Missing/malformed/network/403/stale/error cases, canonical deletion fault guard and replay, validation/version/idempotency/isolation regressions PASS. No known dependency vulnerabilities; boundaries/security/artifacts PASS.
+
+### MB-QA-007 — End-to-end regression and remote verification
+
+- **Status:** IMPLEMENTED — NOT VERIFIED
+- **Dependencies:** MB-QA-006
+- **Objective:** End-to-end regression and remote verification.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Final local788test gate and Development API/frontend deployments plus anonymous protocol/browser, signed auth/Parts lifecycle/D1/Queue/analytics checks PASS. Exact implementation CI pending. Remote human MFA validation is independently pending in QA-008; see functional ledger.
+
+### MB-QA-008 — Readiness assessment and PR closeout
+
+- **Status:** NOT STARTED
+- **Dependencies:** MB-QA-007
+- **Objective:** Readiness assessment and PR closeout.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Pending.

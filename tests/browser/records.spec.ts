@@ -61,20 +61,31 @@ const detail = {
 async function setup(
   page: Page,
   peopleResponse?: (route: Route, url: URL) => Promise<void>,
+  manageTasks = false,
 ) {
   const unexpected: string[] = [],
     errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  const tasks: Array<Record<string, unknown>> = [];
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/v1/admin/people" && peopleResponse)
       return peopleResponse(route, url);
+    if (manageTasks && url.pathname === "/api/v1/admin/crm/tasks") {
+      if (route.request().method() === "POST") {
+        const data = route.request().postDataJSON();
+        tasks.push({ id: "qa-task", version: 1, status: "OPEN", ...data });
+        return route.fulfill({ json: { id: "qa-task" } });
+      }
+      return route.fulfill({ json: { items: tasks, nextCursor: null } });
+    }
     const responses: Record<string, unknown> = {
       "/api/v1/admin/access": {
         permissions: [
           "platform.people.read",
           "platform.organization.read",
           "platform.crm.read",
+          ...(manageTasks ? ["platform.crm.manage"] : []),
           "platform.commission.read",
         ],
       },
@@ -442,6 +453,27 @@ test("People directory uses a bounded dense page", async ({
   await page.screenshot({
     path: testInfo.outputPath("synthetic-people-dense-1440.png"),
   });
+  expect(evidence.errors).toEqual([]);
+  expect(evidence.unexpected).toEqual([]);
+});
+
+test("CRM task creation resets the submitted form and refreshes saved records", async ({
+  page,
+}) => {
+  const evidence = await setup(page, undefined, true);
+  await page.locator('[data-panel="crm"]').click();
+  await page.locator('#task-form input[name="ownerPersonId"]').fill(person.id);
+  await page
+    .locator('#task-form textarea[name="description"]')
+    .fill("Seguimiento de estabilización QA");
+  await page.locator("#task-form button").click();
+  await expect(page.locator("#notice")).toHaveText("Tarea creada.");
+  await expect(page.locator("#crm-tasks")).toContainText(
+    "Seguimiento de estabilización QA",
+  );
+  await expect(
+    page.locator('#task-form textarea[name="description"]'),
+  ).toHaveValue("");
   expect(evidence.errors).toEqual([]);
   expect(evidence.unexpected).toEqual([]);
 });

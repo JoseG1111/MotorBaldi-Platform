@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
 
 // Synthetic records follow the existing API projections; no customer data is used.
@@ -230,12 +230,16 @@ const responses: Record<string, unknown> = {
     policies: {},
   },
 };
-async function setup(page: Page) {
+async function setup(
+  page: Page,
+  override?: (route: Route, path: string) => Promise<boolean>,
+) {
   const unexpected: string[] = [],
     errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname.replace("/api/v1", "");
+    if (override && (await override(route, path))) return;
     if (route.request().method() !== "GET" || !Object.hasOwn(responses, path)) {
       unexpected.push(`${route.request().method()} ${path}`);
       await route.fulfill({
@@ -348,3 +352,75 @@ for (const width of [1440, 390]) {
     expect(evidence.errors).toEqual([]);
   });
 }
+
+test("Vehicle access picker reaches later authorized targets without unbounded loading", async ({
+  page,
+}) => {
+  const first = {
+    id: "00000000-0000-4000-8000-000000000041",
+    given_name: "Primera",
+    family_name: "Persona",
+    display_name: "Primera Persona",
+    status: "ACTIVE",
+  };
+  const last = {
+    ...first,
+    id: "00000000-0000-4000-8000-000000000042",
+    display_name: "Persona posterior QA",
+  };
+  let granted: Record<string, unknown> | null = null;
+  const evidence = await setup(page, async (route, path) => {
+    if (path === "/admin/people") {
+      const url = new URL(route.request().url());
+      const later =
+        url.searchParams.has("cursor") ||
+        url.searchParams.get("q") === "posterior";
+      await route.fulfill({
+        json: {
+          items: [later ? last : first],
+          nextCursor: later ? null : first.id,
+        },
+      });
+      return true;
+    }
+    if (path === `/admin/vehicles/${vehicleId}/grants`) {
+      expect(route.request().method()).toBe("POST");
+      granted = route.request().postDataJSON();
+      await route.fulfill({ json: { grantId: "qa-grant" } });
+      return true;
+    }
+    return false;
+  });
+  await navigate(page, "vehicles");
+  await page.locator("#vehicle-list .record-link").click();
+  await page
+    .locator("#vehicle-detail summary")
+    .filter({ hasText: /^Conceder acceso$/ })
+    .click();
+  const form = page.locator("#vehicle-detail form").filter({
+    has: page.getByRole("heading", { name: "Conceder acceso", exact: true }),
+  });
+  await form.getByRole("button", { name: "Siguiente", exact: true }).click();
+  await expect(form.locator("select[name=target]")).toContainText(
+    "Persona posterior QA",
+  );
+  await form.getByRole("button", { name: "Anterior", exact: true }).click();
+  await expect(form.locator("select[name=target]")).toContainText(
+    "Primera Persona",
+  );
+  await form.getByLabel("Buscar personas por nombre").fill("posterior");
+  await form.getByLabel("Buscar personas por nombre").press("Enter");
+  await expect(form.locator("select[name=target]")).toContainText(
+    "Persona posterior QA",
+  );
+  await form.locator("select[name=target]").selectOption("person:" + last.id);
+  await form.locator("[name=reason]").fill("Acceso sintético autorizado QA");
+  await form
+    .getByRole("button", { name: "Conceder acceso", exact: true })
+    .click();
+  await expect
+    .poll(() => granted)
+    .toMatchObject({ personId: last.id, permissionCode: "vehicle.read" });
+  expect(evidence.errors).toEqual([]);
+  expect(evidence.unexpected).toEqual([]);
+});

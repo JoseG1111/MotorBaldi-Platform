@@ -24,9 +24,18 @@ export default defineConfig({
     },
     trace: "retain-on-failure",
   },
-  webServer: {
-    command: "pnpm exec tsx scripts/ui/serve.ts",
-    url: "http://127.0.0.1:4173",
-    reuseExistingServer: false,
-  },
+  webServer: [
+    {
+      command: "pnpm exec tsx scripts/ui/serve.ts",
+      url: "http://127.0.0.1:4173",
+      reuseExistingServer: false,
+    },
+    {
+      command: "pnpm exec tsx scripts/ui/serve-integration.ts",
+      url: "http://127.0.0.1:4183",
+      reuseExistingServer: false,
+      timeout: 180000,
+      gracefulShutdown: { signal: "SIGTERM", timeout: 10000 },
+    },
+  ],
 });

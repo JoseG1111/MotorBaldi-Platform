@@ -76,19 +76,76 @@ export async function workshopRoutes(
       return command("workshop.order.create", { organizationId });
     method("GET");
     const actor = await principal();
+    // Apply the canonical read predicates before LIMIT so denied rows cannot
+    // consume the page. Keep per-row checks below for authority changes between
+    // queries; continuation only uses an emitted, authorized ID (and may end if
+    // all selected rows lose authority). SQL parity is covered by qa-pagination.
     const rows = await db
       .prepare(
-        "SELECT id,vehicle_id,location_id,description,status,assigned_person_id,final_record_id,version FROM workshop_orders WHERE organization_id=? AND id>? AND (? IS NULL OR location_id=?) ORDER BY id LIMIT 30",
+        `SELECT row.id,row.vehicle_id,row.location_id,row.description,row.status,row.assigned_person_id,row.final_record_id,row.version FROM workshop_orders row WHERE row.organization_id=? AND row.id>? AND (? IS NULL OR row.location_id=?) AND EXISTS (SELECT 1 FROM iam_accounts a JOIN iam_people p ON p.id=a.person_id JOIN org_memberships m ON m.person_id=p.id JOIN org_organizations o ON o.id=m.organization_id JOIN org_locations l ON l.organization_id=o.id JOIN org_membership_roles mr ON mr.membership_id=m.id JOIN authz_role_permissions rp ON rp.role_id=mr.role_id JOIN authz_roles r ON r.id=mr.role_id AND r.scope='ORGANIZATION'
+ WHERE a.id=? AND p.id=? AND a.status='ACTIVE' AND p.status='ACTIVE' AND o.id=row.organization_id AND o.status='ACTIVE' AND o.verification_status='VERIFIED' AND l.id=row.location_id AND l.status='ACTIVE' AND m.status='ACTIVE'
+ AND m.valid_from<=strftime('%Y-%m-%dT%H:%M:%fZ','now') AND (m.valid_to IS NULL OR m.valid_to>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND rp.permission_code=?
+ AND (m.location_scope_type='ALL_LOCATIONS' OR EXISTS(SELECT 1 FROM org_membership_locations ml WHERE ml.membership_id=m.id AND ml.organization_id=o.id AND ml.location_id=l.id))
+ AND (EXISTS(SELECT 1 FROM org_capabilities c WHERE c.organization_id=o.id AND c.code IN ('CAR_SERVICE','MOTORCYCLE_SERVICE','GENERAL_MAINTENANCE','ELECTRICAL','DIAGNOSTICS','TIRES','BODYWORK')) OR EXISTS(SELECT 1 FROM org_location_capabilities c WHERE c.organization_id=o.id AND c.location_id=l.id AND c.code IN ('CAR_SERVICE','MOTORCYCLE_SERVICE','GENERAL_MAINTENANCE','ELECTRICAL','DIAGNOSTICS','TIRES','BODYWORK'))) LIMIT 1) AND EXISTS (SELECT 1 AS allowed
+       FROM iam_accounts a
+       JOIN iam_people p ON p.id=a.person_id
+       WHERE a.id=? AND a.person_id=? AND a.status='ACTIVE' AND p.status='ACTIVE'
+         AND EXISTS (
+           SELECT 1 FROM vehicle_access_grants g
+           WHERE g.vehicle_id=row.vehicle_id AND g.permission_code=?
+             AND g.granted_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             AND g.revoked_at IS NULL
+             AND (g.expires_at IS NULL OR g.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+             AND (g.person_id=p.id OR (g.organization_id=row.organization_id AND (g.location_id IS NULL OR g.location_id IS row.location_id)))
+             AND (
+               g.person_id=p.id
+               OR (
+                 g.organization_id IS NOT NULL
+                 AND EXISTS (
+                   SELECT 1 FROM org_memberships m
+                   JOIN org_organizations o ON o.id=m.organization_id
+                   WHERE m.person_id=p.id AND m.organization_id=g.organization_id
+                     AND m.status='ACTIVE' AND o.status='ACTIVE'
+                     AND m.valid_from<=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+                     AND (m.valid_to IS NULL OR m.valid_to>strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+                     AND (
+                       g.location_id IS NULL
+                       OR (
+                         m.location_scope_type='ALL_LOCATIONS'
+                         AND EXISTS (
+                           SELECT 1 FROM org_locations l
+                           WHERE l.id=g.location_id AND l.organization_id=g.organization_id
+                             AND l.status='ACTIVE'
+                         )
+                       )
+                       OR EXISTS (
+                         SELECT 1 FROM org_membership_locations ml
+                         JOIN org_locations l ON l.id=ml.location_id AND l.organization_id=ml.organization_id
+                         WHERE ml.membership_id=m.id AND ml.organization_id=m.organization_id
+                           AND ml.location_id=g.location_id AND l.status='ACTIVE'
+                       )
+                     )
+                 )
+               )
+             )
+         )
+       LIMIT 1) ORDER BY row.id LIMIT 31`,
       )
       .bind(
         organizationId,
         url.searchParams.get("cursor") ?? "",
         url.searchParams.get("locationId"),
         url.searchParams.get("locationId"),
+        actor.accountId,
+        actor.personId,
+        "org.workshop.read",
+        actor.accountId,
+        actor.personId,
+        "vehicle.workshop.read",
       )
       .all();
     const items = [];
-    for (const row of rows.results)
+    for (const row of rows.results.slice(0, 30))
       try {
         await requireWorkshopPermission(
           db,
@@ -104,7 +161,10 @@ export async function workshopRoutes(
       } catch (error) {
         if (!(error instanceof Problem) || error.status !== 404) throw error;
       }
-    return reply({ items, nextCursor: items.at(-1)?.id ?? null });
+    return reply({
+      items,
+      nextCursor: rows.results.length > 30 ? (items.at(-1)?.id ?? null) : null,
+    });
   }
   const available = path.match(
     new RegExp(

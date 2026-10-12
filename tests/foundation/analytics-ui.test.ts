@@ -137,7 +137,12 @@ async function browser(
     URL,
     URLSearchParams,
     crypto: { randomUUID: () => "synthetic-ui-key" },
-    location: { href: "https://portal.test/", pathname: "/", reload() {} },
+    location: {
+      href: "https://portal.test/",
+      pathname: "/",
+      reload() {},
+      replace() {},
+    },
     history: { replaceState() {} },
     FormData: class {
       constructor(private n: Node) {}
@@ -377,7 +382,7 @@ describe("Scoped current analytics UI", () => {
     expect(h.node("analytics-canonical-report").children).toHaveLength(0);
     expect(h.node("analytics-canonical-status").textContent).toBe("");
   });
-  it("clears and invalidates partner reports synchronously before signing out", async () => {
+  it("clears and invalidates partner reports after confirmed signing out", async () => {
     const response = deferred<Response>();
     const h = await browser(portalScript, async (path) =>
       path.endsWith("/locations")
@@ -385,7 +390,7 @@ describe("Scoped current analytics UI", () => {
             items: [{ id: site, name: "Sede", status: "ACTIVE" }],
           })
         : path.endsWith("/auth/sign-out")
-          ? Response.json({ ok: true })
+          ? Response.json({ success: true })
           : response.promise,
     );
     runInContext(`currentOrg='${org}';partsGeneration=1`, h.context);

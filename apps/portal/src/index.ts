@@ -64,6 +64,7 @@ export default {
       {
         headers: {
           "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
           "content-security-policy":
             "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'unsafe-inline'",
           "x-content-type-options": "nosniff",

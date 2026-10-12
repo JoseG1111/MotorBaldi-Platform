@@ -418,7 +418,12 @@ function browserHarness(
   });
   const document = {
     getElementById(id: string) {
-      if (!nodes.has(id)) nodes.set(id, node());
+      if (!nodes.has(id)) {
+        const element = node();
+        // Match the real HTML: private content starts hidden before bootstrap.
+        if (id === "private") element.classList.add("hidden");
+        nodes.set(id, element);
+      }
       return nodes.get(id)!;
     },
     querySelectorAll() {
@@ -443,7 +448,7 @@ function browserHarness(
     Response,
     URL,
     URLSearchParams,
-    location: { href: "https://portal.test/", pathname: "/" },
+    location: { href: "https://portal.test/", pathname: "/", replace() {} },
     history: { replaceState() {} },
     crypto: { randomUUID: () => "test-uuid" },
     FormData: class {
