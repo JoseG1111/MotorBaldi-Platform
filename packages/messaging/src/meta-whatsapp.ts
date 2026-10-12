@@ -1,3 +1,4 @@
+import { sha256Hex } from "@motorbaldi/shared";
 import type { CommunicationTransport, DeliveryReceipt } from "./providers.js";
 
 /** Operator configuration only. No client-controlled endpoint or template selection. */
@@ -8,6 +9,8 @@ export interface MetaWhatsAppTransportConfig {
   phoneNumberId?: string;
   apiVersion?: string;
   approvedTemplateName?: string;
+  templateStatus?: "APPROVED" | "PENDING" | "REJECTED" | "PAUSED" | "DISABLED";
+  testRecipientSha256?: string;
   templateLanguage?: "es" | "es_CO" | "es_ES";
 }
 export type MetaWhatsAppFetch = (
@@ -42,8 +45,13 @@ export function createMetaWhatsAppTransport(
 ): CommunicationTransport {
   // Snapshot trusted configuration so later mutations cannot change dispatch.
   const settings = { ...config };
+  const recipientHashes = settings.testRecipientSha256?.split(",") ?? [];
   const available =
     settings.enabled === true &&
+    settings.templateStatus === "APPROVED" &&
+    recipientHashes.length >= 1 &&
+    recipientHashes.length <= 5 &&
+    recipientHashes.every((hash) => /^[a-f0-9]{64}$/.test(hash)) &&
     settings.environment === "development" &&
     matches(settings.accessToken, /^[\x21-\x7e]{1,4096}$/) &&
     matches(settings.phoneNumberId, /^[1-9][0-9]{0,31}$/) &&
@@ -83,6 +91,8 @@ export function createMetaWhatsAppTransport(
       ) {
         return { status: "REJECTED", code: "INVALID_REQUEST" };
       }
+      if (!recipientHashes.includes(await sha256Hex(request.recipient)))
+        return { status: "REJECTED", code: "AUTHORITY_DENIED" };
       if (request.signal.aborted)
         return { status: "UNAVAILABLE", code: "CALLER_ABORTED" };
       try {

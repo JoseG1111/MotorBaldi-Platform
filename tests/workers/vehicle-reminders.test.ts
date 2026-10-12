@@ -61,7 +61,11 @@ beforeAll(async () => {
   ])
     await db.exec(sql.replace(/--[^\n]*/g, "").replace(/\n/g, " "));
 });
-async function fixture(days = 15, premium = false) {
+async function fixture(
+  days = 15,
+  premium = false,
+  documentType: "SOAT" | "RTM" = "SOAT",
+) {
   const accountId = newId(),
     personId = newId(),
     vehicleId = newId(),
@@ -111,11 +115,12 @@ async function fixture(days = 15, premium = false) {
       .bind(newId(), vehicleId, personId, accountId),
     db
       .prepare(
-        "INSERT INTO vehicle_compliance_entries(id,vehicle_id,document_type,expires_on,information_source,verification_status,recorded_by_account_id) VALUES(?,?,'SOAT',?,'USER_ENTERED','USER_ENTERED',?)",
+        "INSERT INTO vehicle_compliance_entries(id,vehicle_id,document_type,expires_on,information_source,verification_status,recorded_by_account_id) VALUES(?,?,?,?,'USER_ENTERED','USER_ENTERED',?)",
       )
       .bind(
         entryId,
         vehicleId,
+        documentType,
         new Date(Date.parse("2026-10-11T00:00:00Z") + days * 86400000)
           .toISOString()
           .slice(0, 10),
@@ -342,3 +347,23 @@ describe("Vehicle reminder canonical scheduling and delivery authority", () => {
     expect(await eventFor(valid.accountId)).toBeTruthy();
   });
 });
+
+it.each(["SOAT", "RTM"] as const)(
+  "%s uses exact Free/Premium schedules with idempotent generation",
+  async (documentType) => {
+    for (const premium of [false, true])
+      for (const days of [30, 15, 7, 1]) {
+        const f = await fixture(days, premium, documentType);
+        await scheduleVehicleReminders(db, now);
+        await scheduleVehicleReminders(db, now);
+        expect(
+          await db
+            .prepare(
+              "SELECT COUNT(*) AS count FROM notification_vehicle_reminders WHERE account_id=? AND compliance_entry_id=? AND days_before=?",
+            )
+            .bind(f.accountId, f.entryId, days)
+            .first("count"),
+        ).toBe(premium || days === 15 ? 1 : 0);
+      }
+  },
+);

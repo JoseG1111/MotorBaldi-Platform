@@ -12,6 +12,8 @@ export interface NotificationTransportBindings {
   META_WHATSAPP_API_VERSION?: string;
   META_WHATSAPP_APPROVED_TEMPLATE?: string;
   META_WHATSAPP_TEMPLATE_LANGUAGE?: string;
+  META_WHATSAPP_TEMPLATE_STATUS?: string;
+  META_WHATSAPP_TEST_RECIPIENT_SHA256?: string;
 }
 
 /** Selection alone is not activation. Existing canonical delivery policy is checked by the caller too. */
@@ -37,6 +39,9 @@ export function configuredNotificationTransport(
     phoneNumberId: bindings.META_WHATSAPP_PHONE_NUMBER_ID,
     apiVersion: bindings.META_WHATSAPP_API_VERSION,
     approvedTemplateName: bindings.META_WHATSAPP_APPROVED_TEMPLATE,
+    templateStatus: bindings.META_WHATSAPP_TEMPLATE_STATUS as
+      "APPROVED" | "PENDING" | "REJECTED" | "PAUSED" | "DISABLED" | undefined,
+    testRecipientSha256: bindings.META_WHATSAPP_TEST_RECIPIENT_SHA256,
     templateLanguage: bindings.META_WHATSAPP_TEMPLATE_LANGUAGE as
       "es" | "es_CO" | "es_ES" | undefined,
   });

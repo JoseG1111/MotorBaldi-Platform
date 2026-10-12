@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createCommunicationProvider } from "../../packages/messaging/src/providers.js";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -10,7 +11,10 @@ const config: MetaWhatsAppTransportConfig = {
   environment: "development",
   accessToken: "test-token-placeholder",
   phoneNumberId: "123456789",
-  apiVersion: "v23.0",
+  apiVersion: "v26.0",
+  templateStatus: "APPROVED",
+  testRecipientSha256:
+    "5b181b132cc2c1b40eb94df758a7b9048cbcd7581782bd3dd8d5a2f8aca96ad0",
   approvedTemplateName: "vehicle_document_expiry",
   templateLanguage: "es_CO",
 };
@@ -35,6 +39,12 @@ const accepted = () =>
 describe("development-only Meta WhatsApp transport", () => {
   it.each([
     {},
+    { templateStatus: "PENDING" as const },
+    { templateStatus: "REJECTED" as const },
+    { templateStatus: undefined },
+    { testRecipientSha256: undefined },
+    { testRecipientSha256: "" },
+    { testRecipientSha256: "bad" },
     { enabled: false },
     { enabled: undefined },
     { environment: "production" },
@@ -84,7 +94,7 @@ describe("development-only Meta WhatsApp transport", () => {
       string,
       RequestInit,
     ];
-    expect(url).toBe("https://graph.facebook.com/v23.0/123456789/messages");
+    expect(url).toBe("https://graph.facebook.com/v26.0/123456789/messages");
     expect(init).toMatchObject({
       method: "POST",
       redirect: "error",
@@ -282,3 +292,70 @@ it("preserves an opaque padded Meta message ID through the shared provider bound
     ),
   ).toEqual({ status: "ACCEPTED", providerReference: "wamid.QVNDSUk=" });
 });
+
+it("rejects a valid but nonallowlisted Development recipient without HTTP", async () => {
+  const fetcher = vi.fn(async () => accepted());
+  expect(
+    await createMetaWhatsAppTransport(config, fetcher).send("WHATSAPP", {
+      ...input(),
+      recipient: "+573009999999",
+    }),
+  ).toEqual({ status: "REJECTED", code: "AUTHORITY_DENIED" });
+  expect(fetcher).not.toHaveBeenCalled();
+});
+
+it("read-only preflight rejects pending/malformed templates and absent token scopes", () => {
+  const code = `import importlib.util
+s=importlib.util.spec_from_file_location('preflight','scripts/communications/meta-development-preflight.py')
+m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+base={'name':m.TEMPLATE,'language':'es','status':'PENDING','category':'UTILITY','components':[{'type':'BODY','text':'Documento {{1}}, fecha {{2}}, dias {{3}}'}]}
+assert m.evaluate_template([base])['approved'] is False
+base['status']='APPROVED'
+assert all(m.evaluate_template([base]).values())
+base['components'][0]['text']='{{1}} {{3}}'
+assert m.evaluate_template([base])['body_parameters'] is False
+assert m.evaluate_template([])['found'] is False
+assert not any(m.evaluate_token({}).values())
+assert all(m.evaluate_token({'app_id':m.APP_ID,'is_valid':True,'type':'SYSTEM_USER','scopes':['whatsapp_business_messaging','whatsapp_business_management']}).values())
+print('PASS')`;
+  expect(
+    execFileSync("python3", ["-B", "-c", code], { encoding: "utf8" }).trim(),
+  ).toBe("PASS");
+});
+
+it.each(["SOAT", "RTM"])(
+  "configured v26 Spanish expiry template sends exact mocked %s parameters",
+  async (documentType) => {
+    const fetcher = vi.fn(async () => accepted());
+    const transport = createMetaWhatsAppTransport(
+      {
+        ...config,
+        approvedTemplateName: "motorbaldi_recordatorio_vencimiento",
+        templateLanguage: "es",
+      },
+      fetcher,
+    );
+    expect(
+      (
+        await transport.send("WHATSAPP", {
+          ...input(),
+          template: "motorbaldi_recordatorio_vencimiento",
+          variables: { ...input().variables, documentType },
+        })
+      ).status,
+    ).toBe("ACCEPTED");
+    const [url, init] = fetcher.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toContain("/v26.0/");
+    const body = JSON.parse(String(init.body));
+    expect(body.template.name).toBe("motorbaldi_recordatorio_vencimiento");
+    expect(body.template.language.code).toBe("es");
+    expect(
+      body.template.components[0].parameters.map(
+        (p: { text: string }) => p.text,
+      ),
+    ).toEqual([documentType, "2026-12-31", "15"]);
+  },
+);
