@@ -230,3 +230,7 @@ Full935gate PASS (289foundation/587Worker/5automation/54browser). Development Wo
 ## 2026-10-12 — VS008 final936 Development verification
 
 Full936gate PASS (289foundation/588Worker/5automation/54browser). Final API3aec30cf/Worker7e942562/Portal2587fa53 deployed; Admin unchanged. Development0024–0026 retain reminder rows, policy0, FK clean. Deployed anonymous session/UI/pricing/eight private denials/four closed-provider checks PASS; real cron/outbox/Queue UNAVAILABLE/PROCESSED and independent fixture cleanup/zero external dispatches PASS. Ten-item source/test/runtime reconciliation matrix persisted. Resend/Meta configuration remains external, production Wompi credentials unused, Sandbox0/4. VS008 IMPLEMENTED — NOT VERIFIED pending source CI; no merchant/delivery/production-readiness or merge claim.
+
+## 2026-10-12 — VS008 workspace loading guard
+
+Final review of the new accessible initialization marker found workspace changes could leave aria-busy true after the stale bootstrap is discarded. The current refresh now releases its loading marker independently of the selected workspace while still discarding stale profile data. Controlled actual-select regression plus four viewport/help/contacts and actual LOCAL persisted journey:7browser PASS. Prior full936gate remains passing; final CI includes the additional regression (937 expected). No timeout increase or authorization change. Portal follow-up deployment and source CI pending.

@@ -308,3 +308,57 @@ for (const width of [1440, 1280, 768, 390]) {
     });
   });
 }
+
+test("Changing workspace during bootstrap releases loading without applying the discarded profile", async ({
+  page,
+}) => {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const org = "22222222-2222-4222-8222-222222222222";
+  await page.route("**/api/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname.replace("/api/v1", "");
+    if (path === "/me/profile") {
+      await pending;
+      return route.fulfill({
+        json: {
+          version: 1,
+          given_name: "Discarded",
+          family_name: "QA",
+          display_name: "QA",
+        },
+      });
+    }
+    const data: Record<string, unknown> = {
+      "/me": { accountId: "qa", personId: "qa" },
+      "/me/workspaces": [
+        { id: "personal", type: "PERSONAL", name: "Mi espacio" },
+        { id: org, type: "ORGANIZATION", name: "Taller QA" },
+      ],
+      "/directory/organizations": { items: [], nextCursor: null },
+      "/me/contact-methods": [],
+      ["/organizations/" + org]: {
+        id: org,
+        display_name: "Taller QA",
+        verification_status: "VERIFIED",
+      },
+      ["/organizations/" + org + "/permissions"]: { permissions: [] },
+      ["/organizations/" + org + "/capabilities"]: [],
+    };
+    await route.fulfill({
+      json: data[path] ?? { items: [], nextCursor: null },
+    });
+  });
+  await page.goto("http://127.0.0.1:4174/");
+  await expect(
+    page.locator('#workspace option[value="' + org + '"]').first(),
+  ).toHaveCount(1);
+  await expect(page.locator("#private")).toHaveAttribute("aria-busy", "true");
+  await page.locator("#workspace").selectOption(org);
+  release();
+  await expect(page.locator("#private")).toHaveAttribute("aria-busy", "false");
+  await expect(
+    page.locator('#profile-form [name="givenName"]'),
+  ).not.toHaveValue("Discarded");
+});
