@@ -8,7 +8,8 @@
     "./ui": "./src/ui.ts",
     "./brand": "./src/brand.ts",
     "./customer-plans": "./src/customer-plans.ts",
-    "./vehicle-services-ui": "./src/vehicle-services-ui.ts"
+    "./vehicle-services-ui": "./src/vehicle-services-ui.ts",
+    "./customer-help": "./src/customer-help.ts"
   },
   "dependencies": {
     "uuid": "^13.0.0"

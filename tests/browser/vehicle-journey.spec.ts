@@ -41,6 +41,16 @@ test("LOCAL Free customer vehicle and expiry persist, limits reject, pending upg
   await soat.getByRole("button", { name: "Guardar fecha" }).click();
   await expect(soat).toContainText("2027-06-15");
   await expect(soat).toContainText("Declarado por el usuario");
+  const rtm = page.locator("#customer-vehicle-services section").filter({
+    has: page.getByRole("heading", {
+      name: "Revisión técnico-mecánica",
+      exact: true,
+    }),
+  });
+  await rtm.locator('[name="expiresOn"]').fill("2027-07-20");
+  await rtm.locator('[name="provider"]').fill("CDA declarado QA");
+  await rtm.getByRole("button", { name: "Guardar fecha", exact: true }).click();
+  await expect(rtm).toContainText("2027-07-20");
   const manual = page.locator("#customer-vehicle-services section").filter({
     has: page.getByRole("heading", {
       name: "Historial manual de mantenimiento",
@@ -65,11 +75,66 @@ test("LOCAL Free customer vehicle and expiry persist, limits reject, pending upg
     mileage: 54321,
   });
   expect(persistedServices.monthlySummary).toBeNull();
-  expect(persistedServices.compliance[0]).toMatchObject({
+  expect(
+    persistedServices.compliance.find(
+      (row: { document_type: string }) => row.document_type === "SOAT",
+    ),
+  ).toMatchObject({
     expires_on: "2027-06-15",
     verification_status: "USER_ENTERED",
     information_source: "USER_ENTERED",
   });
+  expect(
+    persistedServices.compliance.find(
+      (row: { document_type: string }) => row.document_type === "RTM",
+    ),
+  ).toMatchObject({
+    expires_on: "2027-07-20",
+    verification_status: "USER_ENTERED",
+  });
+  await page.locator('#app-navigation [data-panel="help"]').click();
+  await expect(page.locator("#help-title")).toBeVisible();
+  await page.locator('#app-navigation [data-panel="workshops"]').click();
+  await page
+    .getByRole("button", {
+      name: "Solicitar contacto con LOCAL Taller QA",
+      exact: true,
+    })
+    .first()
+    .click();
+  const contactForm = page.locator("#customer-workshop-contact-form");
+  await contactForm.locator('[name="vehicleId"]').selectOption(items[0].id);
+  await contactForm
+    .locator('[name="message"]')
+    .fill("Consulta de disponibilidad sintética QA");
+  await contactForm.locator('[name="dataSharingConsent"]').check();
+  const [contactResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response
+          .url()
+          .endsWith(
+            "/workshops/018f0000-0000-7000-8000-000000000099/contact-requests",
+          ) && response.request().method() === "POST",
+    ),
+    contactForm.locator('button[type="submit"]').click(),
+  ]);
+  expect(contactResponse.status()).toBe(200);
+  const contactReadback = await page.request.get(
+    base + "/api/v1/me/workshop-contact-requests",
+  );
+  expect(contactReadback.status()).toBe(200);
+  expect((await contactReadback.json()).items[0]).toMatchObject({
+    vehicleId: items[0].id,
+    status: "OPEN",
+    message: "Consulta de disponibilidad sintética QA",
+  });
+  await page.reload();
+  await expect(page.locator("#private")).toBeVisible();
+  await page.locator('#app-navigation [data-panel="workshops"]').click();
+  await expect(page.locator("#customer-workshop-requests")).toContainText(
+    "Consulta de disponibilidad sintética QA",
+  );
   const extra = await page.request.post(base + "/api/v1/me/vehicles", {
     headers: { "Idempotency-Key": crypto.randomUUID(), Origin: base },
     data: { kindCode: "CAR", specification: { make: "Extra", model: "QA" } },
@@ -107,9 +172,11 @@ test("LOCAL Free customer vehicle and expiry persist, limits reject, pending upg
     page.locator("#customer-vehicle-list button").first().click(),
   ]);
   expect(reloadedServices.status()).toBe(200);
-  expect((await reloadedServices.json()).compliance[0].expires_on).toBe(
-    "2027-06-15",
-  );
+  expect(
+    (await reloadedServices.json()).compliance.find(
+      (row: { document_type: string }) => row.document_type === "SOAT",
+    ).expires_on,
+  ).toBe("2027-06-15");
   await expect(page.locator("#customer-vehicle-services")).toContainText(
     "2027-06-15",
   );

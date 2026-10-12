@@ -15,6 +15,7 @@
     "@motorbaldi/shared": "workspace:*",
     "zod": "^4.3.0",
     "@motorbaldi/payments": "workspace:*",
-    "@motorbaldi/parts": "workspace:*"
+    "@motorbaldi/parts": "workspace:*",
+    "@motorbaldi/workshops": "workspace:*"
   }
 }

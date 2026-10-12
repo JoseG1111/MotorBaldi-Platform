@@ -6,7 +6,21 @@ export interface QueueMessage {
   eventId: string;
   requestId: string;
 }
-interface CommonBindings {
+interface NotificationProviderBindings {
+  NOTIFICATION_EXTERNAL_DELIVERY_ENABLED?: string;
+  RESEND_API_KEY?: string;
+  RESEND_FROM?: string;
+  RESEND_DOMAIN_VERIFIED?: string;
+  RESEND_WEBHOOK_SECRET?: string;
+  META_WHATSAPP_ACCESS_TOKEN?: string;
+  META_WHATSAPP_PHONE_NUMBER_ID?: string;
+  META_WHATSAPP_API_VERSION?: string;
+  META_WHATSAPP_APPROVED_TEMPLATE?: string;
+  META_WHATSAPP_TEMPLATE_LANGUAGE?: string;
+  META_WHATSAPP_APP_SECRET?: string;
+  META_WHATSAPP_WEBHOOK_VERIFY_TOKEN?: string;
+}
+interface CommonBindings extends NotificationProviderBindings {
   ENVIRONMENT: PlatformEnvironment;
 }
 

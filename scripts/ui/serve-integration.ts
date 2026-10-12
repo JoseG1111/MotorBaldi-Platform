@@ -96,6 +96,9 @@ for (const [suffix, name] of [
       `INSERT INTO platform_person_roles(person_id,role_id) VALUES('${person}','platform-superadmin');`,
     );
 }
+sql.push(
+  "INSERT INTO org_organizations(id,type,legal_name,display_name,country_code,verification_status,created_by_person_id) VALUES('018f0000-0000-7000-8000-000000000099','WORKSHOP','LOCAL Synthetic Workshop','LOCAL Taller QA','CO','VERIFIED','018f0000-0000-7000-8000-000000000182');",
+);
 const seedPath = resolve(root, "seed.sql");
 await writeFile(seedPath, sql.join("\n"));
 await wrangler([

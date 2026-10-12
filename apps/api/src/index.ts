@@ -1,3 +1,5 @@
+import { customerWorkshopRoutes } from "./customer-workshop-routes.js";
+import { notificationProviderRoutes } from "./notification-provider-routes.js";
 import {
   authenticateDevelopmentAutomation,
   issueDevelopmentAutomationAuthorization,
@@ -163,6 +165,8 @@ function requireTrustedMutationOrigin(
     !pathname.startsWith("/api/v1/auth/") &&
     pathname !== "/api/v1/public/leads" &&
     pathname !== "/api/v1/payments/wompi/events" &&
+    pathname !== "/api/v1/notifications/providers/resend/events" &&
+    pathname !== "/api/v1/notifications/providers/meta/events" &&
     pathname !== "/api/v1/foundation/idempotency-test" &&
     !trustedOrigins.includes(request.headers.get("origin") ?? "")
   )
@@ -446,6 +450,12 @@ async function route(
     const intercepted = await automationRoute(env.DB, request, machine);
     if (intercepted) return intercepted;
   }
+  const providerResponse = await notificationProviderRoutes(
+    request,
+    env,
+    requestId,
+  );
+  if (providerResponse) return providerResponse;
   if (url.pathname === "/api/v1/payments/wompi/events") {
     requireMethod("POST");
     await reconcilePaymentWebhook(env, await boundedJson(request), requestId, {
@@ -654,6 +664,25 @@ async function route(
     cors,
   );
   if (partsResponse) return partsResponse;
+  const customerContactResponse = await customerWorkshopRoutes(
+    request,
+    env.DB,
+    businessPrincipal,
+    async (operation, body, organizationId) =>
+      idempotentCommand(
+        env,
+        request.headers,
+        operation,
+        (await businessPrincipal()).accountId,
+        body,
+        requestId,
+        requiredKey(request),
+        organizationId,
+      ),
+    () => boundedJson(request),
+    cors,
+  );
+  if (customerContactResponse) return customerContactResponse;
   const supportResponse = await supportRoutes(
     request,
     env.DB,

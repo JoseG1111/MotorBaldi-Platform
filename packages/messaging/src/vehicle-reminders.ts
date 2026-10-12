@@ -1,3 +1,9 @@
+import { dispatchTrackedCommunication } from "./delivery-tracking.js";
+import {
+  configuredNotificationTransport,
+  type NotificationTransportBindings,
+} from "./configured-transports.js";
+import { HandlerFailure } from "./handler.js";
 import { CUSTOMER_PLANS } from "@motorbaldi/shared/customer-plans";
 import { z } from "zod";
 import {
@@ -200,6 +206,8 @@ export async function processVehicleReminder(
   db: D1Database,
   event: Event,
   now = new Date(),
+  bindings?: NotificationTransportBindings,
+  signal = new AbortController().signal,
 ) {
   const source = await db
     .prepare("SELECT * FROM integration_outbox_events WHERE id=?")
@@ -258,6 +266,102 @@ export async function processVehicleReminder(
         });
         status = delivery.status;
         reason = delivery.code;
+        const policy = await db
+          .prepare(
+            "SELECT external_delivery_enabled FROM notification_policy WHERE singleton=1",
+          )
+          .first<{ external_delivery_enabled: number }>();
+        const transport = bindings
+          ? configuredNotificationTransport(bindings, row.channel)
+          : null;
+        if (
+          policy?.external_delivery_enabled === 1 &&
+          transport?.capabilities.availability === "AVAILABLE"
+        ) {
+          const contact = await db
+            .prepare(
+              "SELECT normalized_value FROM iam_contact_methods WHERE id=? AND person_id=?",
+            )
+            .bind(row.contact_method_id, row.person_id)
+            .first<{ normalized_value: string }>();
+          if (!contact) throw new Error("INVALID_REMINDER_CONTACT");
+          const document = await db
+            .prepare(
+              "SELECT document_type FROM vehicle_compliance_entries WHERE id=?",
+            )
+            .bind(row.entry_id)
+            .first<{ document_type: string }>();
+          const receipt = await dispatchTrackedCommunication(db, {
+            provider: row.channel === "EMAIL" ? "RESEND" : "META_WHATSAPP",
+            channel: row.channel,
+            transport,
+            request: {
+              id: source.id,
+              requestId: source.request_id,
+              recipient: contact.normalized_value,
+              template:
+                row.channel === "EMAIL"
+                  ? "vehicle-document-expiry"
+                  : bindings!.META_WHATSAPP_APPROVED_TEMPLATE!,
+              variables: {
+                documentType: document!.document_type,
+                expiresOn: row.expires_on,
+                daysBefore: String(row.days_before),
+              },
+              signal,
+            },
+            authorize: async () => {
+              const currentPolicy = await db
+                .prepare(
+                  "SELECT external_delivery_enabled FROM notification_policy WHERE singleton=1",
+                )
+                .first<{ external_delivery_enabled: number }>();
+              if (currentPolicy?.external_delivery_enabled !== 1)
+                throw new Error("DELIVERY_POLICY_CLOSED");
+              const current = await db
+                .prepare(
+                  "SELECT id FROM vehicle_compliance_entries WHERE vehicle_id=? AND document_type=? ORDER BY created_at DESC,id DESC LIMIT 1",
+                )
+                .bind(row.vehicle_id, document!.document_type)
+                .first<{ id: string }>();
+              const owner = await db
+                .prepare(
+                  "SELECT 1 FROM vehicle_relationships WHERE vehicle_id=? AND person_id=? AND relationship_type='OWNER' AND ended_at IS NULL AND effective_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now')",
+                )
+                .bind(row.vehicle_id, row.person_id)
+                .first();
+              const currentContact = await db
+                .prepare(
+                  "SELECT normalized_value FROM iam_contact_methods WHERE id=? AND person_id=?",
+                )
+                .bind(row.contact_method_id, row.person_id)
+                .first<{ normalized_value: string }>();
+              if (
+                current?.id !== row.entry_id ||
+                !owner ||
+                currentContact?.normalized_value !== contact.normalized_value ||
+                !(await eligible(db, row)) ||
+                (Date.parse(row.expires_on + "T00:00:00Z") -
+                  Date.parse(colombiaCalendarDate() + "T00:00:00Z")) /
+                  86400000 !==
+                  row.days_before
+              )
+                throw new Error("REMINDER_AUTHORITY_CHANGED");
+              await authorizeNotificationDelivery(db, {
+                accountId: row.account_id,
+                personId: row.person_id,
+                category: "TRANSACTIONAL",
+                channel: row.channel,
+                contactMethodId: row.contact_method_id,
+              });
+            },
+          });
+          status = receipt.status;
+          reason =
+            receipt.status === "ACCEPTED"
+              ? "PROVIDER_ACCEPTED"
+              : (receipt.code ?? "TRANSPORT_UNKNOWN");
+        }
       }
     } catch (error) {
       // Known authority denials cancel; infrastructure failures remain retryable in the existing Queue.
@@ -283,16 +387,25 @@ export async function processVehicleReminder(
       requestId: source.request_id,
     }),
   ]);
+  if (status === "UNKNOWN")
+    throw new HandlerFailure("PERMANENT", "EXTERNAL_DELIVERY_UNKNOWN");
   return status;
 }
 export function vehicleReminderEventHandlers(
   db: D1Database,
+  bindings?: NotificationTransportBindings,
 ): ReadonlyMap<string, Handler> {
   return new Map([
     [
       "notification.vehicle.reminder.v1",
-      async (event) => {
-        await processVehicleReminder(db, event);
+      async (event, context) => {
+        await processVehicleReminder(
+          db,
+          event,
+          new Date(),
+          bindings,
+          context.signal,
+        );
       },
     ],
   ]);

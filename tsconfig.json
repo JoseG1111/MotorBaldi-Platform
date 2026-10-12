@@ -56,6 +56,9 @@
       ],
       "@motorbaldi/shared/vehicle-services-ui": [
         "packages/shared/src/vehicle-services-ui.ts"
+      ],
+      "@motorbaldi/shared/customer-help": [
+        "packages/shared/src/customer-help.ts"
       ]
     }
   },

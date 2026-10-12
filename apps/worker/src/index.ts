@@ -1,3 +1,4 @@
+import { customerWorkshopEventContracts } from "@motorbaldi/workshops";
 import {
   marketplaceCommandEventRegistry,
   marketplaceEventHandlers,
@@ -197,6 +198,7 @@ for (const [key, contract] of [
   ...membershipNotificationEventRegistry,
   ...notificationCommandEventRegistry,
   ...vehicleReminderEventRegistry,
+  ...customerWorkshopEventContracts,
 ])
   registry.set(key, contract);
 const handlers = new Map<string, Handler>(
@@ -243,13 +245,14 @@ export default {
       scopedHandlers.set(key, handler);
     for (const [key, handler] of partsEventHandlers(env.DB))
       scopedHandlers.set(key, handler);
-    for (const [key, handler] of vehicleReminderEventHandlers(env.DB))
+    for (const [key, handler] of vehicleReminderEventHandlers(env.DB, env))
       scopedHandlers.set(key, handler);
     for (const [key, handler] of supportEventHandlers(env.DB))
       scopedHandlers.set(key, handler);
     for (const key of [
       ...membershipNotificationEventRegistry.keys(),
       ...notificationCommandEventRegistry.keys(),
+      ...customerWorkshopEventContracts.keys(),
     ])
       scopedHandlers.set(key.split(":")[0]!, async () => {});
     scopedHandlers.set("billing.subscription.changed.v1", async (event) => {

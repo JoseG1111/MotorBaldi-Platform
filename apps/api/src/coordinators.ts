@@ -1,4 +1,9 @@
 import {
+  parseCustomerWorkshopCommand,
+  authorizeCustomerWorkshopCommand,
+  prepareCustomerWorkshopCommand,
+} from "@motorbaldi/workshops";
+import {
   automationCommitGuard,
   prepareDevelopmentPartsFixture,
 } from "./development-automation-command.js";
@@ -110,6 +115,14 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ): Promise<PreparedCommand<Json>> {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation.startsWith("workshop.contact."))
+      return prepareCustomerWorkshopCommand(
+        db,
+        actor!,
+        operation as "workshop.contact.create" | "workshop.contact.close",
+        parseCustomerWorkshopCommand(operation, request),
+        requestId,
+      );
     if (operation === "development.fixture.parts.enable")
       return prepareDevelopmentPartsFixture(db, actor!, request, requestId);
     if (operation.startsWith("marketplace.")) {
@@ -285,6 +298,13 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ) {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation.startsWith("workshop.contact."))
+      return authorizeCustomerWorkshopCommand(
+        db,
+        actor,
+        operation as "workshop.contact.create" | "workshop.contact.close",
+        parseCustomerWorkshopCommand(operation, request),
+      );
     if (operation.startsWith("marketplace.")) {
       const op = operation as MarketplaceOperation;
       if (!Object.hasOwn(marketplaceCommandInputs, op))
@@ -543,7 +563,10 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
     }
     let workshopActor: BusinessPrincipal | null = null;
     let workshopBody: Record<string, Json> | null = null;
-    if (input.scope.operation.startsWith("workshop.")) {
+    if (
+      input.scope.operation.startsWith("workshop.") &&
+      !input.scope.operation.startsWith("workshop.contact.")
+    ) {
       const assurance =
         machine ??
         (input.sessionId

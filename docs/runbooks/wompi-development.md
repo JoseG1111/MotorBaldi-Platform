@@ -23,7 +23,13 @@ Sandbox credentials must be available from an authorized Wompi merchant dashboar
 - `WOMPI_INTEGRITY_SECRET` — sandbox checkout integrity secret.
 - `WOMPI_EVENTS_SECRET` — sandbox event validation secret.
 
-Use `pnpm exec wrangler secret put NAME --config apps/api/wrangler.jsonc --env development` for each name. Optional `WOMPI_ENVIRONMENT` must equal `SANDBOX`; omission defaults to sandbox. No production key is accepted by this gateway. Configuring secrets changes checkout availability and must be followed by the remote scenario matrix, not a fabricated successful payment.
+Run this single local provisioning procedure from an interactive terminal:
+
+```bash
+python3 scripts/billing/provision-development-sandbox.py
+```
+
+It prompts invisibly for all four values, validates Sandbox prefixes before writing any binding, then passes each secret exclusively through Wrangler stdin to the existing Development API. Values never enter arguments, environment variables, files or output; failures are redacted. Production-format keys are rejected. The supplied production keys were not used, copied or provisioned. Alternatively use the authorized Cloudflare Development API secret-management interface with the four names above. Optional WOMPI_ENVIRONMENT must equal SANDBOX; omission defaults to sandbox. Provisioning is not a successful payment test.
 
 Configure the merchant **sandbox** event URL to `https://motorbaldi-api-development.josegbarrios2.workers.dev/api/v1/payments/wompi/events`. Manual dashboard interaction is a genuine human-action boundary when no authorized merchant session/credentials exist. It does not justify weakening verification or blocking unrelated implementation.
 

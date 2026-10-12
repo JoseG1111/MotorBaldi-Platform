@@ -48,7 +48,7 @@ export function applicationPage(html: string, mode: "admin" | "portal") {
       }
     : {
         garage: "Mi vehículo",
-        discovery: "Explorar",
+        workshops: "Explorar",
         organizations: "Mi organización",
         mechanic: "Profesional",
         account: "Mi cuenta",
@@ -74,6 +74,8 @@ export function applicationPage(html: string, mode: "admin" | "portal") {
             "membership",
             "notifications",
             "support",
+            "help",
+            "workshops",
             "discovery",
             "organizations",
             "workshop",
@@ -105,6 +107,8 @@ export function applicationPage(html: string, mode: "admin" | "portal") {
                   garage: "vehicles",
                   "vehicle-services": "vehicles",
                   discovery: "parts",
+                  help: "support",
+                  workshops: "workshop",
                   membership: "billing",
                   mechanic: "account",
                   commissions: "billing",

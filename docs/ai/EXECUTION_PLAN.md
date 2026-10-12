@@ -1155,5 +1155,18 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Constraints:** No new paid services without approval, no owner secrets in chat, no production changes or weakening delivery/consent gates. Staffed interactive WhatsApp already works and is not blocked by this checkpoint.
 - **Verification:** Real approved provider acceptance/reconciliation/delivery and failure/retry tests; never infer delivery from cron or processed outbox.
 - **Completion criteria:** Actual configured-channel verification with retained privacy-safe audit and current consent, otherwise unavailable state remains explicit.
-- **Human-action conditions:** Owner identifies the authorized existing email/WhatsApp notification provider and makes required configuration available through approved secure infrastructure; no credentials pasted into chat. No provider transport is configured and the existing delivery policy stays closed. Resume engineering when the authorized integration is available; staffing is already approved.
+- **Human-action conditions:** Owner selected Resend and Meta WhatsApp Cloud API on2026-10-12. Required authorized configuration/domain/template verification and secrets must be provided through approved secure infrastructure, not chat. External delivery policy stays closed until separate authorized activation/real verification. Resume engineering when the authorized integration is available; staffing is already approved.
 - **Evidence:** Final Development cron/Queue correctly records UNAVAILABLE/TRANSPORT_UNAVAILABLE. No external delivery was performed or claimed. Wompi remains MB-P5-005; QA008 is closed by owner attestation, not independently observed human automation.
+
+### MB-VS-008 — Product reconciliation and independent provider preparation
+
+- **Status:** IMPLEMENTED — NOT VERIFIED
+- **Dependencies:** MB-VS-006
+- **Objective:** Reconcile approved product reality and complete independently implementable provider/Free self-service gaps.
+- **Scope / required work:** Ten-item evidence matrix; selected Resend/Meta Development transports, durable dispatch/status tracking and secure provisioning; genuine Free help/workshop discovery/contact gap corrections. External delivery verification remains VS007; Wompi remains P5-005.
+- **Relevant files/systems:** Messaging provider abstraction, canonical D1/outbox/Queue, Workshop domain, Portal, focused regressions and existing Development.
+- **Constraints:** No paid activation/live financial credentials, no fake delivery or CDA/insurance transaction, no production/DNS/merge; preserve identity/MFA/scopes/history.
+- **Verification:** Focused protocol/ledger/domain/browser tests, full gate, Development fail-closed and actual rendered checks, CI. Provider acceptance/delivery needs actual authorized external evidence before VERIFIED at VS007.
+- **Completion criteria:** Available engineering implementation and executed evidence, with per-feature external/remaining limits recorded accurately.
+- **Human-action conditions:** Global boundaries only; all independent preparation proceeds without Resend/Meta credentials/live number or Wompi keys. Supplied production Wompi credentials are unsuitable for Sandbox and are not used or recorded.
+- **Evidence:** Full936gate PASS (289foundation/588Worker/5automation/54browser), real LOCAL RTM/SOAT/workshop persistence and four viewport/visual review. Selected adapters, signed status tracking/early-callback convergence, secure hidden provisioning, consented Free help/workshop request/reply implemented. Development0024–0026/API/Worker/Portal and remote closed-gate/session/pricing/denial checks plus real cron/Queue/cleanup PASS; source CI pending. Ten-item matrix and precise external limits in vehicle services plan.

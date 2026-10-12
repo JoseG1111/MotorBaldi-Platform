@@ -1665,3 +1665,93 @@ Object.assign(openapi.paths, {
     ),
   },
 });
+
+Object.assign(openapi.paths, {
+  "/api/v1/workshops/discovery": {
+    get: get(
+      "Authenticated self-service verified active workshops, bounded name/cursor search",
+      [
+        { name: "q", in: "query", schema: { type: "string", maxLength: 100 } },
+        { name: "cursor", in: "query", schema: id },
+      ],
+    ),
+  },
+  "/api/v1/me/workshop-contact-requests": {
+    get: get("Owned workshop service-contact history, bounded cursor", [
+      { name: "cursor", in: "query", schema: id },
+    ]),
+  },
+  "/api/v1/workshops/{organizationId}/contact-requests": {
+    post: idempotent(
+      "Consented customer-owned vehicle service-contact request; no membership or vehicle access grant",
+      [orgId],
+    ),
+  },
+  "/api/v1/organizations/{organizationId}/workshop/contact-requests": {
+    get: get(
+      "Exact ALL_LOCATIONS workshop read authority, consented limited inbox",
+      [orgId, { name: "cursor", in: "query", schema: id }],
+    ),
+  },
+  "/api/v1/organizations/{organizationId}/workshop/contact-requests/{requestId}/close":
+    {
+      post: idempotent(
+        "Assured ALL_LOCATIONS workshop management, versioned reply and closure",
+        [orgId, { name: "requestId", in: "path", required: true, schema: id }],
+      ),
+    },
+  "/api/v1/notifications/providers/resend/events": {
+    post: {
+      summary:
+        "Development-only bounded raw-body Svix-authenticated delivery evidence; no browser session",
+      responses: {
+        "200": response("Signed provider status accepted, no implied delivery"),
+        "400": problem,
+        "403": problem,
+        "413": problem,
+        "503": problem,
+      },
+    },
+  },
+  "/api/v1/notifications/providers/meta/events": {
+    get: {
+      summary: "Development-only configured Meta subscription verification",
+      parameters: [
+        {
+          name: "hub.mode",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "hub.challenge",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "hub.verify_token",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": response("Verified challenge"),
+        "403": problem,
+        "503": problem,
+      },
+    },
+    post: {
+      summary:
+        "Development-only HMAC-authenticated status evidence for configured phone ID; no inbound content stored",
+      responses: {
+        "200": response("Signed provider status accepted"),
+        "400": problem,
+        "403": problem,
+        "413": problem,
+        "503": problem,
+      },
+    },
+  },
+});
