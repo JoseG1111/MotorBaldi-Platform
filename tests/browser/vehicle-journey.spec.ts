@@ -13,7 +13,15 @@ test("LOCAL Free customer vehicle and expiry persist, limits reject, pending upg
   await page
     .locator("#login-form [name=password]")
     .fill("Local-browser-QA-password-2026!");
-  await page.locator("#login-form button").click();
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/auth/sign-in/email") &&
+        response.request().method() === "POST",
+    ),
+    page.locator("#login-form button").click(),
+  ]);
+  expect(response.status()).toBe(200);
   await expect(page.locator("#private")).toBeVisible();
   await page.locator('#app-navigation [data-panel="vehicle-services"]').click();
   const registration = page.locator("#customer-vehicle-register");

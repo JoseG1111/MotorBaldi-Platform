@@ -621,3 +621,8 @@ export async function suspendAccount(
   if (result[0]?.meta.changes !== 1)
     throw new Problem(409, "ACCOUNT_INVALID_STATE", "Account unavailable");
 }
+
+export {
+  exportOwnAccountData,
+  type OwnAccountDataExport,
+} from "./privacy-export.js";

@@ -26,6 +26,7 @@ for (const [width, height] of [
         display_name: "Ana QA",
       },
       "/me/contact-methods": [],
+      "/billing/payments": { items: [], nextCursor: null },
       "/billing/plans": {
         items: Object.entries(CUSTOMER_PLANS.prices).map(([period, p]) => ({
           code: p.planCode,

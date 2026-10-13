@@ -49,7 +49,10 @@ export function parseCustomerWorkshopCommand(
     );
   return result.data;
 }
-const workshop = `o.type='WORKSHOP' AND o.status='ACTIVE' AND o.verification_status='VERIFIED'`;
+const serviceCodes =
+  "'CAR_SERVICE','MOTORCYCLE_SERVICE','GENERAL_MAINTENANCE','ELECTRICAL','DIAGNOSTICS','TIRES','BODYWORK'";
+// Organization type is descriptive; the canonical Workshop service capabilities establish eligibility.
+const workshop = `o.status='ACTIVE' AND o.verification_status='VERIFIED' AND (EXISTS(SELECT 1 FROM org_capabilities c WHERE c.organization_id=o.id AND c.code IN (${serviceCodes})) OR EXISTS(SELECT 1 FROM org_location_capabilities c JOIN org_locations l ON l.id=c.location_id AND l.organization_id=c.organization_id WHERE c.organization_id=o.id AND l.status='ACTIVE' AND c.code IN (${serviceCodes})))`;
 const active = `EXISTS(SELECT 1 FROM iam_accounts a JOIN iam_people p ON p.id=a.person_id WHERE a.id=? AND p.id=? AND a.status='ACTIVE' AND p.status='ACTIVE')`;
 const owner = `EXISTS(SELECT 1 FROM vehicle_relationships r JOIN vehicle_vehicles v ON v.id=r.vehicle_id WHERE r.vehicle_id=? AND r.person_id=? AND r.relationship_type='OWNER' AND r.ended_at IS NULL AND r.effective_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now'))`;
 const staff = `EXISTS(SELECT 1 FROM iam_accounts a JOIN iam_people p ON p.id=a.person_id JOIN org_memberships m ON m.person_id=p.id JOIN org_membership_roles mr ON mr.membership_id=m.id JOIN authz_roles r ON r.id=mr.role_id AND r.scope='ORGANIZATION' JOIN authz_role_permissions rp ON rp.role_id=r.id WHERE a.id=? AND p.id=? AND a.status='ACTIVE' AND p.status='ACTIVE' AND m.organization_id=o.id AND m.status='ACTIVE' AND m.location_scope_type='ALL_LOCATIONS' AND m.valid_from<=strftime('%Y-%m-%dT%H:%M:%fZ','now') AND (m.valid_to IS NULL OR m.valid_to>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND rp.permission_code=?)`;

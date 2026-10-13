@@ -1,4 +1,4 @@
-import { beforeAll, describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect, vi } from "vitest";
 import { env } from "cloudflare:workers";
 import type { ApiBindings } from "@motorbaldi/config";
 import { newId } from "@motorbaldi/shared";
@@ -9,6 +9,8 @@ import {
   scheduleVehicleReminders,
   processVehicleReminder,
   vehicleReminderEventRegistry,
+  vehicleReminderEventHandlers,
+  dispatchControlledVehicleReminders,
 } from "../../packages/messaging/src/vehicle-reminders.js";
 import m0 from "../../migrations/0001_foundation.sql?raw";
 import m1 from "../../migrations/0002_phase1.sql?raw";
@@ -31,6 +33,14 @@ import m17 from "../../migrations/0018_development_automation.sql?raw";
 import m18 from "../../migrations/0019_marketplace_discovery.sql?raw";
 import m19 from "../../migrations/0020_customer_plans.sql?raw";
 import m20 from "../../migrations/0021_vehicle_services.sql?raw";
+import m23 from "../../migrations/0024_notification_delivery_tracking.sql?raw";
+import m25 from "../../migrations/0026_reminder_provider_outcomes.sql?raw";
+import m26 from "../../migrations/0027_controlled_notification_tests.sql?raw";
+import {
+  issueControlledWhatsAppPermit,
+  reserveControlledWhatsAppPermit,
+} from "../../packages/messaging/src/controlled-delivery.js";
+import { sha256Hex } from "@motorbaldi/shared";
 import m21 from "../../migrations/0022_vehicle_reminders.sql?raw";
 const db = (env as unknown as ApiBindings).DB;
 const now = new Date("2026-10-11T12:00:00.000Z");
@@ -58,13 +68,22 @@ beforeAll(async () => {
     m19,
     m20,
     m21,
+    m23,
+    m25,
+    m26,
   ])
     await db.exec(sql.replace(/--[^\n]*/g, "").replace(/\n/g, " "));
+  await db
+    .prepare(
+      "INSERT INTO governance_environment_metadata(singleton,environment) VALUES(1,'development')",
+    )
+    .run();
 });
 async function fixture(
   days = 15,
   premium = false,
   documentType: "SOAT" | "RTM" = "SOAT",
+  clock = now,
 ) {
   const accountId = newId(),
     personId = newId(),
@@ -121,7 +140,10 @@ async function fixture(
         entryId,
         vehicleId,
         documentType,
-        new Date(Date.parse("2026-10-11T00:00:00Z") + days * 86400000)
+        new Date(
+          Date.parse(colombiaCalendarDate(clock) + "T00:00:00Z") +
+            days * 86400000,
+        )
           .toISOString()
           .slice(0, 10),
         accountId,
@@ -148,7 +170,7 @@ async function fixture(
         .bind(subscriptionId),
     ]);
   }
-  return { accountId, personId, vehicleId, entryId, subscriptionId };
+  return { accountId, personId, vehicleId, entryId, contactId, subscriptionId };
 }
 async function eventFor(accountId: string) {
   return (await db
@@ -367,3 +389,571 @@ it.each(["SOAT", "RTM"] as const)(
       }
   },
 );
+
+async function controlledFixture() {
+  const clock = new Date();
+  const f = await fixture(15, true, "SOAT", clock);
+  const phoneId = newId(),
+    sessionId = newId(),
+    recipient = "+573001234567";
+  await db.batch([
+    db
+      .prepare(
+        "INSERT INTO iam_contact_methods(id,person_id,type,raw_value,normalized_value,verification_status,verified_at,source) VALUES(?,?,'PHONE',?,?,'VERIFIED',?,'LOCAL_FIXTURE')",
+      )
+      .bind(phoneId, f.personId, recipient, recipient, clock.toISOString()),
+    db
+      .prepare(
+        "INSERT INTO notification_preferences(id,account_id,category,channel,enabled,contact_method_id) VALUES(?,?,'TRANSACTIONAL','WHATSAPP',1,?)",
+      )
+      .bind(newId(), f.accountId, phoneId),
+    db
+      .prepare("UPDATE auth_users SET two_factor_enabled=1 WHERE id=?")
+      .bind(f.accountId),
+    db
+      .prepare(
+        "INSERT INTO auth_two_factors(id,user_id,secret,backup_codes,verified) VALUES(?,?,'local-fixture-secret','[]',1)",
+      )
+      .bind(newId(), f.accountId),
+    db
+      .prepare(
+        "INSERT INTO auth_sessions(id,user_id,token,expires_at) VALUES(?,?,?,?)",
+      )
+      .bind(
+        sessionId,
+        f.accountId,
+        newId(),
+        new Date(clock.getTime() + 3600000).toISOString(),
+      ),
+    db.prepare(
+      "INSERT OR IGNORE INTO authz_role_permissions(role_id,permission_code) SELECT id,'platform.notifications.controlled-test' FROM authz_roles WHERE code='OPERATIONS_ADMIN' AND scope='PLATFORM'",
+    ),
+    db
+      .prepare(
+        "INSERT INTO platform_person_roles(person_id,role_id,assigned_by_person_id) SELECT ?,id,? FROM authz_roles WHERE code='OPERATIONS_ADMIN' AND scope='PLATFORM'",
+      )
+      .bind(f.personId, f.personId),
+  ]);
+  await scheduleVehicleReminders(db, clock);
+  const event = (await db
+    .prepare(
+      "SELECT e.* FROM integration_outbox_events e JOIN notification_vehicle_reminders r ON r.source_event_id=e.id WHERE r.account_id=? AND r.channel='WHATSAPP'",
+    )
+    .bind(f.accountId)
+    .first<Event>())!;
+  const target = {
+    reminderId: event.aggregate_id,
+    sourceEventId: event.id,
+    recipient,
+  };
+  const bindings = {
+    ENVIRONMENT: "development",
+    NOTIFICATION_CONTROLLED_WHATSAPP_TEST_ENABLED: "true",
+    META_WHATSAPP_ACCESS_TOKEN: "local-token-placeholder",
+    META_WHATSAPP_PHONE_NUMBER_ID: "123456789",
+    META_WHATSAPP_API_VERSION: "v26.0",
+    META_WHATSAPP_APPROVED_TEMPLATE: "vehicle_document_expiry",
+    META_WHATSAPP_TEMPLATE_LANGUAGE: "es_CO",
+    META_WHATSAPP_TEMPLATE_STATUS: "APPROVED",
+    META_WHATSAPP_TEST_RECIPIENT_SHA256: await sha256Hex(recipient),
+  };
+  return {
+    ...f,
+    clock,
+    event,
+    target,
+    bindings,
+    actor: { accountId: f.accountId, sessionId },
+    phoneId,
+  };
+}
+
+describe("controlled Development WhatsApp permit", () => {
+  it("keeps general policy closed and consumes one audited exact-target permit before mocked HTTP", async () => {
+    const f = await controlledFixture();
+    const { permitId } = await issueControlledWhatsAppPermit(
+      db,
+      f.bindings,
+      f.actor,
+      f.target,
+      { requestId: newId(), reason: "Local regression fixture" },
+    );
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        expect(
+          await db
+            .prepare(
+              "SELECT reserved_at FROM notification_controlled_delivery_permits WHERE id=?",
+            )
+            .bind(permitId)
+            .first("reserved_at"),
+        ).toBeTruthy();
+        expect(
+          await db
+            .prepare(
+              "SELECT status FROM notification_external_deliveries WHERE source_event_id=?",
+            )
+            .bind(f.event.id)
+            .first("status"),
+        ).toBe("RESERVED");
+        return Response.json({
+          messaging_product: "whatsapp",
+          messages: [{ id: "wamid.local_fixture" }],
+        });
+      });
+    try {
+      expect(
+        await processVehicleReminder(db, f.event, f.clock, f.bindings),
+      ).toBe("ACCEPTED");
+      expect(
+        await processVehicleReminder(db, f.event, f.clock, f.bindings),
+      ).toBe("ACCEPTED");
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(
+        await db
+          .prepare(
+            "SELECT external_delivery_enabled FROM notification_policy WHERE singleton=1",
+          )
+          .first("external_delivery_enabled"),
+      ).toBe(0);
+      expect(
+        await db
+          .prepare(
+            "SELECT COUNT(*) FROM governance_audit_events WHERE resource_id=? AND action IN ('notification.controlled.permit.issued','notification.controlled.permit.reserved')",
+          )
+          .bind(permitId)
+          .first("COUNT(*)"),
+      ).toBe(2);
+    } finally {
+      fetcher.mockRestore();
+    }
+  });
+  it("rejects unsupported duration and a stale assured session without creating a permit", async () => {
+    const f = await controlledFixture();
+    await expect(
+      issueControlledWhatsAppPermit(db, f.bindings, f.actor, f.target, {
+        requestId: newId(),
+        reason: "Local regression",
+        validitySeconds: 901,
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    await db
+      .prepare(
+        "UPDATE auth_sessions SET expires_at='2020-01-01T00:00:00Z' WHERE id=?",
+      )
+      .bind(f.actor.sessionId)
+      .run();
+    await expect(
+      issueControlledWhatsAppPermit(db, f.bindings, f.actor, f.target, {
+        requestId: newId(),
+        reason: "Local regression",
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(
+      await db
+        .prepare(
+          "SELECT COUNT(*) FROM notification_controlled_delivery_permits WHERE reminder_id=?",
+        )
+        .bind(f.target.reminderId)
+        .first("COUNT(*)"),
+    ).toBe(0);
+  });
+  it("rechecks current grant atomically and never sends after revocation", async () => {
+    const f = await controlledFixture();
+    await issueControlledWhatsAppPermit(db, f.bindings, f.actor, f.target, {
+      requestId: newId(),
+      reason: "Local regression",
+    });
+    await db
+      .prepare(
+        "UPDATE vehicle_access_grants SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE vehicle_id=?",
+      )
+      .bind(f.vehicleId)
+      .run();
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("Unexpected provider HTTP"));
+    try {
+      await processVehicleReminder(db, f.event, f.clock, f.bindings);
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(
+        await db
+          .prepare(
+            "SELECT reserved_at FROM notification_controlled_delivery_permits WHERE reminder_id=?",
+          )
+          .bind(f.target.reminderId)
+          .first("reserved_at"),
+      ).toBeNull();
+    } finally {
+      fetcher.mockRestore();
+    }
+  });
+});
+
+it("quarantines ambiguous controlled provider effects across redelivery", async () => {
+  const f = await controlledFixture();
+  await issueControlledWhatsAppPermit(db, f.bindings, f.actor, f.target, {
+    requestId: newId(),
+    reason: "Local ambiguity fixture",
+    validitySeconds: 900,
+  });
+  const fetcher = vi
+    .spyOn(globalThis, "fetch")
+    .mockRejectedValue(new Error("Mock connection lost"));
+  try {
+    await expect(
+      processVehicleReminder(db, f.event, f.clock, f.bindings),
+    ).rejects.toThrow("EXTERNAL_DELIVERY_UNKNOWN");
+    expect(await processVehicleReminder(db, f.event, f.clock, f.bindings)).toBe(
+      "UNKNOWN",
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(
+      await db
+        .prepare(
+          "SELECT status FROM notification_external_deliveries WHERE source_event_id=?",
+        )
+        .bind(f.event.id)
+        .first("status"),
+    ).toBe("UNKNOWN");
+  } finally {
+    fetcher.mockRestore();
+  }
+});
+
+it.each([
+  "preference",
+  "owner",
+  "coverage",
+  "contact",
+  "template",
+  "allowlist",
+])("closes controlled sends when current %s changes", async (change) => {
+  const f = await controlledFixture();
+  await issueControlledWhatsAppPermit(db, f.bindings, f.actor, f.target, {
+    requestId: newId(),
+    reason: "Local negative fixture",
+  });
+  if (change === "preference")
+    await db
+      .prepare(
+        "UPDATE notification_preferences SET enabled=0,version=version+1 WHERE account_id=? AND channel='WHATSAPP'",
+      )
+      .bind(f.accountId)
+      .run();
+  if (change === "owner")
+    await db
+      .prepare(
+        "UPDATE vehicle_relationships SET ended_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE vehicle_id=?",
+      )
+      .bind(f.vehicleId)
+      .run();
+  if (change === "coverage")
+    await db
+      .prepare(
+        "UPDATE billing_subscriptions SET status='SUSPENDED',version=version+1 WHERE id=?",
+      )
+      .bind(f.subscriptionId)
+      .run();
+  if (change === "contact")
+    await db
+      .prepare(
+        "UPDATE iam_contact_methods SET verification_status='UNVERIFIED',verified_at=NULL WHERE id=?",
+      )
+      .bind(f.phoneId)
+      .run();
+  if (change === "template")
+    f.bindings.META_WHATSAPP_TEMPLATE_STATUS = "PENDING";
+  if (change === "allowlist")
+    f.bindings.META_WHATSAPP_TEST_RECIPIENT_SHA256 = "0".repeat(64);
+  const fetcher = vi
+    .spyOn(globalThis, "fetch")
+    .mockRejectedValue(new Error("Unexpected provider HTTP"));
+  try {
+    await processVehicleReminder(db, f.event, f.clock, f.bindings);
+    expect(fetcher).not.toHaveBeenCalled();
+  } finally {
+    fetcher.mockRestore();
+  }
+});
+
+it("atomically denies permit reservation after staff authority is revoked", async () => {
+  const f = await controlledFixture();
+  const { permitId } = await issueControlledWhatsAppPermit(
+    db,
+    f.bindings,
+    f.actor,
+    f.target,
+    { requestId: newId(), reason: "Local reservation race" },
+  );
+  await db
+    .prepare(
+      "INSERT INTO notification_external_deliveries(id,source_event_id,provider,channel,payload_sha256,status) VALUES(?,?,'META_WHATSAPP','WHATSAPP',?,'RESERVED')",
+    )
+    .bind(f.event.id, f.event.id, "0".repeat(64))
+    .run();
+  await db
+    .prepare("DELETE FROM platform_person_roles WHERE person_id=?")
+    .bind(f.personId)
+    .run();
+  await expect(
+    reserveControlledWhatsAppPermit(db, f.bindings, f.target),
+  ).rejects.toMatchObject({ status: 403 });
+  expect(
+    await db
+      .prepare(
+        "SELECT reserved_at FROM notification_controlled_delivery_permits WHERE id=?",
+      )
+      .bind(permitId)
+      .first("reserved_at"),
+  ).toBeNull();
+});
+
+it("rejects a mismatched source event and recipient hash without issuing durable permits", async () => {
+  const f = await controlledFixture();
+  const options = { requestId: newId(), reason: "Local target binding" };
+  await expect(
+    issueControlledWhatsAppPermit(
+      db,
+      f.bindings,
+      f.actor,
+      { ...f.target, sourceEventId: newId() },
+      options,
+    ),
+  ).rejects.toMatchObject({ status: 403 });
+  await expect(
+    issueControlledWhatsAppPermit(
+      db,
+      f.bindings,
+      f.actor,
+      { ...f.target, recipient: "+573001234568" },
+      options,
+    ),
+  ).rejects.toMatchObject({ status: 403 });
+  expect(
+    await db
+      .prepare(
+        "SELECT COUNT(*) FROM notification_controlled_delivery_permits WHERE reminder_id=?",
+      )
+      .bind(f.target.reminderId)
+      .first("COUNT(*)"),
+  ).toBe(0);
+});
+
+async function revokePendingLocalPermits() {
+  await db
+    .prepare(
+      "UPDATE notification_controlled_delivery_permits SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE reserved_at IS NULL AND revoked_at IS NULL",
+    )
+    .run();
+}
+
+describe("bounded controlled permit cron drain", () => {
+  it("permits a later human authorization after canonical Queue processing and sends once without rewriting outbox history", async () => {
+    await revokePendingLocalPermits();
+    const f = await controlledFixture();
+    const fetcher = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        messaging_product: "whatsapp",
+        messages: [{ id: "wamid.late_local_permit" }],
+      }),
+    );
+    try {
+      expect(
+        await processEvent(
+          db,
+          f.event.id,
+          vehicleReminderEventHandlers(db, f.bindings),
+          vehicleReminderEventRegistry,
+        ),
+      ).toBe("processed");
+      expect(
+        await db
+          .prepare(
+            "SELECT status FROM notification_vehicle_reminders WHERE id=?",
+          )
+          .bind(f.target.reminderId)
+          .first("status"),
+      ).toBe("QUEUED");
+      expect(fetcher).not.toHaveBeenCalled();
+      const sourceBefore = await db
+        .prepare(
+          "SELECT status,attempts,processed_at FROM integration_outbox_events WHERE id=?",
+        )
+        .bind(f.event.id)
+        .first();
+      expect(sourceBefore?.status).toBe("PROCESSED");
+      await issueControlledWhatsAppPermit(db, f.bindings, f.actor, f.target, {
+        requestId: newId(),
+        reason: "Local late permit",
+        validitySeconds: 900,
+      });
+      expect(
+        await dispatchControlledVehicleReminders(db, f.bindings, f.clock),
+      ).toEqual({ scanned: 1 });
+      expect(
+        await dispatchControlledVehicleReminders(db, f.bindings, f.clock),
+      ).toEqual({ scanned: 0 });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      expect(
+        await db
+          .prepare(
+            "SELECT status FROM notification_vehicle_reminders WHERE id=?",
+          )
+          .bind(f.target.reminderId)
+          .first("status"),
+      ).toBe("ACCEPTED");
+      expect(
+        await db
+          .prepare(
+            "SELECT status,attempts,processed_at FROM integration_outbox_events WHERE id=?",
+          )
+          .bind(f.event.id)
+          .first(),
+      ).toEqual(sourceBefore);
+      expect(
+        await db
+          .prepare(
+            "SELECT external_delivery_enabled FROM notification_policy WHERE singleton=1",
+          )
+          .first("external_delivery_enabled"),
+      ).toBe(0);
+    } finally {
+      fetcher.mockRestore();
+    }
+  });
+  it.each(["revoked", "expired", "noFlag", "production"])(
+    "sends no HTTP for %s permits/configuration",
+    async (condition) => {
+      await revokePendingLocalPermits();
+      const f = await controlledFixture();
+      const { permitId } = await issueControlledWhatsAppPermit(
+        db,
+        f.bindings,
+        f.actor,
+        f.target,
+        {
+          requestId: newId(),
+          reason: "Local inactive permit",
+          validitySeconds: condition === "expired" ? 1 : 900,
+        },
+      );
+      if (condition === "revoked")
+        await db
+          .prepare(
+            "UPDATE notification_controlled_delivery_permits SET revoked_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?",
+          )
+          .bind(permitId)
+          .run();
+      if (condition === "expired")
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+      const bindings = {
+        ...f.bindings,
+        ...(condition === "noFlag"
+          ? { NOTIFICATION_CONTROLLED_WHATSAPP_TEST_ENABLED: "false" }
+          : {}),
+        ...(condition === "production" ? { ENVIRONMENT: "production" } : {}),
+      };
+      const fetcher = vi
+        .spyOn(globalThis, "fetch")
+        .mockRejectedValue(new Error("Unexpected HTTP"));
+      try {
+        expect(
+          await dispatchControlledVehicleReminders(db, bindings, f.clock),
+        ).toEqual({ scanned: 0 });
+        expect(fetcher).not.toHaveBeenCalled();
+        expect(
+          await db
+            .prepare(
+              "SELECT reserved_at FROM notification_controlled_delivery_permits WHERE id=?",
+            )
+            .bind(permitId)
+            .first("reserved_at"),
+        ).toBeNull();
+      } finally {
+        fetcher.mockRestore();
+      }
+    },
+  );
+  it("rechecks revoked human MFA during cron dispatch before HTTP", async () => {
+    await revokePendingLocalPermits();
+    const f = await controlledFixture();
+    const { permitId } = await issueControlledWhatsAppPermit(
+      db,
+      f.bindings,
+      f.actor,
+      f.target,
+      { requestId: newId(), reason: "Local changed MFA", validitySeconds: 900 },
+    );
+    await db
+      .prepare("UPDATE auth_users SET two_factor_enabled=0 WHERE id=?")
+      .bind(f.accountId)
+      .run();
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("Unexpected HTTP"));
+    try {
+      expect(
+        await dispatchControlledVehicleReminders(db, f.bindings, f.clock),
+      ).toEqual({ scanned: 1 });
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(
+        await db
+          .prepare(
+            "SELECT reserved_at FROM notification_controlled_delivery_permits WHERE id=?",
+          )
+          .bind(permitId)
+          .first("reserved_at"),
+      ).toBeNull();
+    } finally {
+      fetcher.mockRestore();
+    }
+  });
+  it("retains default closed-channel behavior when controlled mode is disabled", async () => {
+    const f = await controlledFixture();
+    expect(
+      await processVehicleReminder(db, f.event, f.clock, {
+        ...f.bindings,
+        NOTIFICATION_CONTROLLED_WHATSAPP_TEST_ENABLED: "false",
+      }),
+    ).toBe("UNAVAILABLE");
+    expect(
+      await dispatchControlledVehicleReminders({} as D1Database, {
+        ENVIRONMENT: "development",
+      }),
+    ).toEqual({ scanned: 0 });
+  });
+  it("drains at most five exact targets per invocation and progresses on the next cron", async () => {
+    await revokePendingLocalPermits();
+    const fixtures = [];
+    for (let i = 0; i < 6; i++) fixtures.push(await controlledFixture());
+    for (const f of fixtures)
+      await issueControlledWhatsAppPermit(db, f.bindings, f.actor, f.target, {
+        requestId: newId(),
+        reason: "Local bounded cron",
+        validitySeconds: 900,
+      });
+    const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      Response.json({
+        messaging_product: "whatsapp",
+        messages: [{ id: "wamid.local_bound_" + newId().replaceAll("-", "") }],
+      }),
+    );
+    try {
+      expect(
+        await dispatchControlledVehicleReminders(db, fixtures[0]!.bindings),
+      ).toEqual({ scanned: 5 });
+      expect(fetcher).toHaveBeenCalledTimes(5);
+      expect(
+        await dispatchControlledVehicleReminders(db, fixtures[0]!.bindings),
+      ).toEqual({ scanned: 1 });
+      expect(fetcher).toHaveBeenCalledTimes(6);
+      expect(
+        await dispatchControlledVehicleReminders(db, fixtures[0]!.bindings),
+      ).toEqual({ scanned: 0 });
+    } finally {
+      fetcher.mockRestore();
+    }
+  });
+});

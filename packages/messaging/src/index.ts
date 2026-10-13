@@ -16,3 +16,4 @@ export * from "./configured-transports.js";
 export * from "./delivery-tracking.js";
 
 export * from "./provider-webhooks.js";
+export { issueControlledWhatsAppPermit } from "./controlled-delivery.js";

@@ -356,6 +356,28 @@ Object.assign(openapi.paths, {
       false,
     ),
   },
+  "/api/v1/auth/capabilities": {
+    get: get(
+      "Public registration and recovery configuration readiness; not email delivery evidence",
+      [],
+      false,
+    ),
+  },
+  "/api/v1/me/privacy/export": {
+    get: get(
+      "Download authorized own-account data; excludes other customers and credentials",
+    ),
+  },
+  "/api/v1/admin/notifications/controlled-whatsapp-permits": {
+    post: command(
+      "Issue an exact expiring Development reminder test permit; separate ungranted permission and human MFA required",
+    ),
+  },
+  "/api/v1/billing/payments": {
+    get: get("Bounded account-scoped payment history", [
+      { name: "cursor", in: "query", schema: id },
+    ]),
+  },
   "/api/v1/auth/verify-email": { get: get("Verify email", [], false) },
   "/api/v1/auth/two-factor/enable": { post: command("Begin TOTP enrollment") },
   "/api/v1/auth/two-factor/verify-totp": {

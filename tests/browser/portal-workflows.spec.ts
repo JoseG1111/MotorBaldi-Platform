@@ -51,6 +51,11 @@ const paths: Record<string, unknown> = {
     family_name: "García",
     display_name: "Ana García",
   },
+  "/auth/capabilities": {
+    registrationAvailable: false,
+    recoveryAvailable: false,
+  },
+  "/billing/payments": { items: [], nextCursor: null },
   "/me/contact-methods": [
     {
       type: "EMAIL",

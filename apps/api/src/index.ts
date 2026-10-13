@@ -13,17 +13,23 @@ import { marketplaceRoutes } from "./marketplace-routes.js";
 import { partsRoutes } from "./parts-routes.js";
 import { supportRoutes } from "./support-routes.js";
 import { notificationRoutes } from "./notification-routes.js";
+import { issueControlledWhatsAppPermit } from "@motorbaldi/messaging";
+import { exportOwnAccountData } from "@motorbaldi/identity";
 import {
   buildHostedCheckout,
   reconcilePaymentWebhook,
   reconcileStoredPayment,
   paymentGatewayCapabilities,
-  sandboxPaymentsConfigured,
+  checkoutConfigured,
 } from "./payment-gateway.js";
 import { billingRoutes } from "./billing-routes.js";
 import { inspectionRoutes } from "./inspection-routes.js";
 import { workshopRoutes } from "./workshop-routes.js";
-import { authentication, allowedAuthPaths } from "@motorbaldi/auth";
+import {
+  authentication,
+  allowedAuthPaths,
+  authEmailCapability,
+} from "@motorbaldi/auth";
 import { apiConfig, type ApiBindings } from "@motorbaldi/config";
 import { Problem } from "@motorbaldi/contracts";
 import { assertDatabaseEnvironment } from "@motorbaldi/db/environment";
@@ -415,7 +421,15 @@ async function route(
   if (request.method === "OPTIONS")
     return new Response(null, { status: 204, headers: cors });
   requireTrustedMutationOrigin(request, url.pathname, c.corsOrigins);
-  await rateLimit(env, request, url.pathname.startsWith("/api/v1/auth/"));
+  // Public readiness metadata must not consume password/TOTP abuse capacity.
+  // Its regular API limiter remains active; auth mutations retain the sensitive limiter.
+  const publicAuthCapabilities =
+    request.method === "GET" && url.pathname === "/api/v1/auth/capabilities";
+  await rateLimit(
+    env,
+    request,
+    url.pathname.startsWith("/api/v1/auth/") && !publicAuthCapabilities,
+  );
   const requireMethod = (method: string) => {
     if (request.method !== method)
       throw new Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed");
@@ -532,9 +546,17 @@ async function route(
     );
   }
   const signupEnabled =
-    (await featureEnabled(env, "PUBLIC_SIGNUP")) &&
-    c.environment === "local" &&
-    c.emailProvider === "DEVELOPMENT_SINK";
+    (await featureEnabled(env, "PUBLIC_SIGNUP")) && authEmailCapability(env, c);
+  if (url.pathname === "/api/v1/auth/capabilities") {
+    requireMethod("GET");
+    return json(
+      {
+        registrationAvailable: signupEnabled,
+        recoveryAvailable: authEmailCapability(env, c),
+      },
+      { headers: { ...cors, "cache-control": "no-store" } },
+    );
+  }
   const auth = authentication(env, c, requestId, signupEnabled);
   const businessPrincipal = async () => {
     const principal = machine ?? (await auth.principal(request.headers));
@@ -542,6 +564,60 @@ async function route(
       throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
     return principal as typeof principal & { personId: string };
   };
+  if (url.pathname === "/api/v1/me/privacy/export") {
+    requireMethod("GET");
+    return json(
+      await exportOwnAccountData(env.DB, await businessPrincipal(), requestId),
+      {
+        headers: {
+          ...cors,
+          "cache-control": "no-store",
+          "content-disposition":
+            'attachment; filename="motorbaldi-account-data.json"',
+        },
+      },
+    );
+  }
+  if (
+    url.pathname === "/api/v1/admin/notifications/controlled-whatsapp-permits"
+  ) {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    const session = await auth.auth.api.getSession({
+      headers: request.headers,
+    });
+    if (!session || session.user.id !== actor.accountId)
+      throw new Problem(
+        403,
+        "CONTROLLED_DELIVERY_DENIED",
+        "Human session required",
+      );
+    const input = z
+      .object({
+        reminderId: z.string().uuid(),
+        sourceEventId: z.string().uuid(),
+        recipient: z.string().regex(/^\+[1-9][0-9]{7,14}$/),
+        reason: z.string().trim().min(1).max(500),
+        validitySeconds: z.number().int().min(1).max(900).optional(),
+      })
+      .strict()
+      .parse(await boundedJson(request));
+    const permit = await issueControlledWhatsAppPermit(
+      env.DB,
+      env,
+      { accountId: actor.accountId, sessionId: session.session.id },
+      input,
+      {
+        requestId,
+        reason: input.reason,
+        validitySeconds: input.validitySeconds,
+      },
+    );
+    return json(permit, {
+      status: 201,
+      headers: { ...cors, "cache-control": "no-store" },
+    });
+  }
   if (url.pathname === "/api/v1/billing/payment-capabilities") {
     requireMethod("GET");
     await businessPrincipal();
@@ -571,7 +647,7 @@ async function route(
   if (checkoutPath) {
     requireMethod("POST");
     const actor = await businessPrincipal();
-    if (!sandboxPaymentsConfigured(env))
+    if (!checkoutConfigured(env))
       throw new Problem(
         503,
         "PAYMENTS_UNAVAILABLE",
@@ -735,7 +811,7 @@ async function route(
       ),
     () => boundedJson(request),
     cors,
-    sandboxPaymentsConfigured(env),
+    checkoutConfigured(env),
   );
   if (billingResponse) return billingResponse;
   const inspectionResponse = await inspectionRoutes(
@@ -856,6 +932,13 @@ async function route(
       return json(rows.results, { headers: cors });
     }
     requireMethod("POST");
+    const uploadsEnabled = c.environment !== "production";
+    if (!uploadsEnabled)
+      throw new Problem(
+        503,
+        "FILE_UPLOAD_UNAVAILABLE",
+        "File uploads unavailable",
+      );
     const mime =
       request.headers
         .get("content-type")
@@ -874,6 +957,7 @@ async function route(
       throw new Problem(400, "INVALID_FILE", "File size mismatch");
     const storage = files(env.DB, env.PRIVATE_BUCKET, {
       scanner: unavailableScanner,
+      uploadsEnabled,
     });
     const upload = await storage.requestUpload(
       actor.accountId,
@@ -2543,9 +2627,22 @@ async function route(
           privacyAccepted: z.literal(true),
           termsVersion: z.string().min(1).max(64),
           privacyVersion: z.string().min(1).max(64),
+          callbackURL: z.string().url().optional(),
         })
         .strict()
         .parse(await boundedJson(request));
+      if (body.callbackURL) {
+        const callback = new URL(body.callbackURL);
+        if (
+          !c.corsOrigins.includes(callback.origin) ||
+          callback.pathname !== "/login" ||
+          callback.search ||
+          callback.hash ||
+          callback.username ||
+          callback.password
+        )
+          throw new Problem(400, "INVALID_CALLBACK", "Invalid callback");
+      }
       const forwarded = new Request(request.url, {
         method: "POST",
         headers: request.headers,
@@ -2553,32 +2650,145 @@ async function route(
           name: body.name,
           email: body.email,
           password: body.password,
+          callbackURL:
+            body.callbackURL ?? new URL("/login", c.corsOrigins[0]!).href,
         }),
       });
-      const result = await auth.auth.handler(forwarded);
-      if (!result.ok)
-        return json({ accepted: true }, { status: 202, headers: cors });
-      const payload = (await result.clone().json()) as {
-        user?: { id?: string };
-      };
-      if (payload.user?.id)
-        await env.DB.prepare(
-          "INSERT INTO iam_signup_consents(auth_user_id,terms_version,privacy_version,request_id) VALUES(?,?,?,?) ON CONFLICT(auth_user_id) DO NOTHING",
-        )
-          .bind(
-            payload.user.id,
-            body.termsVersion,
-            body.privacyVersion,
+      // The hook receives only this validated request's accepted policy versions and
+      // the exact newly created user ID. Duplicate signup responses never grant consent.
+      const signupAuth = authentication(env, c, requestId, true, {
+        termsVersion: body.termsVersion,
+        privacyVersion: body.privacyVersion,
+      });
+      try {
+        const result = await signupAuth.auth.handler(forwarded);
+        if (result.status === 429) return result;
+        if (!result.ok)
+          logger.warn({
+            event: "auth.email.submission.failed",
             requestId,
-          )
-          .run();
+            status: result.status,
+            service: "api",
+          });
+      } catch {
+        logger.warn({
+          event: "auth.email.submission.failed",
+          requestId,
+          service: "api",
+        });
+      }
       return json({ accepted: true }, { status: 202, headers: cors });
     }
-    if (
-      path === "/request-password-reset" &&
-      (c.environment !== "local" || c.emailProvider !== "DEVELOPMENT_SINK")
-    )
+    if (path === "/send-verification-email") {
+      requireMethod("POST");
+      if (!authEmailCapability(env, c))
+        throw new Problem(404, "NOT_FOUND", "Not found");
+      const body = z
+        .object({
+          email: z.string().email(),
+          callbackURL: z.string().url().optional(),
+        })
+        .strict()
+        .parse(await boundedJson(request));
+      const callback = new URL(
+        body.callbackURL ?? new URL("/login", c.corsOrigins[0]!).href,
+      );
+      if (
+        !c.corsOrigins.includes(callback.origin) ||
+        callback.pathname !== "/login" ||
+        callback.search ||
+        callback.hash ||
+        callback.username ||
+        callback.password
+      )
+        throw new Problem(400, "INVALID_CALLBACK", "Invalid callback");
+      try {
+        const response = await auth.auth.handler(
+          new Request(request.url, {
+            method: "POST",
+            headers: request.headers,
+            body: JSON.stringify({
+              email: body.email,
+              callbackURL: callback.href,
+            }),
+          }),
+        );
+        if (response.status === 429) return response;
+        if (!response.ok)
+          logger.warn({
+            event: "auth.email.submission.failed",
+            requestId,
+            status: response.status,
+            service: "api",
+          });
+      } catch {
+        logger.warn({
+          event: "auth.email.submission.failed",
+          requestId,
+          service: "api",
+        });
+      }
+      return json(
+        { accepted: true },
+        { headers: { ...cors, "cache-control": "no-store" } },
+      );
+    }
+    if (path === "/request-password-reset" && !authEmailCapability(env, c))
       throw new Problem(404, "NOT_FOUND", "Not found");
+    if (path === "/request-password-reset") {
+      requireMethod("POST");
+      const body = z
+        .object({
+          email: z.string().email(),
+          redirectTo: z.string().url().optional(),
+        })
+        .strict()
+        .parse(await boundedJson(request));
+      const redirect = new URL(
+        body.redirectTo ?? new URL("/reset-password", c.corsOrigins[0]!).href,
+      );
+      if (
+        !c.corsOrigins.includes(redirect.origin) ||
+        redirect.pathname !== "/reset-password" ||
+        redirect.search ||
+        redirect.hash ||
+        redirect.username ||
+        redirect.password
+      )
+        throw new Problem(400, "INVALID_CALLBACK", "Invalid callback");
+      try {
+        const response = await auth.auth.handler(
+          new Request(request.url, {
+            method: "POST",
+            headers: request.headers,
+            body: JSON.stringify({
+              email: body.email,
+              redirectTo: redirect.href,
+            }),
+          }),
+        );
+        if (response.status === 429) return response;
+        if (!response.ok)
+          logger.warn({
+            event: "auth.email.submission.failed",
+            requestId,
+            status: response.status,
+            service: "api",
+          });
+      } catch {
+        logger.warn({
+          event: "auth.email.submission.failed",
+          requestId,
+          service: "api",
+        });
+      }
+      // Same accepted request response for known/unknown email and delivery errors.
+      // This never claims that an email was delivered.
+      return json(
+        { accepted: true },
+        { headers: { ...cors, "cache-control": "no-store" } },
+      );
+    }
     // Better Auth can swallow adapter deletion errors. Confirm canonical revocation
     // before forwarding a successful sign-out or expired cookies to the browser.
     const signingOut = path === "/sign-out" && request.method === "POST";

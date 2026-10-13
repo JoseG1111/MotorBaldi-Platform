@@ -444,6 +444,12 @@ function browserHarness(
   const context = createContext({
     document,
     fetch: (path: string, init?: RequestInit) => {
+      if (path === "/api/v1/billing/payment-capabilities")
+        return Promise.resolve(
+          Response.json({ environment: "SANDBOX", checkoutAvailable: true }),
+        );
+      if (path === "/api/v1/billing/payments")
+        return Promise.resolve(Response.json({ items: [], nextCursor: null }));
       if (
         (!init?.method || init.method === "GET") &&
         (path.startsWith("/api/v1/public/parts") ||

@@ -7,7 +7,8 @@
     ".": "./src/index.js",
     "./handler": "./src/handler.js",
     "./queue": "./src/queue.js",
-    "./providers": "./src/providers.js"
+    "./providers": "./src/providers.js",
+    "./auth-email": "./src/auth-email.js"
   },
   "dependencies": {
     "@motorbaldi/db": "workspace:*",

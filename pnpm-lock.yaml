@@ -287,6 +287,9 @@ importers:
       '@motorbaldi/identity':
         specifier: workspace:*
         version: link:../identity
+      '@motorbaldi/messaging':
+        specifier: workspace:*
+        version: link:../messaging
       '@motorbaldi/shared':
         specifier: workspace:*
         version: link:../shared

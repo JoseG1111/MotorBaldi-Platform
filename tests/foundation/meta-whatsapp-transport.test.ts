@@ -359,3 +359,41 @@ it.each(["SOAT", "RTM"])(
     ).toEqual([documentType, "2026-12-31", "15"]);
   },
 );
+
+describe("production WhatsApp transport release boundary", () => {
+  it("requires independent authorization, approved template and business phone without test capability", async () => {
+    const production = {
+      ...config,
+      environment: "production",
+      releaseAuthorized: true,
+      phoneNumberKind: "BUSINESS" as const,
+      testRecipientSha256: undefined,
+    };
+    for (const patch of [
+      { releaseAuthorized: false },
+      { phoneNumberKind: "TEST" as const },
+      { testRecipientSha256: config.testRecipientSha256 },
+      { templateStatus: "PENDING" as const },
+      { environment: "staging" },
+    ]) {
+      const fetcher = vi.fn(async () => accepted());
+      const transport = createMetaWhatsAppTransport(
+        { ...production, ...patch },
+        fetcher,
+      );
+      expect(transport.capabilities.availability).toBe("UNAVAILABLE");
+      await transport.send("WHATSAPP", input());
+      expect(fetcher).not.toHaveBeenCalled();
+    }
+    const fetcher = vi.fn(async () => accepted());
+    expect(
+      (
+        await createMetaWhatsAppTransport(production, fetcher).send(
+          "WHATSAPP",
+          input(),
+        )
+      ).status,
+    ).toBe("ACCEPTED");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+});

@@ -503,6 +503,49 @@ export async function membershipOverview(db: D1Database, actor: BillingActor) {
   };
 }
 
+/** Bounded customer history; never exposes another customer's payment or provider secrets. */
+export async function customerPaymentHistory(
+  db: D1Database,
+  actor: BillingActor,
+  cursor?: string,
+) {
+  await requireActiveAccount(db, actor);
+  let anchor: { id: string; created_at: string } | null = null;
+  if (cursor !== undefined) {
+    if (!z.string().uuid().safeParse(cursor).success)
+      throw new Problem(400, "INVALID_CURSOR", "Invalid cursor");
+    anchor = await db
+      .prepare(
+        `SELECT pay.id,pay.created_at FROM billing_payments pay JOIN billing_periods per ON per.id=pay.period_id JOIN billing_subscriptions s ON s.id=per.subscription_id WHERE pay.id=? AND s.account_id=?`,
+      )
+      .bind(cursor, actor.accountId)
+      .first<{ id: string; created_at: string }>();
+    if (!anchor) throw new Problem(400, "INVALID_CURSOR", "Invalid cursor");
+  }
+  const items = (
+    await db
+      .prepare(
+        `SELECT pay.id,pay.reference,pay.amount_minor,pay.currency,pay.status,pay.provider_environment,pay.created_at,pay.updated_at,per.starts_at,per.ends_at,s.plan_code
+    FROM billing_payments pay JOIN billing_periods per ON per.id=pay.period_id JOIN billing_subscriptions s ON s.id=per.subscription_id
+    WHERE s.account_id=? AND EXISTS(SELECT 1 FROM iam_accounts a JOIN iam_people p ON p.id=a.person_id WHERE a.id=s.account_id AND p.id=? AND a.status='ACTIVE' AND p.status='ACTIVE')
+    AND (? IS NULL OR pay.created_at<? OR (pay.created_at=? AND pay.id<?)) ORDER BY pay.created_at DESC,pay.id DESC LIMIT 31`,
+      )
+      .bind(
+        actor.accountId,
+        actor.personId,
+        anchor?.created_at ?? null,
+        anchor?.created_at ?? null,
+        anchor?.created_at ?? null,
+        anchor?.id ?? null,
+      )
+      .all()
+  ).results;
+  return {
+    items: items.slice(0, 30),
+    nextCursor: items.length > 30 ? items[29]!.id : null,
+  };
+}
+
 export async function adminBillingOverview(
   db: D1Database,
   actor: BillingActor,

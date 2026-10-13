@@ -46,6 +46,10 @@ async function session(page: Page, mode: "admin" | "portal", fail = false) {
         family_name: "Prueba",
         version: 1,
       },
+      "/api/v1/auth/capabilities": {
+        registrationAvailable: false,
+        recoveryAvailable: false,
+      },
       "/api/v1/me/contact-methods": [],
       "/api/v1/me/workspaces": [
         { id: "PERSONAL", type: "PERSONAL", name: "Mi espacio" },

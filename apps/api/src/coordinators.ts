@@ -104,6 +104,10 @@ import {
   type VehicleOperation,
 } from "@motorbaldi/vehicles";
 import { assessAuthenticatedSession } from "@motorbaldi/auth";
+import {
+  checkoutConfigured,
+  paymentGatewayCapabilities,
+} from "./payment-gateway.js";
 
 export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   private tail: Promise<void> = Promise.resolve();
@@ -165,13 +169,21 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         parseNotificationCommand(operation, request),
         requestId,
       );
-    if (operation === "billing.checkout.create")
+    if (operation === "billing.checkout.create") {
+      if (!checkoutConfigured(this.env))
+        throw new Problem(
+          503,
+          "PAYMENTS_UNAVAILABLE",
+          "Payment gateway unavailable",
+        );
       return prepareCheckout(
         db,
         actor!,
         checkoutInput.parse(request),
         requestId,
+        paymentGatewayCapabilities(this.env).environment,
       );
+    }
     if (operation.startsWith("billing."))
       return prepareBillingCommand(
         db,
@@ -341,9 +353,15 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         operation as NotificationOperation,
         parseNotificationCommand(operation, request),
       );
-    if (operation === "billing.checkout.create")
+    if (operation === "billing.checkout.create") {
+      if (!checkoutConfigured(this.env))
+        throw new Problem(
+          503,
+          "PAYMENTS_UNAVAILABLE",
+          "Payment gateway unavailable",
+        );
       await authorizeCheckout(db, actor, checkoutInput.parse(request));
-    else if (operation.startsWith("billing."))
+    } else if (operation.startsWith("billing."))
       await authorizeBillingCommand(
         db,
         actor,

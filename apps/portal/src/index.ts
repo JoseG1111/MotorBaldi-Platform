@@ -54,23 +54,27 @@ export default {
         },
       });
     if (request.method !== "GET") return new Response(null, { status: 405 });
-    return new Response(
-      env.ENVIRONMENT === "local"
+    const page =
+      env.ENVIRONMENT === "production"
         ? portalPage
-        : portalPage.replace(
-            'id="signup-section"',
-            'id="signup-section" class="hidden"',
-          ),
-      {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "cache-control": "no-store",
-          "content-security-policy":
-            "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'unsafe-inline'",
-          "x-content-type-options": "nosniff",
-          "referrer-policy": "no-referrer",
-        },
+            .replace(
+              /<body([^>]*)>/,
+              '<body$1 data-file-uploads-available="false">',
+            )
+            .replace(
+              /<input([^>]*\btype="file"[^>]*)>/g,
+              '<input$1 disabled aria-disabled="true"><span class="muted">La carga de archivos no está disponible. Puedes consultar los archivos autorizados existentes.</span>',
+            )
+        : portalPage;
+    return new Response(page, {
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "content-security-policy":
+          "default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'unsafe-inline'",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer",
       },
-    );
+    });
   },
 } satisfies ExportedHandler<PortalBindings>;

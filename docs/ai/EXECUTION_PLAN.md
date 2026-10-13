@@ -1174,3 +1174,18 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Completion criteria:** Available engineering implementation and executed evidence, with per-feature external/remaining limits recorded accurately.
 - **Human-action conditions:** Global boundaries only; all independent preparation proceeds without Resend/Meta credentials/live number or Wompi keys. Supplied production Wompi credentials are unsuitable for Sandbox and are not used or recorded.
 - **Evidence:** Full936gate PASS (289foundation/588Worker/5automation/54browser), real LOCAL RTM/SOAT/workshop persistence and four viewport/visual review. Selected adapters, signed status tracking/early-callback convergence, secure hidden provisioning, consented Free help/workshop request/reply implemented. Development0024–0026/API/Worker/Portal and remote closed-gate/session/pricing/denial checks plus real cron/Queue/cleanup PASS; source7e0f48d CI38271964112 SUCCESS; final integrated947gate PASS (299foundation/588Worker/5automation/55browser), including billing catalog regression. Ten-item matrix and precise external limits in vehicle services plan.
+
+## Owner-authorized commercial engineering batch — 2026-10-13
+
+### MB-RL-001 — Payment, onboarding and release engineering
+
+- **Status:** IN PROGRESS
+- **Dependencies:** MB-P5-004, MB-VS-008, MB-QA-008
+- **Objective:** Complete independent T06–T20/T21–T36 engineering while separately retaining actual provider/legal/Production boundaries.
+- **Scope / required work:** Owner V3 prioritizes Wompi Sandbox verification, gated Production code, Portal checkout, Resend/BetterAuth onboarding, scoped notification tests, authorization fixes, privacy foundations, monitoring/release/recovery preparation. Bounded subordinate tasks, not concurrent active checkpoints.
+- **Relevant files/systems:** Existing API/Portal/Worker, packages/payments/auth/messaging/organizations/workshops, canonical D1/audit/outbox, focused tests and docs/production/HUMAN_ACTIONS_REQUIRED.md.
+- **Constraints:** No Production deployment/activation/real money, general external messages, fake consent/provider success, new paid resources or PR merge. Approved prices/vehicle limits/unlimited assistance preserved.
+- **Verification:** Targeted high-risk regressions, coherent integration checks, one final local gate and exact-head CI; live Sandbox evidence only when actual authorized merchant conditions are satisfied.
+- **Completion criteria:** Implemented engineering and executed scoped evidence; external blockers remain explicit and do not falsely close remote validation.
+- **Human-action conditions:** Wompi callback/dashboard interaction, genuinely missing Cloudflare auth, Resend setup, Meta approval/consent, legal/policy and Production authorization. Owner says Sandbox4/4 provisioned; verify names/current environment without retrieving secrets.
+- **Evidence:** Start4b4dec0/baseline962 CI38321156089 SUCCESS. Owner restored OAuth; actual names-only Sandbox4/4 and GET-only merchant read PASS; remote D1 payments0/dispatches0/policy0/FKclean and callback negatives400. Integrated gated gateway/checkout/history, remote auth/resend/consent, controlled reminders, capability guards, export, metrics and release preparation pass focused checks. Final local351foundation/688Worker/5automation PASS; initial browser69/70, readiness-based shell correction8/8 PASS; exact-head CI acceptance remains. Development migration0027/API/Worker/Portal rollout and negative/closed-capability smoke PASS; no live financial/message/private-key result claimed. See latest PROJECT_STATE and HUMAN_ACTIONS_REQUIRED for precise acceptance boundaries.

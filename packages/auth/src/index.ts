@@ -5,6 +5,84 @@ import type { Principal } from "@motorbaldi/contracts";
 import { newId } from "@motorbaldi/shared";
 import { securityEvent } from "@motorbaldi/db/audit";
 import { ensureMotorBaldiAccount } from "@motorbaldi/identity";
+import {
+  createAuthEmailTransport,
+  type AuthEmailKind,
+} from "@motorbaldi/messaging/auth-email";
+
+/** Trusted API signup acceptance, captured only for the current creation request. */
+export interface SignupConsent {
+  termsVersion: string;
+  privacyVersion: string;
+}
+
+function remoteAuthEmailTransport(env: ApiBindings, c: ApiConfig) {
+  return c.emailProvider === "RESEND"
+    ? createAuthEmailTransport({
+        environment: c.environment,
+        enabled: env.AUTH_EMAIL_DELIVERY_ENABLED === "true",
+        testRecipientHashes: env.AUTH_EMAIL_TEST_RECIPIENT_SHA256,
+        apiKey: env.RESEND_API_KEY,
+        from: env.RESEND_FROM,
+        fromVerified: env.RESEND_DOMAIN_VERIFIED === "true",
+        authBaseUrl: c.authBaseUrl,
+        trustedOrigins: c.corsOrigins,
+      })
+    : null;
+}
+
+/** Configuration readiness only; does not claim an email has been delivered. */
+export function authEmailCapability(env: ApiBindings, c: ApiConfig): boolean {
+  return (
+    (c.environment === "local" && c.emailProvider === "DEVELOPMENT_SINK") ||
+    remoteAuthEmailTransport(env, c) !== null
+  );
+}
+
+async function sendAuthEmail(
+  env: ApiBindings,
+  c: ApiConfig,
+  requestId: string,
+  kind: AuthEmailKind,
+  user: { id: string; email: string; emailVerified?: boolean },
+  url: string,
+  token: string,
+) {
+  if (c.environment === "local" && c.emailProvider === "DEVELOPMENT_SINK") {
+    await env.DB.prepare(
+      "INSERT INTO integration_local_email_sink(id,auth_user_id,kind,action_url) VALUES(?,?,?,?)",
+    )
+      .bind(newId(), user.id, kind, url)
+      .run();
+    return;
+  }
+  const transport = remoteAuthEmailTransport(env, c);
+  if (!transport) throw new Error("EMAIL_PROVIDER_UNCONFIGURED");
+  if (kind === "VERIFY_EMAIL" && user.emailVerified !== true) {
+    const eligible = await env.DB.prepare(
+      "SELECT 1 FROM iam_signup_consents c JOIN auth_credentials a ON a.user_id=c.auth_user_id WHERE c.auth_user_id=? AND a.provider_id='credential' AND a.password IS NOT NULL",
+    )
+      .bind(user.id)
+      .first();
+    if (!eligible) {
+      await securityEvent(env.DB, "AUTH_EMAIL_SUBMISSION_FAILED", requestId);
+      throw new Error("AUTH_EMAIL_SUBMISSION_FAILED");
+    }
+  }
+  const receipt = await transport.send({
+    kind,
+    recipient: user.email,
+    url,
+    token,
+    idempotencyKey: newId(),
+    signal: AbortSignal.timeout(10_000),
+  });
+  // Never put recipients, links, credentials, tokens or provider response bodies in errors/audit.
+  if (receipt.status !== "ACCEPTED") {
+    await securityEvent(env.DB, "AUTH_EMAIL_SUBMISSION_FAILED", requestId);
+    throw new Error("AUTH_EMAIL_SUBMISSION_FAILED");
+  }
+}
 
 export const allowedAuthPaths = new Set([
   "/sign-up/email",
@@ -66,8 +144,9 @@ export function authentication(
   c: ApiConfig,
   requestId: string,
   allowSignUp = false,
+  signupConsent?: SignupConsent,
 ) {
-  const options = authOptions(env, c, requestId, allowSignUp);
+  const options = authOptions(env, c, requestId, allowSignUp, signupConsent);
   const auth = betterAuth(options);
 
   return {
@@ -100,7 +179,9 @@ export function authOptions(
   c: ApiConfig,
   requestId: string,
   allowSignUp = false,
+  signupConsent?: SignupConsent,
 ): BetterAuthOptions {
+  let signupUserId: string | null = null;
   return {
     appName: "MotorBaldi",
     baseURL: c.authBaseUrl,
@@ -164,29 +245,49 @@ export function authOptions(
     },
     emailAndPassword: {
       enabled: true,
-      disableSignUp: !allowSignUp,
+      disableSignUp: !allowSignUp || !authEmailCapability(env, c),
       requireEmailVerification: true,
       minPasswordLength: 12,
-      sendResetPassword: async ({ user, url }) => {
-        if (c.environment !== "local" || c.emailProvider !== "DEVELOPMENT_SINK")
-          throw new Error("EMAIL_PROVIDER_UNCONFIGURED");
-        await env.DB.prepare(
-          "INSERT INTO integration_local_email_sink(id,auth_user_id,kind,action_url) VALUES(?,?,'PASSWORD_RESET',?)",
-        )
-          .bind(newId(), user.id, url)
-          .run();
-      },
+      resetPasswordTokenExpiresIn: 60 * 60,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, url, token }) =>
+        sendAuthEmail(env, c, requestId, "PASSWORD_RESET", user, url, token),
     },
     emailVerification: {
+      expiresIn: 60 * 60,
       sendOnSignUp: true,
-      sendVerificationEmail: async ({ user, url }) => {
-        if (c.environment !== "local" || c.emailProvider !== "DEVELOPMENT_SINK")
-          throw new Error("EMAIL_PROVIDER_UNCONFIGURED");
-        await env.DB.prepare(
-          "INSERT INTO integration_local_email_sink(id,auth_user_id,kind,action_url) VALUES(?,?,'VERIFY_EMAIL',?)",
-        )
-          .bind(newId(), user.id, url)
-          .run();
+      autoSignInAfterVerification: false,
+      sendVerificationEmail: async ({ user, url, token }) => {
+        if (signupConsent && signupUserId === user.id) {
+          try {
+            await env.DB.prepare(
+              "INSERT INTO iam_signup_consents(auth_user_id,terms_version,privacy_version,request_id) VALUES(?,?,?,?)",
+            )
+              .bind(
+                user.id,
+                signupConsent.termsVersion,
+                signupConsent.privacyVersion,
+                requestId,
+              )
+              .run();
+          } catch {
+            await securityEvent(
+              env.DB,
+              "AUTH_SIGNUP_CONSENT_FAILED",
+              requestId,
+            );
+            throw new Error("AUTH_SIGNUP_CONSENT_FAILED");
+          }
+        }
+        await sendAuthEmail(
+          env,
+          c,
+          requestId,
+          "VERIFY_EMAIL",
+          user,
+          url,
+          token,
+        );
       },
     },
     advanced: {
@@ -213,6 +314,18 @@ export function authOptions(
     ],
     logger: { disabled: true },
     databaseHooks: {
+      ...(signupConsent
+        ? {
+            user: {
+              create: {
+                before: async (user) => {
+                  signupUserId = newId();
+                  return { data: { ...user, id: signupUserId } };
+                },
+              },
+            },
+          }
+        : {}),
       session: {
         create: {
           after: async (session) =>

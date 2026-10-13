@@ -62,6 +62,12 @@ beforeAll(async () => {
     .bind(organizationId, actor.personId)
     .run();
   await db
+    .prepare(
+      "INSERT INTO org_capabilities(organization_id,code) VALUES(?,'GENERAL_MAINTENANCE')",
+    )
+    .bind(organizationId)
+    .run();
+  await db
     .prepare("INSERT INTO vehicle_vehicles(id,kind_code) VALUES(?,'CAR')")
     .bind(vehicleId)
     .run();
@@ -398,13 +404,21 @@ describe("Free self-service workshop contacts", () => {
     ).toBe(0);
   });
   it("searches verified active workshops with bounded stable pagination", async () => {
-    for (let i = 0; i < 32; i++)
+    for (let i = 0; i < 32; i++) {
+      const searchOrganizationId = newId();
       await db
         .prepare(
           "INSERT INTO org_organizations(id,type,legal_name,display_name,country_code,verification_status,created_by_person_id) VALUES(?,'WORKSHOP','Synthetic','Search Synthetic','CO','VERIFIED',?)",
         )
-        .bind(newId(), actor.personId)
+        .bind(searchOrganizationId, actor.personId)
         .run();
+      await db
+        .prepare(
+          "INSERT INTO org_capabilities(organization_id,code) VALUES(?,'DIAGNOSTICS')",
+        )
+        .bind(searchOrganizationId)
+        .run();
+    }
     const first = await discoverCustomerWorkshops(db, actor, "Search");
     expect(first.items).toHaveLength(30);
     const second = await discoverCustomerWorkshops(
@@ -419,4 +433,180 @@ describe("Free self-service workshop contacts", () => {
       new Set([...first.items, ...second.items].map((row) => row.id)).size,
     ).toBe(32);
   });
+});
+
+it("recognizes workshop service capabilities across types and rejects type-only or inactive-site claims", async () => {
+  await db
+    .prepare(
+      "INSERT INTO vehicle_relationships(id,vehicle_id,relationship_type,person_id) VALUES(?,?,'OWNER',?)",
+    )
+    .bind(newId(), vehicleId, actor.personId)
+    .run();
+  async function organization(type: string, capability?: string) {
+    const id = newId();
+    await db
+      .prepare(
+        "INSERT INTO org_organizations(id,type,legal_name,display_name,country_code,verification_status,created_by_person_id) VALUES(?,?,'Capability discovery','Capability discovery','CO','VERIFIED',?)",
+      )
+      .bind(id, type, actor.personId)
+      .run();
+    if (capability)
+      await db
+        .prepare(
+          "INSERT INTO org_capabilities(organization_id,code) VALUES(?,?)",
+        )
+        .bind(id, capability)
+        .run();
+    return id;
+  }
+  const capable = await organization("DEALERSHIP", "CAR_SERVICE");
+  const typeOnly = await organization("WORKSHOP");
+  const unrelated = await organization("OTHER", "PARTS");
+  const siteBased = await organization("OTHER");
+  const locationId = newId();
+  await db
+    .prepare(
+      "INSERT INTO org_locations(id,organization_id,name,location_type,country_code,administrative_area,city,address_line_1) VALUES(?,?,'Synthetic','SERVICE_SITE','CO','Synthetic','Synthetic','Synthetic')",
+    )
+    .bind(locationId, siteBased)
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO org_location_capabilities(organization_id,location_id,code) VALUES(?,?,'DIAGNOSTICS')",
+    )
+    .bind(siteBased, locationId)
+    .run();
+  const results = (
+    await discoverCustomerWorkshops(db, actor, "Capability discovery")
+  ).items.map((row) => row.id);
+  expect(results).toContain(capable);
+  expect(results).toContain(siteBased);
+  expect(results).not.toContain(typeOnly);
+  expect(results).not.toContain(unrelated);
+  for (const target of [capable, siteBased]) {
+    const response = await commitPreparedCommand(
+      db,
+      await prepareCustomerWorkshopCommand(
+        db,
+        actor,
+        "workshop.contact.create",
+        { ...body, organizationId: target },
+        newId(),
+      ),
+    );
+    expect(response).toMatchObject({ organizationId: target, status: "OPEN" });
+  }
+  for (const target of [typeOnly, unrelated])
+    await expect(
+      prepareCustomerWorkshopCommand(
+        db,
+        actor,
+        "workshop.contact.create",
+        { ...body, organizationId: target },
+        newId(),
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+  const prepared = await prepareCustomerWorkshopCommand(
+    db,
+    actor,
+    "workshop.contact.create",
+    { ...body, organizationId: siteBased },
+    newId(),
+  );
+  await db
+    .prepare("UPDATE org_locations SET status='INACTIVE' WHERE id=?")
+    .bind(locationId)
+    .run();
+  expect(
+    (
+      await discoverCustomerWorkshops(db, actor, "Capability discovery")
+    ).items.map((row) => row.id),
+  ).not.toContain(siteBased);
+  await expect(commitPreparedCommand(db, prepared)).rejects.toMatchObject({
+    code: "WORKSHOP_CONTACT_CONFLICT",
+  });
+  expect(
+    await db
+      .prepare(
+        "SELECT count(*) n FROM integration_outbox_events WHERE aggregate_id=?",
+      )
+      .bind(prepared.requestId)
+      .first(),
+  ).toEqual({ n: 0 });
+});
+it("rechecks service capability at creation commit and isolates organization contact closure", async () => {
+  await db
+    .prepare(
+      "INSERT OR IGNORE INTO authz_role_permissions(role_id,permission_code) VALUES('org-owner','org.workshop.manage')",
+    )
+    .run();
+  const prepared = await prepareCustomerWorkshopCommand(
+    db,
+    actor,
+    "workshop.contact.create",
+    body,
+    newId(),
+  );
+  await db
+    .prepare("DELETE FROM org_capabilities WHERE organization_id=?")
+    .bind(organizationId)
+    .run();
+  await expect(commitPreparedCommand(db, prepared)).rejects.toMatchObject({
+    code: "WORKSHOP_CONTACT_CONFLICT",
+  });
+  await db
+    .prepare(
+      "INSERT INTO org_capabilities(organization_id,code) VALUES(?,'GENERAL_MAINTENANCE')",
+    )
+    .bind(organizationId)
+    .run();
+  const response = await create();
+  const foreignOrganizationId = newId(),
+    foreignMembership = newId();
+  await db
+    .prepare(
+      "INSERT INTO org_organizations(id,type,legal_name,display_name,country_code,verification_status,created_by_person_id) VALUES(?,'OTHER','Foreign','Foreign','CO','VERIFIED',?)",
+    )
+    .bind(foreignOrganizationId, actor.personId)
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO org_capabilities(organization_id,code) VALUES(?,'GENERAL_MAINTENANCE')",
+    )
+    .bind(foreignOrganizationId)
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO org_memberships(id,organization_id,person_id,location_scope_type) VALUES(?,?,?,'ALL_LOCATIONS')",
+    )
+    .bind(foreignMembership, foreignOrganizationId, actor.personId)
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO org_membership_roles(membership_id,role_id) VALUES(?,'org-owner')",
+    )
+    .bind(foreignMembership)
+    .run();
+  await expect(
+    prepareCustomerWorkshopCommand(
+      db,
+      actor,
+      "workshop.contact.close",
+      {
+        organizationId: foreignOrganizationId,
+        requestId: response.id,
+        version: 1,
+        responseMessage: "Foreign closure",
+      },
+      newId(),
+    ),
+  ).rejects.toMatchObject({ code: "WORKSHOP_CONTACT_CONFLICT" });
+  expect(
+    await db
+      .prepare(
+        "SELECT status,version FROM workshop_contact_requests WHERE id=?",
+      )
+      .bind(response.id)
+      .first(),
+  ).toEqual({ status: "OPEN", version: 1 });
 });

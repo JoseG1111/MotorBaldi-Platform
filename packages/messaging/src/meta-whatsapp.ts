@@ -5,6 +5,8 @@ import type { CommunicationTransport, DeliveryReceipt } from "./providers.js";
 export interface MetaWhatsAppTransportConfig {
   enabled?: boolean;
   environment: string;
+  releaseAuthorized?: boolean;
+  phoneNumberKind?: "TEST" | "BUSINESS";
   accessToken?: string;
   phoneNumberId?: string;
   apiVersion?: string;
@@ -34,7 +36,7 @@ function object(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Development-only Cloud API port. Acceptance is not delivery. No automatic retry,
+ * Cloud API port. Production requires independent channel release authority and a business phone resource. Acceptance is not delivery. No automatic retry,
  * provider deduplication, or reconciliation is promised; the dispatch ledger must
  * quarantine ambiguous sends. Meta-owned protocol examples:
  * https://www.postman.com/meta/whatsapp-business-platform/request/lwtlz1k/send-message-template-interactive
@@ -49,10 +51,16 @@ export function createMetaWhatsAppTransport(
   const available =
     settings.enabled === true &&
     settings.templateStatus === "APPROVED" &&
-    recipientHashes.length >= 1 &&
-    recipientHashes.length <= 5 &&
-    recipientHashes.every((hash) => /^[a-f0-9]{64}$/.test(hash)) &&
-    settings.environment === "development" &&
+    ((settings.environment === "development" &&
+      recipientHashes.length >= 1 &&
+      recipientHashes.length <= 5 &&
+      recipientHashes.every((hash) => /^[a-f0-9]{64}$/.test(hash)) &&
+      (settings.phoneNumberKind === undefined ||
+        ["TEST", "BUSINESS"].includes(settings.phoneNumberKind))) ||
+      (settings.environment === "production" &&
+        settings.releaseAuthorized === true &&
+        settings.phoneNumberKind === "BUSINESS" &&
+        settings.testRecipientSha256 === undefined)) &&
     matches(settings.accessToken, /^[\x21-\x7e]{1,4096}$/) &&
     matches(settings.phoneNumberId, /^[1-9][0-9]{0,31}$/) &&
     matches(settings.apiVersion, /^v[1-9][0-9]?\.0$/) &&
@@ -91,7 +99,10 @@ export function createMetaWhatsAppTransport(
       ) {
         return { status: "REJECTED", code: "INVALID_REQUEST" };
       }
-      if (!recipientHashes.includes(await sha256Hex(request.recipient)))
+      if (
+        settings.environment === "development" &&
+        !recipientHashes.includes(await sha256Hex(request.recipient))
+      )
         return { status: "REJECTED", code: "AUTHORITY_DENIED" };
       if (request.signal.aborted)
         return { status: "UNAVAILABLE", code: "CALLER_ABORTED" };

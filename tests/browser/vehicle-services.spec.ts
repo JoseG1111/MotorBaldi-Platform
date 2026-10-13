@@ -29,6 +29,11 @@ for (const viewport of [
             family_name: "Sintético",
             version: 1,
           },
+          "/auth/capabilities": {
+            registrationAvailable: false,
+            recoveryAvailable: false,
+          },
+          "/billing/payments": { items: [], nextCursor: null },
           "/me/contact-methods": [],
           "/me/workspaces": [
             { id: "PERSONAL", type: "PERSONAL", name: "Mi espacio" },
@@ -214,6 +219,11 @@ test("A late saved expiry cannot replace the vehicle selected afterward", async 
         family_name: "Sintético",
         version: 1,
       },
+      "/auth/capabilities": {
+        registrationAvailable: false,
+        recoveryAvailable: false,
+      },
+      "/billing/payments": { items: [], nextCursor: null },
       "/me/contact-methods": [],
       "/directory/organizations": { items: [] },
       "/public/parts": { items: [] },
@@ -275,6 +285,11 @@ test("Malformed vehicle service data shows a Spanish error instead of a JavaScri
         family_name: "Sintético",
         version: 1,
       },
+      "/auth/capabilities": {
+        registrationAvailable: false,
+        recoveryAvailable: false,
+      },
+      "/billing/payments": { items: [], nextCursor: null },
       "/me/contact-methods": [],
       "/directory/organizations": { items: [] },
       "/public/parts": { items: [] },

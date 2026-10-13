@@ -1,3 +1,8 @@
+import {
+  hasControlledWhatsAppPermit,
+  isControlledWhatsAppRecipient,
+  reserveControlledWhatsAppPermit,
+} from "./controlled-delivery.js";
 import { dispatchTrackedCommunication } from "./delivery-tracking.js";
 import {
   configuredNotificationTransport,
@@ -271,20 +276,50 @@ export async function processVehicleReminder(
             "SELECT external_delivery_enabled FROM notification_policy WHERE singleton=1",
           )
           .first<{ external_delivery_enabled: number }>();
-        const transport = bindings
-          ? configuredNotificationTransport(bindings, row.channel)
+        const contact = await db
+          .prepare(
+            "SELECT normalized_value FROM iam_contact_methods WHERE id=? AND person_id=?",
+          )
+          .bind(row.contact_method_id, row.person_id)
+          .first<{ normalized_value: string }>();
+        if (!contact) throw new Error("INVALID_REMINDER_CONTACT");
+        const controlledMode =
+          bindings?.ENVIRONMENT === "development" &&
+          bindings.NOTIFICATION_CONTROLLED_WHATSAPP_TEST_ENABLED === "true" &&
+          row.channel === "WHATSAPP";
+        const controlledTransport = controlledMode
+          ? configuredNotificationTransport(bindings!, "WHATSAPP", {
+              controlledTest: true,
+            })
           : null;
+        const controlledContext = !!(
+          controlledMode &&
+          controlledTransport?.capabilities.availability === "AVAILABLE" &&
+          (await isControlledWhatsAppRecipient(
+            bindings!,
+            contact.normalized_value,
+          ))
+        );
+        const controlled =
+          controlledContext &&
+          (await hasControlledWhatsAppPermit(db, bindings!, {
+            reminderId: payload.reminderId,
+            sourceEventId: source.id,
+            recipient: contact.normalized_value,
+          }));
+        // In explicitly enabled, eligible Development tests, canonical Queue
+        // processing may finish before a human grants the exact target. Preserve
+        // the reminder for the permit cron, without resetting outbox history.
+        if (controlledContext && !controlled) return "QUEUED";
+        const transport = controlledContext
+          ? controlledTransport
+          : bindings
+            ? configuredNotificationTransport(bindings, row.channel)
+            : null;
         if (
-          policy?.external_delivery_enabled === 1 &&
+          (policy?.external_delivery_enabled === 1 || controlled) &&
           transport?.capabilities.availability === "AVAILABLE"
         ) {
-          const contact = await db
-            .prepare(
-              "SELECT normalized_value FROM iam_contact_methods WHERE id=? AND person_id=?",
-            )
-            .bind(row.contact_method_id, row.person_id)
-            .first<{ normalized_value: string }>();
-          if (!contact) throw new Error("INVALID_REMINDER_CONTACT");
           const document = await db
             .prepare(
               "SELECT document_type FROM vehicle_compliance_entries WHERE id=?",
@@ -316,7 +351,7 @@ export async function processVehicleReminder(
                   "SELECT external_delivery_enabled FROM notification_policy WHERE singleton=1",
                 )
                 .first<{ external_delivery_enabled: number }>();
-              if (currentPolicy?.external_delivery_enabled !== 1)
+              if (!controlled && currentPolicy?.external_delivery_enabled !== 1)
                 throw new Error("DELIVERY_POLICY_CLOSED");
               const current = await db
                 .prepare(
@@ -354,6 +389,12 @@ export async function processVehicleReminder(
                 channel: row.channel,
                 contactMethodId: row.contact_method_id,
               });
+              if (controlled)
+                await reserveControlledWhatsAppPermit(db, bindings!, {
+                  reminderId: payload.reminderId,
+                  sourceEventId: source.id,
+                  recipient: contact.normalized_value,
+                });
             },
           });
           status = receipt.status;
@@ -409,4 +450,58 @@ export function vehicleReminderEventHandlers(
       },
     ],
   ]);
+}
+
+/** Bounded independent drain for exact human-authorized Development tests. A
+ * canonical source can already be PROCESSED: no outbox replay/reset is needed.
+ * Selection grants no authority; the normal handler and permanent dispatch ledger
+ * still recheck eligibility and atomically consume the current permit before HTTP. */
+export async function dispatchControlledVehicleReminders(
+  db: D1Database,
+  bindings: NotificationTransportBindings,
+  now = new Date(),
+) {
+  if (
+    bindings.ENVIRONMENT !== "development" ||
+    bindings.NOTIFICATION_CONTROLLED_WHATSAPP_TEST_ENABLED !== "true"
+  )
+    return { scanned: 0 };
+  const sources = (
+    await db
+      .prepare(
+        `SELECT DISTINCT source.*
+    FROM notification_controlled_delivery_permits permit
+    JOIN notification_vehicle_reminders reminder ON reminder.id=permit.reminder_id AND reminder.source_event_id=permit.source_event_id
+    JOIN integration_outbox_events source ON source.id=reminder.source_event_id
+    WHERE permit.channel='WHATSAPP' AND permit.reserved_at IS NULL AND permit.revoked_at IS NULL
+    AND permit.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')
+    AND reminder.channel='WHATSAPP' AND reminder.status='QUEUED'
+    AND source.event_type='notification.vehicle.reminder.v1' AND source.event_version=1
+    AND source.aggregate_type='notification' AND source.aggregate_id=reminder.id
+    AND source.external_effect_policy='IDEMPOTENT' AND json_extract(source.payload_json,'$.reminderId')=reminder.id
+    AND EXISTS(SELECT 1 FROM governance_environment_metadata WHERE singleton=1 AND environment='development')
+    ORDER BY source.created_at,source.id LIMIT 5`,
+      )
+      .all<Event>()
+  ).results;
+  for (const source of sources) {
+    try {
+      await processVehicleReminder(
+        db,
+        source,
+        now,
+        bindings,
+        AbortSignal.timeout(10_000),
+      );
+    } catch (error) {
+      // The normal handler has already durably quarantined an ambiguous send.
+      // One such outcome must not prevent the remaining bounded exact targets.
+      if (!(
+        error instanceof HandlerFailure &&
+        error.code === "EXTERNAL_DELIVERY_UNKNOWN"
+      ))
+        throw error;
+    }
+  }
+  return { scanned: sources.length };
 }

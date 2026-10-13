@@ -98,6 +98,7 @@ for (const [suffix, name] of [
 }
 sql.push(
   "INSERT INTO org_organizations(id,type,legal_name,display_name,country_code,verification_status,created_by_person_id) VALUES('018f0000-0000-7000-8000-000000000099','WORKSHOP','LOCAL Synthetic Workshop','LOCAL Taller QA','CO','VERIFIED','018f0000-0000-7000-8000-000000000182');",
+  "INSERT INTO org_capabilities(organization_id,code) VALUES('018f0000-0000-7000-8000-000000000099','CAR_SERVICE');",
 );
 const seedPath = resolve(root, "seed.sql");
 await writeFile(seedPath, sql.join("\n"));

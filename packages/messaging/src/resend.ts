@@ -3,6 +3,7 @@ import type { CommunicationTransport, DeliveryReceipt } from "./providers.js";
 export interface ResendTransportConfig {
   environment: string;
   enabled?: boolean;
+  releaseAuthorized?: boolean;
   apiKey?: string;
   from?: string;
   /** Explicit operator assertion that the sender domain is verified in Resend. */
@@ -28,7 +29,7 @@ function receipt(
 ): DeliveryReceipt {
   return { status, code };
 }
-/** Development only. Provider acceptance never claims delivery. No automatic retries.
+/** Independent production release authorization is required. Provider acceptance never claims delivery. No automatic retries.
  * Resend retains idempotency keys for 24h; the caller must durably prevent later resends.
  */
 export function createResendTransport(
@@ -36,7 +37,10 @@ export function createResendTransport(
   fetcher: typeof fetch = fetch,
 ): CommunicationTransport | null {
   if (
-    config.environment !== "development" ||
+    !(
+      config.environment === "development" ||
+      (config.environment === "production" && config.releaseAuthorized === true)
+    ) ||
     config.enabled !== true ||
     config.fromVerified !== true ||
     !validEmail(config.from) ||

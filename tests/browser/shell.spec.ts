@@ -57,6 +57,10 @@ async function fixtures(page: Page, mode: "admin" | "portal") {
             display_name: "Ana García",
             version: 1,
           },
+          "/api/v1/auth/capabilities": {
+            registrationAvailable: false,
+            recoveryAvailable: false,
+          },
           "/api/v1/me/contact-methods": [
             {
               id: "synthetic-contact",
@@ -99,6 +103,12 @@ for (const viewport of [
       const evidence = await fixtures(page, mode);
       await page.goto(`http://127.0.0.1:${mode === "admin" ? 4173 : 4174}`);
       await expect(page.locator("body")).toHaveClass(/signed-in/);
+      if (mode === "portal")
+        await expect(page.locator("#private")).toHaveAttribute(
+          "aria-busy",
+          "false",
+          { timeout: 15000 },
+        );
       await expect(
         page.locator(mode === "admin" ? "#people-list" : "#contacts"),
       ).toContainText(mode === "admin" ? "Ana García" : "ana@example.test");

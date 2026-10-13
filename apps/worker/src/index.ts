@@ -14,6 +14,7 @@ import {
   vehicleReminderEventRegistry,
   vehicleReminderEventHandlers,
   scheduleVehicleReminders,
+  dispatchControlledVehicleReminders,
   type Handler,
 } from "@motorbaldi/messaging";
 import type { EventContract } from "@motorbaldi/db";
@@ -31,6 +32,7 @@ import { cleanupExpiredIdempotencyRecords } from "@motorbaldi/db/idempotency";
 import {
   queryOperationalMetrics,
   recordOperationalMetrics,
+  recordOperationalAlerts,
 } from "@motorbaldi/observability/metrics";
 import { logger } from "@motorbaldi/observability";
 import {
@@ -316,6 +318,7 @@ export default {
     ctx.waitUntil(expireCredentials(env.DB));
     ctx.waitUntil(expireMemberships(env.DB, newId()));
     ctx.waitUntil(scheduleVehicleReminders(env.DB));
+    ctx.waitUntil(dispatchControlledVehicleReminders(env.DB, env));
     if (env.OUTBOX_COORDINATOR) {
       ctx.waitUntil(
         env.OUTBOX_COORDINATOR.getByName(c.environment).fetch(
@@ -327,9 +330,25 @@ export default {
       ctx.waitUntil(relayOutbox(env.DB, env.EVENTS_QUEUE));
     }
     ctx.waitUntil(
-      queryOperationalMetrics(env.DB).then((values) =>
-        recordOperationalMetrics(values, "worker"),
-      ),
+      queryOperationalMetrics(env.DB).then((values) => {
+        recordOperationalMetrics(values, "worker");
+        // Explicit technical rules: unresolved dead letters and ambiguous
+        // external outcomes require operator review. These logs never trigger a
+        // payment/message retry or claim an external alert destination is set up.
+        recordOperationalAlerts(
+          values,
+          {
+            unresolvedDeadLetterCount: 1,
+            ...(values.paymentUnknownCount !== undefined
+              ? { paymentUnknownCount: 1 }
+              : {}),
+            ...(values.notificationUnknownCount !== undefined
+              ? { notificationUnknownCount: 1 }
+              : {}),
+          },
+          "worker",
+        );
+      }),
     );
   },
 };

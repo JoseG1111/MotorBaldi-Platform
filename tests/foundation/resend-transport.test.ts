@@ -177,3 +177,21 @@ describe("development Resend transport", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 });
+
+it("requires independent production email release authorization", async () => {
+  const fetcher = mockFetch(Response.json({ id: "email-1" }));
+  expect(
+    createResendTransport({ ...config, environment: "production" }, fetcher),
+  ).toBeNull();
+  const transport = createResendTransport(
+    { ...config, environment: "production", releaseAuthorized: true },
+    fetcher,
+  );
+  expect((await transport!.send("EMAIL", request())).status).toBe("ACCEPTED");
+  expect(
+    createResendTransport(
+      { ...config, environment: "staging", releaseAuthorized: true },
+      fetcher,
+    ),
+  ).toBeNull();
+});

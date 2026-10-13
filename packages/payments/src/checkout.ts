@@ -7,6 +7,7 @@ import {
 } from "@motorbaldi/db";
 import { newId, utcNow, type Json } from "@motorbaldi/shared";
 import { billingPeriodEnd } from "./billing.js";
+import type { WompiEnvironment } from "./wompi.js";
 
 type Actor = Principal & { personId: string };
 export const checkoutInput = z
@@ -118,8 +119,11 @@ export async function authorizeCheckout(
 ) {
   await subscriptionFor(db, actor, checkoutInput.parse(input));
 }
-function paymentResponse(payment: Payment): Record<string, Json> {
-  if (payment.provider_environment !== "SANDBOX")
+function paymentResponse(
+  payment: Payment,
+  environment: WompiEnvironment,
+): Record<string, Json> {
+  if (payment.provider_environment !== environment)
     throw new Problem(
       409,
       "BILLING_CHECKOUT_UNAVAILABLE",
@@ -135,13 +139,15 @@ function paymentResponse(payment: Payment): Record<string, Json> {
     ...(payment.status !== "CREATED" ? { checkoutAvailable: false } : {}),
   };
 }
-/** Builds a local sandbox ledger reservation only: no secrets, URLs, signatures or provider calls. */
+/** Builds a ledger reservation only. Environment is trusted server configuration, never client input; Sandbox remains the default. */
 export async function prepareCheckout(
   db: D1Database,
   actor: Actor,
   input: Input,
   requestId: string,
+  environment: WompiEnvironment = "SANDBOX",
 ): Promise<PreparedCommand<Json>> {
+  z.enum(["SANDBOX", "PRODUCTION"]).parse(environment);
   const body = checkoutInput.parse(input),
     subscription = await subscriptionFor(db, actor, body);
   const plan = await db
@@ -171,7 +177,10 @@ export async function prepareCheckout(
       .bind(pending.id)
       .first<Payment>();
     if (existing)
-      return { statements: [], response: paymentResponse(existing) };
+      return {
+        statements: [],
+        response: paymentResponse(existing, environment),
+      };
   }
   const now = utcNow();
   const paidEnd = await db
@@ -256,9 +265,9 @@ export async function prepareCheckout(
   statements.push(
     db
       .prepare(
-        "INSERT INTO billing_payments(id,period_id,amount_minor,currency,reference,provider_environment) SELECT ?,id,amount_minor,currency,?,'SANDBOX' FROM billing_periods WHERE id=? AND status='PENDING'",
+        "INSERT INTO billing_payments(id,period_id,amount_minor,currency,reference,provider_environment) SELECT ?,id,amount_minor,currency,?,? FROM billing_periods WHERE id=? AND status='PENDING'",
       )
-      .bind(paymentId, reference, periodId),
+      .bind(paymentId, reference, environment, periodId),
     db
       .prepare(
         "INSERT INTO billing_financial_events(id,domain,aggregate_id,event_type,actor_account_id,request_id,data_json) VALUES(?,'PAYMENT',?,'billing.checkout.created',?,?,?)",
@@ -290,15 +299,18 @@ export async function prepareCheckout(
   );
   return {
     statements,
-    response: paymentResponse({
-      id: paymentId,
-      reference,
-      amount_minor: amountMinor,
-      currency,
-      period_id: periodId,
-      status: "CREATED",
-      provider_environment: "SANDBOX",
-    }),
+    response: paymentResponse(
+      {
+        id: paymentId,
+        reference,
+        amount_minor: amountMinor,
+        currency,
+        period_id: periodId,
+        status: "CREATED",
+        provider_environment: environment,
+      },
+      environment,
+    ),
     guard: {
       table: "governance_audit_events",
       column: "resource_id",

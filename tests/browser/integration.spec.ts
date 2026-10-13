@@ -36,7 +36,15 @@ async function login(page: Page, base: string, email: string) {
   await page.goto(base);
   await page.locator("#login-form [name=email]").fill(email);
   await page.locator("#login-form [name=password]").fill(password);
-  await page.locator("#login-form button").click();
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/auth/sign-in/email") &&
+        response.request().method() === "POST",
+    ),
+    page.locator("#login-form button").click(),
+  ]);
+  expect(response.status()).toBe(200);
 }
 async function persisted(page: Page, url: string) {
   const response = await page.request.get(url);

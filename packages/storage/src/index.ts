@@ -20,6 +20,8 @@ export const deterministicTestScanner: MalwareScanner = {
 };
 
 export interface FileServiceOptions {
+  /** Existing local/quarantine callers remain compatible; Production API closes uploads. */
+  uploadsEnabled?: boolean;
   scanner: MalwareScanner;
   authorizeDownload?: (
     actorAccountId: string,
@@ -39,6 +41,12 @@ export function files(
       size: number,
       requestId: string,
     ) {
+      if (options.uploadsEnabled === false)
+        throw new Problem(
+          503,
+          "FILE_UPLOAD_UNAVAILABLE",
+          "File uploads unavailable",
+        );
       if (
         !["image/png", "image/jpeg", "application/pdf"].includes(mime) ||
         !Number.isSafeInteger(size) ||
@@ -67,6 +75,12 @@ export function files(
     },
 
     async putQuarantineObject(id: string, bytes: Uint8Array, mime: string) {
+      if (options.uploadsEnabled === false)
+        throw new Problem(
+          503,
+          "FILE_UPLOAD_UNAVAILABLE",
+          "File uploads unavailable",
+        );
       const row = await db
         .prepare(
           "SELECT object_key, declared_mime, size_bytes FROM storage_files WHERE id = ?",

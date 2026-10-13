@@ -59,6 +59,9 @@
       ],
       "@motorbaldi/shared/customer-help": [
         "packages/shared/src/customer-help.ts"
+      ],
+      "@motorbaldi/messaging/auth-email": [
+        "packages/messaging/src/auth-email.ts"
       ]
     }
   },

@@ -3,6 +3,7 @@ import { Problem } from "@motorbaldi/contracts";
 import {
   listPlans,
   membershipOverview,
+  customerPaymentHistory,
   adminBillingOverview,
   adminCommissionOverview,
   parseBillingCommand,
@@ -56,6 +57,22 @@ export async function billingRoutes(
       ...(await membershipOverview(db, await principal())),
       checkoutAvailable,
     });
+  }
+  if (path === "/api/v1/billing/payments") {
+    method("GET");
+    const parameters = new URL(request.url).searchParams;
+    if (
+      [...parameters.keys()].some((name) => name !== "cursor") ||
+      parameters.getAll("cursor").length > 1
+    )
+      throw new Problem(400, "INVALID_CURSOR", "Invalid cursor");
+    return reply(
+      await customerPaymentHistory(
+        db,
+        await principal(),
+        parameters.get("cursor") ?? undefined,
+      ),
+    );
   }
   if (path === "/api/v1/admin/billing") {
     method("GET");
