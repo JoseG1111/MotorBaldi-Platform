@@ -1179,7 +1179,7 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 
 ### MB-RL-001 — Payment, onboarding and release engineering
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P5-004, MB-VS-008, MB-QA-008
 - **Objective:** Complete independent T06–T20/T21–T36 engineering while separately retaining actual provider/legal/Production boundaries.
 - **Scope / required work:** Owner V3 prioritizes Wompi Sandbox verification, gated Production code, Portal checkout, Resend/BetterAuth onboarding, scoped notification tests, authorization fixes, privacy foundations, monitoring/release/recovery preparation. Bounded subordinate tasks, not concurrent active checkpoints.
@@ -1189,3 +1189,5 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Completion criteria:** Implemented engineering and executed scoped evidence; external blockers remain explicit and do not falsely close remote validation.
 - **Human-action conditions:** Wompi callback/dashboard interaction, genuinely missing Cloudflare auth, Resend setup, Meta approval/consent, legal/policy and Production authorization. Owner says Sandbox4/4 provisioned; verify names/current environment without retrieving secrets.
 - **Evidence:** Start4b4dec0/baseline962 CI38321156089 SUCCESS. Owner restored OAuth; actual names-only Sandbox4/4 and GET-only merchant read PASS; remote D1 payments0/dispatches0/policy0/FKclean and callback negatives400. Integrated gated gateway/checkout/history, remote auth/resend/consent, controlled reminders, capability guards, export, metrics and release preparation pass focused checks. Final local351foundation/688Worker/5automation PASS; initial browser69/70, readiness-based shell correction8/8 PASS; exact-head CI acceptance remains. Development migration0027/API/Worker/Portal rollout and negative/closed-capability smoke PASS; no live financial/message/private-key result claimed. See latest PROJECT_STATE and HUMAN_ACTIONS_REQUIRED for precise acceptance boundaries.
+
+- **Closeout:** Source a086330 passes [CI38446339321](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38446339321): 351foundation/688Worker/5automation/70browser =1114 tests, all mandatory checks and history secret scan. Actual deployed anonymous mobile Chromium return check passes (forged query removed/login only/no error/no overflow). VERIFIED applies to this independent engineering/Development batch only; actual Sandbox payment cycles, external delivery, human onboarding and Production remain unverified. Recovery returns MB-P5-005 HUMAN ACTION REQUIRED; VS007 remains separately blocked.
