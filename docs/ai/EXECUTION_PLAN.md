@@ -561,7 +561,9 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote financial scenario matrix and gate
 - **Completion criteria:** Financial flows and reconciliation pass.
-- **Human-action conditions:** Supply authorized Wompi Sandbox merchant credentials directly as Development API Worker secrets (WOMPI_PUBLIC_KEY, WOMPI_PRIVATE_KEY, WOMPI_INTEGRITY_SECRET, WOMPI_EVENTS_SECRET) and configure the sandbox event URL. Names-only inventory finds none and no authorized merchant browser session exists. See [Wompi Development runbook](../runbooks/wompi-development.md). No keys in files/chat/logs, no real-money test. Local protocol fixtures/closed-gateway negatives are not external merchant verification. This parked boundary does not block independent Communications implementation.
+- **Human-action conditions:** Sandbox4/4 and real merchant read already verified; owner confirms callback saved2026-10-13. One legitimate existing customer Portal Sandbox checkout requires normal browser login/MFA; no authorized billing session is available. Do not mint sessions or expand Parts-only automation. Provider confirmation, reconciliation and entitlement evidence still required. See Wompi Development runbook; no real-money test or secrets in chat/files/logs.
+
+- **Latest evidence:** Owner-reported Sandbox callback saved; actual endpoint unsigned400. Development canonical payments0/provider confirmations0/FKclean; no new transactions or activation. Current boundary is customer checkout, not credentials/callback setup.
 
 ## Phase 6 — Communications + Notifications + Support
 
