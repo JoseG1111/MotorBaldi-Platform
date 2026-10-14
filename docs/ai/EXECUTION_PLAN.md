@@ -1166,6 +1166,8 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 
 - **2026-10-13 current evidence:** Actual GET-only Meta preview now verifies template APPROVED, valid SYSTEM_USER/app/both scopes/WABA phone/subscription/v26/es/UTILITY body3. Development API/Worker approval metadata retained with general policy0/permits0/deliveries0. Genuine verified opt-ins0. Resend API key/webhook secret names absent on both Workers. Approval is resolved; real consent/verified Meta-allowlisted recipient and scoped fresh-MFA controlled permit remain unavoidable prerequisites. No message sent or E2E delivery claimed.
 
+- **Owner recipient continuation:** Recipient reported enabled in Meta; hash-only Development allowlist provisioned on API/Worker, refreshed binding read matches, template APPROVED, controlled/general flags false. Matching canonical phone0/verified preferences0/permits0/deliveries0. Focused122 tests PASS. Genuine account-phone verification/transactional opt-in and human-MFA permit remain; no send/Production change. Status stays HUMAN ACTION REQUIRED, rather than claiming provider delivery from owner setup.
+
 ### MB-VS-008 — Product reconciliation and independent provider preparation
 
 - **Status:** VERIFIED
