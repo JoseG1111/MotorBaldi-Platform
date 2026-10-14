@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { env, exports as workerExports } from "cloudflare:workers";
 import { hashPassword } from "better-auth/crypto";
 import type { ApiBindings } from "@motorbaldi/config";
@@ -13,6 +13,10 @@ const worker = (
 const accountId = "018f0000-0000-7000-8000-000000000071";
 const password = "local-mfa-password-123";
 const cookies = new Map<string, string>();
+let testClient = 71;
+beforeEach(() => {
+  testClient++;
+});
 
 async function request(path: string, body?: object) {
   const response = await worker.fetch!(
@@ -20,6 +24,8 @@ async function request(path: string, body?: object) {
       method: body ? "POST" : "GET",
       headers: {
         origin: "https://portal.test",
+        "cf-connecting-ip": "192.0.2." + testClient,
+        "x-forwarded-for": "192.0.2." + testClient,
         ...(body ? { "content-type": "application/json" } : {}),
         ...(cookies.size
           ? {
@@ -172,4 +178,120 @@ describe("password and TOTP transition", () => {
     expect(admin.status).toBe(200);
     expect(await admin.json()).toMatchObject({ mfaEnabled: true });
   }, 20_000);
+  it("invalidates canonical sessions, expires every auth cookie, and rejects replay", async () => {
+    const cookie = [...cookies]
+      .map(([name, value]) => `${name}=${value}`)
+      .join("; ");
+    const before = await db
+      .prepare("SELECT count(*) AS n FROM auth_sessions WHERE user_id=?")
+      .bind(accountId)
+      .first<{ n: number }>();
+    expect(before!.n).toBeGreaterThan(0);
+    const result = await request("/auth/sign-out", {});
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ success: true });
+    expect(result.headers.getSetCookie().length).toBeGreaterThanOrEqual(2);
+    for (const header of result.headers.getSetCookie()) {
+      expect(header).toMatch(/Max-Age=0/i);
+      expect(header).toMatch(/Path=\//i);
+      expect(header).toMatch(/HttpOnly/i);
+    }
+    const after = await db
+      .prepare("SELECT count(*) AS n FROM auth_sessions WHERE user_id=?")
+      .bind(accountId)
+      .first<{ n: number }>();
+    expect(after!.n).toBe(0);
+    for (const path of ["/principal", "/admin/access", "/me"]) {
+      const replay = await worker.fetch!(
+        new Request("https://api.test/api/v1" + path, {
+          headers: { cookie, origin: "https://portal.test" },
+        }) as never,
+        env as unknown as ApiBindings,
+        {
+          waitUntil() {},
+          passThroughOnException() {},
+          props: {},
+        } as unknown as ExecutionContext,
+      );
+      expect(replay.status).toBe(401);
+    }
+    expect(await (await request("/auth/get-session")).json()).toBeNull();
+  });
+
+  it("does not report success when canonical session deletion fails", async () => {
+    // Use the existing session from a separate ordinary synthetic account for fault injection.
+    const id = "qa-logout-failure";
+    await db
+      .prepare(
+        "INSERT INTO auth_users(id,name,email,email_verified) VALUES(?,'Logout QA','logout-failure@example.test',1)",
+      )
+      .bind(id)
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO auth_credentials(id,user_id,account_id,provider_id,password) VALUES(?,?,?,'credential',?)",
+      )
+      .bind(id, id, id, await hashPassword(password))
+      .run();
+    const signed = await request("/auth/sign-in/email", {
+      email: "logout-failure@example.test",
+      password,
+    });
+    expect(signed.status).toBe(200);
+    await db.exec(
+      "CREATE TRIGGER qa_block_session_delete BEFORE DELETE ON auth_sessions WHEN OLD.user_id='qa-logout-failure' BEGIN SELECT RAISE(ABORT,'synthetic logout failure'); END",
+    );
+    try {
+      const result = await request("/auth/sign-out", {});
+      expect(result.status).toBe(503);
+      expect(await result.json()).toMatchObject({
+        code: "SESSION_INVALIDATION_FAILED",
+      });
+      expect((await request("/principal")).status).toBe(200);
+    } finally {
+      await db.exec("DROP TRIGGER qa_block_session_delete");
+    }
+    expect((await request("/auth/sign-out", {})).status).toBe(200);
+  });
+  it("rejects expired sessions and permits a legitimate fresh login", async () => {
+    const id = "qa-expired-session";
+    await db
+      .prepare(
+        "INSERT INTO auth_users(id,name,email,email_verified) VALUES(?,'Expiry QA','expiry@example.test',1)",
+      )
+      .bind(id)
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO auth_credentials(id,user_id,account_id,provider_id,password) VALUES(?,?,?,'credential',?)",
+      )
+      .bind(id, id, id, await hashPassword(password))
+      .run();
+    expect(
+      (
+        await request("/auth/sign-in/email", {
+          email: "expiry@example.test",
+          password,
+        })
+      ).status,
+    ).toBe(200);
+    expect((await request("/me")).status).toBe(200);
+    await db
+      .prepare(
+        "UPDATE auth_sessions SET expires_at='2000-01-01T00:00:00.000Z' WHERE user_id=?",
+      )
+      .bind(id)
+      .run();
+    expect((await request("/me")).status).toBe(401);
+    expect(
+      (
+        await request("/auth/sign-in/email", {
+          email: "expiry@example.test",
+          password,
+        })
+      ).status,
+    ).toBe(200);
+    expect((await request("/me")).status).toBe(200);
+    expect((await request("/auth/sign-out", {})).status).toBe(200);
+  });
 });

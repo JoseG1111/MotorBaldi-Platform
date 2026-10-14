@@ -16,6 +16,8 @@ import {
   reconcileStoredPayment,
   paymentGatewayCapabilities,
   sandboxPaymentsConfigured,
+  paymentsConfigured,
+  checkoutConfigured,
   type PaymentGatewayBindings,
 } from "../../apps/api/src/payment-gateway.js";
 import m1 from "../../migrations/0001_foundation.sql?raw";
@@ -33,6 +35,8 @@ const db = (env as unknown as ApiBindings).DB;
 const bindings: PaymentGatewayBindings = {
   DB: db,
   ENVIRONMENT: "local",
+  CORS_ORIGINS: "https://portal.test",
+  PAYMENTS_RETURN_URL: "https://portal.test/payment-return",
   WOMPI_ENVIRONMENT: "SANDBOX",
   WOMPI_PUBLIC_KEY: "pub_test_LOCAL_FIXTURE",
   WOMPI_PRIVATE_KEY: "prv_test_LOCAL_FIXTURE",
@@ -58,7 +62,7 @@ async function actor(): Promise<Actor> {
     mfaEnabled: false,
   };
 }
-async function reservation() {
+async function reservation(environment: "SANDBOX" | "PRODUCTION" = "SANDBOX") {
   const owner = await actor();
   const subscription = (await commitPreparedCommand(
     db,
@@ -73,7 +77,7 @@ async function reservation() {
   const subscriptionId = String(subscription.subscriptionId);
   const payment = (await commitPreparedCommand(
     db,
-    await prepareCheckout(db, owner, { subscriptionId }, newId()),
+    await prepareCheckout(db, owner, { subscriptionId }, newId(), environment),
   )) as Record<string, Json>;
   return {
     owner,
@@ -373,7 +377,7 @@ describe("sandbox payment gateway boundary", () => {
     expect(new Headers(calls[0]?.init?.headers).get("authorization")).toBe(
       "Bearer " + bindings.WOMPI_PRIVATE_KEY,
     );
-    expect(calls[0]?.init?.redirect).toBe("error");
+    expect(calls[0]?.init?.redirect).toBe("manual");
   });
 
   it("rejects authoritative amount/reference mismatches against the internal ledger", async () => {
@@ -834,4 +838,274 @@ describe("sandbox payment gateway boundary", () => {
       confirmations: 0,
     });
   });
+});
+
+describe("explicit production release preparation (local fixtures only)", () => {
+  const production: PaymentGatewayBindings = {
+    ...bindings,
+    ENVIRONMENT: "production",
+    WOMPI_ENVIRONMENT: "PRODUCTION",
+    WOMPI_PRODUCTION_RELEASE_AUTHORIZED: "true",
+    WOMPI_PUBLIC_KEY: "pub_prod_LOCAL_FIXTURE",
+    WOMPI_PRIVATE_KEY: "prv_prod_LOCAL_FIXTURE",
+    WOMPI_INTEGRITY_SECRET: "prod_integrity_LOCAL_FIXTURE",
+    WOMPI_EVENTS_SECRET: "prod_events_LOCAL_FIXTURE",
+  };
+  it.each([
+    { WOMPI_PRODUCTION_RELEASE_AUTHORIZED: undefined },
+    { WOMPI_PRODUCTION_RELEASE_AUTHORIZED: "false" },
+    { WOMPI_PRODUCTION_RELEASE_AUTHORIZED: "TRUE" },
+    { WOMPI_ENVIRONMENT: "SANDBOX" },
+    { WOMPI_ENVIRONMENT: undefined },
+    { ENVIRONMENT: "development" as const },
+    { ENVIRONMENT: "staging" as const },
+    { WOMPI_PUBLIC_KEY: bindings.WOMPI_PUBLIC_KEY },
+    { WOMPI_PRIVATE_KEY: bindings.WOMPI_PRIVATE_KEY },
+    { WOMPI_INTEGRITY_SECRET: bindings.WOMPI_INTEGRITY_SECRET },
+    { WOMPI_EVENTS_SECRET: bindings.WOMPI_EVENTS_SECRET },
+  ])(
+    "fails closed for incomplete or mixed activation configuration %j",
+    async (override) => {
+      const configuration = { ...production, ...override };
+      expect(paymentsConfigured(configuration)).toBe(false);
+      expect(paymentGatewayCapabilities(configuration)).toMatchObject({
+        checkoutAvailable: false,
+        productionAvailable: false,
+      });
+      let calls = 0;
+      await expect(
+        reconcilePaymentWebhook(configuration, {}, newId(), {
+          fetch: (async () => {
+            calls++;
+            return Response.json({});
+          }) as typeof fetch,
+        }),
+      ).rejects.toMatchObject({ code: "PAYMENTS_UNAVAILABLE" });
+      expect(calls).toBe(0);
+    },
+  );
+  it("permits local fixture production checkout only for a matching ledger environment", async () => {
+    const fixture = await reservation();
+    expect(paymentsConfigured(production)).toBe(true);
+    expect(sandboxPaymentsConfigured(production)).toBe(false);
+    expect(paymentGatewayCapabilities(production)).toMatchObject({
+      environment: "PRODUCTION",
+      productionAvailable: true,
+      recurringAvailable: false,
+    });
+    await expect(
+      buildHostedCheckout(production, fixture.owner, {
+        subscriptionId: fixture.subscriptionId,
+        paymentId: fixture.paymentId,
+      }),
+    ).rejects.toMatchObject({ code: "PAYMENTS_UNAVAILABLE" });
+    await db
+      .prepare(
+        "UPDATE billing_payments SET status='DECLINED',version=version+1 WHERE id=?",
+      )
+      .bind(fixture.paymentId)
+      .run();
+    const productionPaymentId = newId();
+    const productionReference = "mb-" + newId();
+    await db
+      .prepare(
+        "INSERT INTO billing_payments(id,period_id,amount_minor,currency,reference,provider_environment) SELECT ?,period_id,amount_minor,currency,?,'PRODUCTION' FROM billing_payments WHERE id=?",
+      )
+      .bind(productionPaymentId, productionReference, fixture.paymentId)
+      .run();
+    const result = await buildHostedCheckout(production, fixture.owner, {
+      subscriptionId: fixture.subscriptionId,
+      paymentId: productionPaymentId,
+    });
+    if (!("checkoutUrl" in result)) throw new Error("Hosted checkout missing");
+    const url = new URL(result.checkoutUrl);
+    expect(url.searchParams.get("public-key")).toBe(
+      production.WOMPI_PUBLIC_KEY,
+    );
+    expect(url.searchParams.get("signature:integrity")).toBe(
+      await wompiIntegritySignature({
+        environment: "PRODUCTION",
+        reference: productionReference,
+        amountMinor: fixture.amountMinor,
+        currency: "COP",
+        integritySecret: production.WOMPI_INTEGRITY_SECRET!,
+        expirationTime: result.expiresAt,
+      }),
+    );
+    await expect(
+      buildHostedCheckout(bindings, fixture.owner, {
+        subscriptionId: fixture.subscriptionId,
+        paymentId: productionPaymentId,
+      }),
+    ).rejects.toMatchObject({ code: "PAYMENTS_UNAVAILABLE" });
+    expect((await membershipOverview(db, fixture.owner)).premium).toBe(false);
+    const transaction = {
+      id: "local-prod-" + newId(),
+      reference: productionReference,
+      amount_in_cents: fixture.amountMinor,
+      currency: "COP",
+      status: "APPROVED",
+    };
+    const hook = await event(transaction);
+    hook.environment = "prod";
+    hook.signature.checksum = await sha256Hex(
+      transaction.id +
+        transaction.status +
+        transaction.amount_in_cents +
+        hook.timestamp +
+        production.WOMPI_EVENTS_SECRET,
+    );
+    const { calls, fetcher } = transport(transaction);
+    await expect(
+      reconcilePaymentWebhook(production, hook, newId(), { fetch: fetcher }),
+    ).resolves.toMatchObject({
+      paymentId: productionPaymentId,
+      activated: true,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe(
+      "https://production.wompi.co/v1/transactions/" + transaction.id,
+    );
+    expect(calls[0]?.init?.method ?? "GET").toBe("GET");
+    await expect(
+      reconcilePaymentWebhook(production, hook, newId(), { fetch: fetcher }),
+    ).resolves.toMatchObject({ activated: false, replayed: true });
+  });
+  it.each(["DECLINED", "ERROR", "VOIDED", "PENDING"])(
+    "keeps %s evidence unpaid without exposing a retry checkout",
+    async (status) => {
+      const fixture = await reservation();
+      const transaction = {
+        id: "local-" + newId(),
+        reference: fixture.reference,
+        amount_in_cents: fixture.amountMinor,
+        currency: "COP",
+        status,
+      };
+      const { fetcher } = transport(transaction);
+      await reconcilePaymentWebhook(
+        bindings,
+        await event(transaction),
+        newId(),
+        { fetch: fetcher },
+      );
+      const result = await buildHostedCheckout(bindings, fixture.owner, {
+        subscriptionId: fixture.subscriptionId,
+        paymentId: fixture.paymentId,
+      });
+      expect(result).toMatchObject({ checkoutAvailable: false, status });
+      expect((await membershipOverview(db, fixture.owner)).premium).toBe(false);
+      expect((await rows(fixture)).confirmations).toBe(0);
+    },
+  );
+});
+
+it("reserves the trusted production ledger environment and refuses replay through Sandbox", async () => {
+  const fixture = await reservation("PRODUCTION");
+  expect(
+    await db
+      .prepare("SELECT provider_environment FROM billing_payments WHERE id=?")
+      .bind(fixture.paymentId)
+      .first(),
+  ).toEqual({ provider_environment: "PRODUCTION" });
+  const again = await prepareCheckout(
+    db,
+    fixture.owner,
+    { subscriptionId: fixture.subscriptionId },
+    newId(),
+    "PRODUCTION",
+  );
+  expect(again.statements).toHaveLength(0);
+  expect(again.response).toMatchObject({ paymentId: fixture.paymentId });
+  await expect(
+    prepareCheckout(
+      db,
+      fixture.owner,
+      { subscriptionId: fixture.subscriptionId },
+      newId(),
+    ),
+  ).rejects.toMatchObject({ code: "BILLING_CHECKOUT_UNAVAILABLE" });
+  const sandbox = await reservation();
+  await expect(
+    prepareCheckout(
+      db,
+      sandbox.owner,
+      { subscriptionId: sandbox.subscriptionId },
+      newId(),
+      "PRODUCTION",
+    ),
+  ).rejects.toMatchObject({ code: "BILLING_CHECKOUT_UNAVAILABLE" });
+});
+
+it.each([
+  undefined,
+  "https://evil.invalid/payment-return",
+  "https://portal.test.evil.invalid/payment-return",
+  "https://portal.test/other",
+  "https://portal.test/payment-return/",
+  "https://portal.test/payment-return?status=APPROVED",
+  "https://portal.test/payment-return#premium",
+  "https://attacker@portal.test/payment-return",
+  "https://portal.test/payment-return?",
+  "https://portal.test/payment-return#",
+])(
+  "rejects missing or hostile configured return destination %s without disabling reconciliation",
+  async (url) => {
+    const configuration = { ...bindings, PAYMENTS_RETURN_URL: url };
+    expect(paymentsConfigured(configuration)).toBe(true);
+    expect(checkoutConfigured(configuration)).toBe(false);
+    expect(paymentGatewayCapabilities(configuration)).toMatchObject({
+      checkoutAvailable: false,
+      manualReconciliationAvailable: true,
+    });
+    const fixture = await reservation();
+    await expect(
+      buildHostedCheckout(configuration, fixture.owner, {
+        subscriptionId: fixture.subscriptionId,
+        paymentId: fixture.paymentId,
+      }),
+    ).rejects.toMatchObject({ status: 503, code: "PAYMENTS_UNAVAILABLE" });
+  },
+);
+it("accepts only an explicitly trusted local loopback HTTP return, and requires HTTPS remotely", () => {
+  const local = {
+    ...bindings,
+    CORS_ORIGINS: "http://127.0.0.1:4174",
+    PAYMENTS_RETURN_URL: "http://127.0.0.1:4174/payment-return",
+  };
+  expect(checkoutConfigured(local)).toBe(true);
+  expect(
+    checkoutConfigured({ ...local, CORS_ORIGINS: "https://portal.test" }),
+  ).toBe(false);
+  expect(checkoutConfigured({ ...local, ENVIRONMENT: "development" })).toBe(
+    false,
+  );
+  expect(
+    checkoutConfigured({
+      ...local,
+      CORS_ORIGINS: "http://remote.invalid",
+      PAYMENTS_RETURN_URL: "http://remote.invalid/payment-return",
+    }),
+  ).toBe(false);
+});
+it("snapshots the trusted return destination before awaiting ledger authorization and never accepts client URLs", async () => {
+  const fixture = await reservation(),
+    configuration = { ...bindings };
+  const promise = buildHostedCheckout(configuration, fixture.owner, {
+    subscriptionId: fixture.subscriptionId,
+    paymentId: fixture.paymentId,
+  });
+  configuration.PAYMENTS_RETURN_URL = "https://evil.invalid/payment-return";
+  const result = await promise;
+  if (!("checkoutUrl" in result)) throw new Error("Missing checkout");
+  expect(new URL(result.checkoutUrl).searchParams.get("redirect-url")).toBe(
+    bindings.PAYMENTS_RETURN_URL,
+  );
+  await expect(
+    buildHostedCheckout(bindings, fixture.owner, {
+      subscriptionId: fixture.subscriptionId,
+      paymentId: fixture.paymentId,
+      returnUrl: "https://evil.invalid",
+    } as never),
+  ).rejects.toThrow();
 });

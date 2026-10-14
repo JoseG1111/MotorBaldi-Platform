@@ -3,6 +3,7 @@ import { createContext, runInContext } from "node:vm";
 import { portalPage, portalScript } from "../../apps/portal/src/page.js";
 import { adminPage, adminScript } from "../../apps/admin/src/page.js";
 type FakeNode = {
+  elements: { purpose: { onchange?: unknown } };
   children: FakeNode[];
   textContent: string;
   value?: string;
@@ -41,6 +42,7 @@ function browserHarness(
 ) {
   const nodes = new Map<string, FakeNode>();
   const node = (): FakeNode => ({
+    elements: { purpose: {} },
     reset() {},
     remove() {},
     children: [],
@@ -81,7 +83,12 @@ function browserHarness(
   });
   const document = {
     getElementById(id: string) {
-      if (!nodes.has(id)) nodes.set(id, node());
+      if (!nodes.has(id)) {
+        const element = node();
+        // Match the real HTML: private content starts hidden before bootstrap.
+        if (id === "private") element.classList.add("hidden");
+        nodes.set(id, element);
+      }
       return nodes.get(id)!;
     },
     querySelectorAll() {
@@ -96,7 +103,7 @@ function browserHarness(
     fetch: fetcher,
     Response,
     URL,
-    location: { href: "https://portal.test/", pathname: "/" },
+    location: { href: "https://portal.test/", pathname: "/", replace() {} },
     history: { replaceState() {} },
     crypto: {
       randomUUID: (() => {

@@ -1,16 +1,6 @@
 export type VehicleActor = { accountId: string; personId: string };
 
-/** Claims, relationships, identifiers, and garage entries never imply access. */
-export async function hasVehiclePermission(
-  db: D1Database,
-  actor: VehicleActor,
-  vehicleId: string,
-  permissionCode: string,
-  resourceContext?: { organizationId: string; locationId: string | null },
-): Promise<boolean> {
-  const row = await db
-    .prepare(
-      `SELECT 1 AS allowed
+export const vehiclePermissionPredicate = `EXISTS(SELECT 1
        FROM iam_accounts a
        JOIN iam_people p ON p.id=a.person_id
        WHERE a.id=? AND a.person_id=? AND a.status='ACTIVE' AND p.status='ACTIVE'
@@ -53,8 +43,17 @@ export async function hasVehiclePermission(
                )
              )
          )
-       LIMIT 1`,
-    )
+       LIMIT 1)`;
+/** Claims, relationships, identifiers, and garage entries never imply access. */
+export async function hasVehiclePermission(
+  db: D1Database,
+  actor: VehicleActor,
+  vehicleId: string,
+  permissionCode: string,
+  resourceContext?: { organizationId: string; locationId: string | null },
+): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT 1 AS allowed WHERE ${vehiclePermissionPredicate}`)
     .bind(
       actor.accountId,
       actor.personId,
@@ -69,3 +68,4 @@ export async function hasVehiclePermission(
 }
 
 export * from "./commands.js";
+export * from "./services.js";

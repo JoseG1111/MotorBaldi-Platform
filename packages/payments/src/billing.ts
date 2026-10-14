@@ -1,8 +1,10 @@
+import { CUSTOMER_OPERATIONAL_BENEFITS } from "@motorbaldi/shared/customer-plans";
 import { z } from "zod";
 import { Problem, type Principal } from "@motorbaldi/contracts";
 import { requirePlatformPermission } from "@motorbaldi/authz";
 import { hasVehiclePermission } from "@motorbaldi/vehicles";
 import {
+  getCustomerEntitlements,
   outboxStatement,
   type EventRegistry,
   type PreparedCommand,
@@ -460,23 +462,10 @@ export async function membershipOverview(db: D1Database, actor: BillingActor) {
     ) ??
     subscriptions[0] ??
     null;
-  let premium = false;
+  const customer = await getCustomerEntitlements(db, actor);
+  const premium = customer.premium;
   const vehicles: { vehicle_id: string }[] = [];
   if (subscription) {
-    const now = utcNow();
-    if (!["SUSPENDED", "EXPIRED"].includes(subscription.status)) {
-      const evidence = await db
-        .prepare(
-          `SELECT 1 FROM billing_subscriptions s WHERE s.id=? AND (
-      EXISTS(SELECT 1 FROM billing_admin_grants g WHERE g.subscription_id=s.id AND g.starts_at<=? AND g.ends_at>?)
-      OR EXISTS(SELECT 1 FROM billing_periods p WHERE p.subscription_id=s.id AND p.status='PAID' AND p.starts_at<=? AND p.ends_at>?
-        AND EXISTS(SELECT 1 FROM billing_payments pay JOIN billing_payment_confirmations c ON c.payment_id=pay.id WHERE pay.period_id=p.id AND pay.status='APPROVED' AND c.amount_minor=p.amount_minor AND c.currency=p.currency AND c.provider_environment=pay.provider_environment AND c.provider_transaction_id=pay.provider_transaction_id))
-      )`,
-        )
-        .bind(subscription.id, now, now, now, now)
-        .first();
-      premium = !!evidence;
-    }
     const selected = (
       await db
         .prepare(
@@ -499,21 +488,61 @@ export async function membershipOverview(db: D1Database, actor: BillingActor) {
   return {
     subscription,
     premium,
-    vehicleLimit: subscription?.vehicle_limit ?? 2,
+    vehicleLimit: customer.vehicleLimit,
+    manualMaintenanceLimit: customer.manualMaintenanceLimit,
+    assistedRequestLimit: customer.assistedRequestLimit,
+    personalizedSupport: customer.personalizedSupport,
+    reminderDays: customer.reminderDays,
     vehicles,
     entitlements: premium ? benefitDefinitions.map(([code]) => code) : [],
-    benefits: [
-      ...benefitDefinitions,
-      ["preventive_recommendations", "Recomendaciones preventivas"],
-      ["monthly_summaries", "Resúmenes mensuales"],
-      ["parts_assistance", "Acompañamiento en repuestos"],
-      ["future_vehicle_feature", "Funciones futuras del vehículo"],
-    ].map(([code, label]) => ({
-      code,
-      label,
-      available: false,
+    benefits: CUSTOMER_OPERATIONAL_BENEFITS.map((benefit) => ({
+      ...benefit,
+      available: premium && benefit.readiness === "READY",
     })),
     checkoutAvailable: false,
+  };
+}
+
+/** Bounded customer history; never exposes another customer's payment or provider secrets. */
+export async function customerPaymentHistory(
+  db: D1Database,
+  actor: BillingActor,
+  cursor?: string,
+) {
+  await requireActiveAccount(db, actor);
+  let anchor: { id: string; created_at: string } | null = null;
+  if (cursor !== undefined) {
+    if (!z.string().uuid().safeParse(cursor).success)
+      throw new Problem(400, "INVALID_CURSOR", "Invalid cursor");
+    anchor = await db
+      .prepare(
+        `SELECT pay.id,pay.created_at FROM billing_payments pay JOIN billing_periods per ON per.id=pay.period_id JOIN billing_subscriptions s ON s.id=per.subscription_id WHERE pay.id=? AND s.account_id=?`,
+      )
+      .bind(cursor, actor.accountId)
+      .first<{ id: string; created_at: string }>();
+    if (!anchor) throw new Problem(400, "INVALID_CURSOR", "Invalid cursor");
+  }
+  const items = (
+    await db
+      .prepare(
+        `SELECT pay.id,pay.reference,pay.amount_minor,pay.currency,pay.status,pay.provider_environment,pay.created_at,pay.updated_at,per.starts_at,per.ends_at,s.plan_code
+    FROM billing_payments pay JOIN billing_periods per ON per.id=pay.period_id JOIN billing_subscriptions s ON s.id=per.subscription_id
+    WHERE s.account_id=? AND EXISTS(SELECT 1 FROM iam_accounts a JOIN iam_people p ON p.id=a.person_id WHERE a.id=s.account_id AND p.id=? AND a.status='ACTIVE' AND p.status='ACTIVE')
+    AND (? IS NULL OR pay.created_at<? OR (pay.created_at=? AND pay.id<?)) ORDER BY pay.created_at DESC,pay.id DESC LIMIT 31`,
+      )
+      .bind(
+        actor.accountId,
+        actor.personId,
+        anchor?.created_at ?? null,
+        anchor?.created_at ?? null,
+        anchor?.created_at ?? null,
+        anchor?.id ?? null,
+      )
+      .all()
+  ).results;
+  return {
+    items: items.slice(0, 30),
+    nextCursor: items.length > 30 ? items[29]!.id : null,
   };
 }
 

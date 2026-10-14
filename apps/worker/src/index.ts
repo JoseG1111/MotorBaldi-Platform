@@ -1,3 +1,4 @@
+import { customerWorkshopEventContracts } from "@motorbaldi/workshops";
 import {
   marketplaceCommandEventRegistry,
   marketplaceEventHandlers,
@@ -10,6 +11,10 @@ import {
   createMembershipNotification,
   membershipNotificationEventRegistry,
   notificationCommandEventRegistry,
+  vehicleReminderEventRegistry,
+  vehicleReminderEventHandlers,
+  scheduleVehicleReminders,
+  dispatchControlledVehicleReminders,
   type Handler,
 } from "@motorbaldi/messaging";
 import type { EventContract } from "@motorbaldi/db";
@@ -27,6 +32,7 @@ import { cleanupExpiredIdempotencyRecords } from "@motorbaldi/db/idempotency";
 import {
   queryOperationalMetrics,
   recordOperationalMetrics,
+  recordOperationalAlerts,
 } from "@motorbaldi/observability/metrics";
 import { logger } from "@motorbaldi/observability";
 import {
@@ -193,6 +199,8 @@ for (const [key, contract] of [
   ...supportCommandEventRegistry,
   ...membershipNotificationEventRegistry,
   ...notificationCommandEventRegistry,
+  ...vehicleReminderEventRegistry,
+  ...customerWorkshopEventContracts,
 ])
   registry.set(key, contract);
 const handlers = new Map<string, Handler>(
@@ -239,11 +247,14 @@ export default {
       scopedHandlers.set(key, handler);
     for (const [key, handler] of partsEventHandlers(env.DB))
       scopedHandlers.set(key, handler);
+    for (const [key, handler] of vehicleReminderEventHandlers(env.DB, env))
+      scopedHandlers.set(key, handler);
     for (const [key, handler] of supportEventHandlers(env.DB))
       scopedHandlers.set(key, handler);
     for (const key of [
       ...membershipNotificationEventRegistry.keys(),
       ...notificationCommandEventRegistry.keys(),
+      ...customerWorkshopEventContracts.keys(),
     ])
       scopedHandlers.set(key.split(":")[0]!, async () => {});
     scopedHandlers.set("billing.subscription.changed.v1", async (event) => {
@@ -306,6 +317,8 @@ export default {
     ctx.waitUntil(expireMembershipRequests(env.DB));
     ctx.waitUntil(expireCredentials(env.DB));
     ctx.waitUntil(expireMemberships(env.DB, newId()));
+    ctx.waitUntil(scheduleVehicleReminders(env.DB));
+    ctx.waitUntil(dispatchControlledVehicleReminders(env.DB, env));
     if (env.OUTBOX_COORDINATOR) {
       ctx.waitUntil(
         env.OUTBOX_COORDINATOR.getByName(c.environment).fetch(
@@ -317,9 +330,25 @@ export default {
       ctx.waitUntil(relayOutbox(env.DB, env.EVENTS_QUEUE));
     }
     ctx.waitUntil(
-      queryOperationalMetrics(env.DB).then((values) =>
-        recordOperationalMetrics(values, "worker"),
-      ),
+      queryOperationalMetrics(env.DB).then((values) => {
+        recordOperationalMetrics(values, "worker");
+        // Explicit technical rules: unresolved dead letters and ambiguous
+        // external outcomes require operator review. These logs never trigger a
+        // payment/message retry or claim an external alert destination is set up.
+        recordOperationalAlerts(
+          values,
+          {
+            unresolvedDeadLetterCount: 1,
+            ...(values.paymentUnknownCount !== undefined
+              ? { paymentUnknownCount: 1 }
+              : {}),
+            ...(values.notificationUnknownCount !== undefined
+              ? { notificationUnknownCount: 1 }
+              : {}),
+          },
+          "worker",
+        );
+      }),
     );
   },
 };

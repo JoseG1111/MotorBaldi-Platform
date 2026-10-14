@@ -238,3 +238,141 @@ describe("partner capabilities on existing organizations", () => {
     });
   });
 });
+
+// These fixtures interpose immediately before the atomic D1 batch, after all preparation reads.
+function beforeCommit(action: () => Promise<void>): D1Database {
+  return {
+    prepare: db.prepare.bind(db),
+    batch: async (statements: D1PreparedStatement[]) => {
+      await action();
+      return db.batch(statements);
+    },
+  } as D1Database;
+}
+it.each([
+  "membership",
+  "role",
+  "account",
+  "person",
+  "validity",
+  "organization",
+])(
+  "rolls capability replacement back when current %s authority disappears before commit",
+  async (revocation) => {
+    const organizationId = await workshop();
+    const memberId = newId();
+    await db
+      .prepare(
+        "INSERT INTO org_memberships(id,organization_id,person_id) VALUES(?,?,?)",
+      )
+      .bind(memberId, organizationId, outsider.personId)
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO org_membership_roles(membership_id,role_id) VALUES(?,'org-admin')",
+      )
+      .bind(memberId)
+      .run();
+    await setCapabilities(db, owner, organizationId, ["PARTS"], newId());
+    const before = await snapshot(organizationId);
+    const racing = beforeCommit(async () => {
+      if (revocation === "membership")
+        await db
+          .prepare(
+            "UPDATE org_memberships SET status='SUSPENDED' WHERE organization_id=? AND person_id=?",
+          )
+          .bind(organizationId, outsider.personId)
+          .run();
+      if (revocation === "role")
+        await db
+          .prepare(
+            "DELETE FROM org_membership_roles WHERE membership_id IN (SELECT id FROM org_memberships WHERE organization_id=? AND person_id=?)",
+          )
+          .bind(organizationId, outsider.personId)
+          .run();
+      if (revocation === "account")
+        await db
+          .prepare("UPDATE iam_accounts SET status='SUSPENDED' WHERE id=?")
+          .bind(outsider.accountId)
+          .run();
+      if (revocation === "person")
+        await db
+          .prepare("UPDATE iam_people SET status='PROVISIONAL' WHERE id=?")
+          .bind(outsider.personId)
+          .run();
+      if (revocation === "validity")
+        await db
+          .prepare(
+            "UPDATE org_memberships SET valid_from='2099-01-01T00:00:00.000Z' WHERE organization_id=? AND person_id=?",
+          )
+          .bind(organizationId, outsider.personId)
+          .run();
+      if (revocation === "organization")
+        await db
+          .prepare("UPDATE org_organizations SET status='SUSPENDED' WHERE id=?")
+          .bind(organizationId)
+          .run();
+    });
+    await expect(
+      setCapabilities(racing, outsider, organizationId, ["TOWING"], newId()),
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "ORGANIZATION_CAPABILITIES_CONFLICT",
+    });
+    expect((await snapshot(organizationId)).capabilities).toEqual(
+      before.capabilities,
+    );
+    expect((await snapshot(organizationId)).audits).toEqual(before.audits);
+    await db
+      .prepare("UPDATE iam_accounts SET status='ACTIVE' WHERE id=?")
+      .bind(outsider.accountId)
+      .run();
+    await db
+      .prepare("UPDATE iam_people SET status='ACTIVE' WHERE id=?")
+      .bind(outsider.personId)
+      .run();
+  },
+);
+it("rejects a stale replacement after another authorized writer commits instead of erasing its set", async () => {
+  const organizationId = await workshop();
+  await setCapabilities(db, owner, organizationId, ["PARTS"], newId());
+  const winningRequestId = newId(),
+    staleRequestId = newId();
+  const racing = beforeCommit(() =>
+    setCapabilities(
+      db,
+      owner,
+      organizationId,
+      ["INSPECTION"],
+      winningRequestId,
+    ),
+  );
+  await expect(
+    setCapabilities(racing, owner, organizationId, [], staleRequestId),
+  ).rejects.toMatchObject({ code: "ORGANIZATION_CAPABILITIES_CONFLICT" });
+  const saved = await snapshot(organizationId);
+  expect(saved.capabilities).toEqual([{ code: "INSPECTION" }]);
+  expect(saved.audits.some((row) => row.request_id === winningRequestId)).toBe(
+    true,
+  );
+  expect(saved.audits.some((row) => row.request_id === staleRequestId)).toBe(
+    false,
+  );
+});
+it("does not accept a person/account mismatch or authority held only in another organization", async () => {
+  const organizationId = await workshop();
+  const before = await snapshot(organizationId);
+  await expect(
+    setCapabilities(
+      db,
+      { ...owner, accountId: outsider.accountId },
+      organizationId,
+      ["PARTS"],
+      newId(),
+    ),
+  ).rejects.toMatchObject({ code: "ORGANIZATION_CAPABILITIES_CONFLICT" });
+  await expect(
+    setCapabilities(db, outsider, organizationId, ["PARTS"], newId()),
+  ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  expect(await snapshot(organizationId)).toEqual(before);
+});

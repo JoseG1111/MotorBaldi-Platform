@@ -3,6 +3,7 @@ import { createContext, runInContext } from "node:vm";
 import { portalPage, portalScript } from "../../apps/portal/src/page.js";
 import { adminPage, adminScript } from "../../apps/admin/src/page.js";
 type FakeNode = {
+  elements: { purpose: { onchange?: unknown } };
   children: FakeNode[];
   textContent: string;
   value?: string;
@@ -37,6 +38,7 @@ function browserHarness(
 ) {
   const nodes = new Map<string, FakeNode>();
   const node = (): FakeNode => ({
+    elements: { purpose: {} },
     reset() {},
     children: [],
     textContent: "",
@@ -76,7 +78,12 @@ function browserHarness(
   });
   const document = {
     getElementById(id: string) {
-      if (!nodes.has(id)) nodes.set(id, node());
+      if (!nodes.has(id)) {
+        const element = node();
+        // Match the real HTML: private content starts hidden before bootstrap.
+        if (id === "private") element.classList.add("hidden");
+        nodes.set(id, element);
+      }
       return nodes.get(id)!;
     },
     querySelectorAll() {
@@ -101,7 +108,7 @@ function browserHarness(
     Response,
     URL,
     URLSearchParams,
-    location: { href: "https://portal.test/", pathname: "/" },
+    location: { href: "https://portal.test/", pathname: "/", replace() {} },
     history: { replaceState() {} },
     crypto: { randomUUID: () => "test-uuid" },
     FormData: class {
@@ -263,6 +270,19 @@ describe("Parts scoped browser workflows", () => {
     });
   });
 
+  it("converts the peso input exactly while retaining canonical minor units", () => {
+    const { context } = browserHarness(portalScript, async () =>
+      Response.json({}, { status: 401 }),
+    );
+    expect(runInContext("uiAmountMinor('2500.25')", context)).toBe("250025");
+    expect(runInContext("uiAmountMinor('0')", context)).toBe("0");
+    for (const value of ["-1", "1.234", "NaN", "1e4", "9007199254740991"]) {
+      expect(() =>
+        runInContext("uiAmountMinor(" + JSON.stringify(value) + ")", context),
+      ).toThrow();
+    }
+  });
+
   it("denies organization members without Parts management permission", async () => {
     const calls: string[] = [];
     const { context, nodes } = browserHarness(portalScript, async (path) => {
@@ -274,7 +294,9 @@ describe("Parts scoped browser workflows", () => {
     runInContext("currentOrg='org-a'", context);
     await runInContext("showParts()", context);
     expect(calls.some((path) => path.includes("parts-offerings"))).toBe(false);
-    expect(contents(nodes.get("notice")!)).toContain("OWNER");
+    expect(contents(nodes.get("notice")!)).toContain(
+      "propietarios o administradores autorizados",
+    );
   });
   it("denies staff without canonical permission", async () => {
     const calls: string[] = [];
@@ -313,7 +335,10 @@ describe("Parts scoped browser workflows", () => {
     );
     expect(contents(nodes.get("parts-list")!)).toContain("Consultar");
     expect(
-      portalScript.slice(portalScript.indexOf("let partsGeneration")),
+      portalScript.slice(
+        portalScript.indexOf("let partsGeneration"),
+        portalScript.indexOf("let vehicleServicesGeneration"),
+      ),
     ).not.toContain("innerHTML");
   });
   it("discards an offering list after switching organizations", async () => {

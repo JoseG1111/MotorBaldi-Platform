@@ -73,6 +73,7 @@
         "ENVIRONMENT": "development",
         "DEVELOPMENT_AUTOMATION_ENABLED": "true",
         "AUTH_BASE_URL": "https://motorbaldi-api-development.josegbarrios2.workers.dev",
+        "PAYMENTS_RETURN_URL": "https://motorbaldi-portal-development.josegbarrios2.workers.dev/payment-return",
         "CORS_ORIGINS": "https://motorbaldi-portal-development.josegbarrios2.workers.dev,https://motorbaldi-admin-development.josegbarrios2.workers.dev",
         "PUBLIC_CORS_ORIGINS": "https://motorbaldi-portal-development.josegbarrios2.workers.dev",
         "TURNSTILE_EXPECTED_HOSTNAME": "motorbaldi-portal-development.josegbarrios2.workers.dev",

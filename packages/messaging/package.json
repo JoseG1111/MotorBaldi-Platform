@@ -7,11 +7,13 @@
     ".": "./src/index.js",
     "./handler": "./src/handler.js",
     "./queue": "./src/queue.js",
-    "./providers": "./src/providers.js"
+    "./providers": "./src/providers.js",
+    "./auth-email": "./src/auth-email.js"
   },
   "dependencies": {
     "@motorbaldi/db": "workspace:*",
     "@motorbaldi/shared": "workspace:*",
+    "@motorbaldi/vehicles": "workspace:*",
     "zod": "^4.3.0",
     "@motorbaldi/contracts": "workspace:*"
   }

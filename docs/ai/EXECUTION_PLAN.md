@@ -553,7 +553,7 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P5-005 — Remote validation
 
-- **Status:** HUMAN ACTION REQUIRED
+- **Status:** VERIFIED
 - **Dependencies:** MB-P5-004
 - **Objective:** Validate billing/Wompi in Development sandbox.
 - **Scope / required work:** Validate billing/Wompi in Development sandbox.
@@ -561,7 +561,9 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote financial scenario matrix and gate
 - **Completion criteria:** Financial flows and reconciliation pass.
-- **Human-action conditions:** Supply authorized Wompi Sandbox merchant credentials directly as Development API Worker secrets (WOMPI_PUBLIC_KEY, WOMPI_PRIVATE_KEY, WOMPI_INTEGRITY_SECRET, WOMPI_EVENTS_SECRET) and configure the sandbox event URL. Names-only inventory finds none and no authorized merchant browser session exists. See [Wompi Development runbook](../runbooks/wompi-development.md). No keys in files/chat/logs, no real-money test. Local protocol fixtures/closed-gateway negatives are not external merchant verification. This parked boundary does not block independent Communications implementation.
+- **Human-action conditions:** Sandbox4/4 and real merchant read already verified; owner confirms callback saved2026-10-13. Owner now explicitly authorizes creating synthetic Development customers for autonomous tests. Provision an isolated audited nonprivileged fixture with ephemeral credentials, then normal Better Auth login; no session minting, human impersonation or Parts privilege expansion. Synthetic operator provisioning is not public onboarding/email-verification evidence. Provider confirmation, reconciliation and entitlement evidence still required. See Wompi Development runbook; no real-money test or secrets in chat/files/logs.
+
+- **Latest evidence:** Genuine monthly/annual APPROVED, DECLINED, asynchronous waiting/ERROR, manual renewal/cancellation and Sandbox VOID pass through normal synthetic customer login, real provider callbacks/private reconciliation and canonical history. Controlled replay/mismatch transport tests preserve financial state. BUG-QA-008 refresh race and BUG-QA-009 reversal cutoff fixed with targeted regressions; genuine annual re-purchase restores paid benefits immediately. Full1134 local gate and source869f6b6 [CI38487821732](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38487821732) SUCCESS, including history secret scan. All7 fixtures closed/passwords0/sessions0/roles0/org memberships0; outbox266PROCESSED/pending0/DL0/FKclean. VERIFIED is Development Sandbox acceptance only; Production, real recurring charges, clock expiry and human public email/MFA acceptance are not claimed. See current cursor and Wompi runbook.
 
 ## Phase 6 — Communications + Notifications + Support
 
@@ -872,3 +874,340 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Human-action conditions:** Global stop rule; resolve only truly missing business requirements.
 
 - **Current evidence:** Final full gate PASS743tests (206foundation/532Worker/5signedAPI+DO). Only Development API58f67646-8122-440f-809a-be4fad2c13b0, Portal061f5074-3668-40b1-8ed3-fe2b60b1b32e and Admin0c1793ab-ecaf-4731-9e34-4e09e13d160a deployed; no migration or Worker changes. Health/report assets and anonymous discovery regression PASS. Signed analytics smoke and independent D1/source consistency command bothPASS, with owned current counts canonicalARCHIVED4/offeringINACTIVE3/listingSUSPENDED1,11marketplacehistories/11processed events, matched source audit/outbox/Queue and clean global pending/deadletter/FK constraints. Existing Parts/marketplace/automation checkers PASS. Machine remains denied global Queue API; positive human API verified locally and real remote Queue consistency proven through authorized D1 probes. Implementation431ab13 passed [Platform CI38111171488](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38111171488), including743tests, artifact/history secret scans. MB-P9-005 VERIFIED only for ADR0029 scoped read-only current-state reporting; broader intelligence/profiling/financial/provider features remain unavailable.
+
+## Owner-approved enterprise UX workstream — 2026-10-10
+
+Preserves all Phase 8/9 decisions and parked external boundaries. Development only. Actual rendered synthetic screenshots are required for visual completion.
+
+### MB-UX-001 — Brand and UI audit
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-P9-005
+- **Objective:** Brand and UI audit.
+- **Scope / required work:** Inspect official live styles/assets, references, frontend and contracts; record verified tokens.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Live brand styles/assets and repository audit.
+- **Completion criteria:** Inspect official live styles/assets, references, frontend and contracts; record verified tokens.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Official live CSS/logo inspected, repository and canonical contracts audited; see UX_EVIDENCE.md.
+
+### MB-UX-002 — Design system and app shell
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-UX-001
+- **Objective:** Design system and app shell.
+- **Scope / required work:** Shared brand tokens, accessible responsive shell and authorized navigation; inspect rendered layouts.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Focused tests and rendered synthetic browser evidence; final gate/deployment in MB-UX-006.
+- **Completion criteria:** Shared brand tokens, accessible responsive shell and authorized navigation; inspect rendered layouts.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Shared shell integrated in both real Worker handlers; TypeScript and 39 Phase 1 UI tests PASS; eight Chromium viewport/axe/keyboard checks PASS. Main visually inspected desktop Admin and mobile Portal screenshots; see UX_EVIDENCE.md.
+
+### MB-UX-003 — People, CRM and organizations
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-UX-002
+- **Objective:** People, CRM and organizations.
+- **Scope / required work:** Bounded record tables, search, detail, pagination and response regression fixes; actual visual QA.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Focused tests and rendered synthetic browser evidence; final gate/deployment in MB-UX-006.
+- **Completion criteria:** Bounded record tables, search, detail, pagination and response regression fixes; actual visual QA.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Server-paginated People/organizations/CRM, real multi-relationship detail and commission contract fix.52 focused unit tests and10 browser record tests PASS (search/paging/filter/sort/stale/error/permission/axe). Actual People detail/CRM screenshots inspected; see UX_EVIDENCE.md. Full gate found one obsolete markup assertion, corrected and focused verified; full gate deferred to final milestone.
+
+### MB-UX-004 — Remaining Admin modules
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-UX-003
+- **Objective:** Remaining Admin modules.
+- **Scope / required work:** Apply domain-appropriate management patterns across every implemented Admin module; workflow and responsive verification.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Focused tests and rendered synthetic browser evidence; final gate/deployment in MB-UX-006.
+- **Completion criteria:** Apply domain-appropriate management patterns across every implemented Admin module; workflow and responsive verification.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Domain tables/queues, structured inspection reports, vehicle/Parts disclosures, support and financial tables, actual count summaries.67focused unit tests+20browser suite PASS. Nine Admin modules at1440/390 have axe/overflow/detail evidence; main inspected Parts/inspection/workshop and corrected Parts overlong layout, then reran20focused tests and2module browser tests PASS.
+
+### MB-UX-005 — Portal transformation
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-UX-004
+- **Objective:** Portal transformation.
+- **Scope / required work:** Customer, workshop and partner experiences using existing scopes and APIs; responsive visual QA.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Focused tests and rendered synthetic browser evidence; final gate/deployment in MB-UX-006.
+- **Completion criteria:** Customer, workshop and partner experiences using existing scopes and APIs; responsive visual QA.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Role-scoped customer/workshop/partner workflows integrated; four Portal browser tests PASS at1440/390 with axe, overflow, profile submission and stale-workspace protection. Main inspected organization/workshop/partner/mobile history screenshots and corrected overlong partner forms/history composition.51focused Phase1+Parts tests PASS including exact COP conversion. See UX_EVIDENCE.md.
+
+### MB-UX-006 — Quality and final polish
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-UX-005
+- **Objective:** Quality and final polish.
+- **Scope / required work:** Cross-module accessibility, responsive screenshots, regression tests, full pnpm gate and existing Development deployment verification.
+- **Relevant files/systems:** `apps/admin`, `apps/portal`, shared UI, frontend tests, UX evidence.
+- **Constraints:** Existing auth/domain/Cloudflare boundaries; official brand; Spanish copy; no fabricated controls/data.
+- **Verification:** Focused tests and rendered synthetic browser evidence; final gate/deployment in MB-UX-006.
+- **Completion criteria:** Cross-module accessibility, responsive screenshots, regression tests, full pnpm gate and existing Development deployment verification.
+- **Human-action conditions:** Global stop rule only.
+- **Evidence:** Full pnpm gate PASS (208unit/532Worker/5automation/27browser),59synthetic screenshots and actual representative visual review. Development Admin/Portal deployed and four anonymous remote browser/axe/CSP/logo/denial checks PASS; signed auth and read-only analytics/D1 consistency PASS. Final implementation01b7796 passed [Platform CI38175650011](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38175650011), including browser and history secret checks; see UX_EVIDENCE.md.
+
+## Functional stabilization — owner authorized 2026-10-11
+
+The [functional stabilization plan](FUNCTIONAL_STABILIZATION_PLAN.md) tracks defects and coverage; this registry remains the sole checkpoint authority. UX checkpoints retain their established visual evidence, without implying real human-session workflow verification. Wompi and scanner boundaries remain independently parked.
+
+### MB-QA-001 — Authentication and session reliability
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-UX-006
+- **Objective:** Authentication and session reliability.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Deployed missing-media-type logout reproduced415 in both apps, corrected JSON signout and canonical deletion confirmation; four real auth/D1 tests and five browser regressions PASS. Remote anonymous cookie/CSRF/cache/session protocol checks PASS. Local normal MFA browser enrollment/fresh login works; remote human MFA validation remains explicitly pending. See functional ledger.
+
+### MB-QA-002 — Navigation and frontend runtime reliability
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-001
+- **Objective:** Navigation and frontend runtime reliability.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Full gate788tests PASS including38browser cases: session expiry/back/refresh, stale/error/cursor cases, role-aware navigation, keyboard/responsive/axe. UI visual snapshots inspected; exact scope and limits in functional ledger.
+
+### MB-QA-003 — Admin functional workflows
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-002
+- **Objective:** Admin functional workflows.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Real local normal-MFA Admin browser creates/completes CRM task with canonical API persisted version readback; bounded vehicle-target/search regression and existing People/org/CRM/detail browser cases PASS. Current537Worker tests cover domain writes, permissions and persistence. No remote human-session claim.
+
+### MB-QA-004 — Portal customer workflows
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-003
+- **Objective:** Portal customer workflows.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Real local Portal password login, profile save/readback/reload, support creation/readback and logout/replay401 PASS. Garage/history/membership/notification/support browser and real Worker regressions PASS. Remote human MFA remains pending.
+
+### MB-QA-005 — Workshop and partner workflows
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-004
+- **Objective:** Workshop and partner workflows.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Operational cursor UI retry/back tests and authorization-aware real D1 pages (>30with mixed invisibility) PASS; Workshop/Inspection/Parts/Marketplace Worker workflows PASS. Signed Development Parts canonical/offering/immutable-snapshot lifecycle and independent D1/Queue consistency PASS; machine scope not human MFA.
+
+### MB-QA-006 — Cross-module integration and error handling
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-005
+- **Objective:** Cross-module integration and error handling.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Full pnpm gate788tests PASS:208foundation/537Worker/5automation/38browser. Missing/malformed/network/403/stale/error cases, canonical deletion fault guard and replay, validation/version/idempotency/isolation regressions PASS. No known dependency vulnerabilities; boundaries/security/artifacts PASS.
+
+### MB-QA-007 — End-to-end regression and remote verification
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-006
+- **Objective:** End-to-end regression and remote verification.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Global stop rule; human-session browser validation may remain independently parked while automated work continues.
+- **Evidence:** Final local788test gate and Development API/frontend deployments plus anonymous protocol/browser, signed auth/Parts lifecycle/D1/Queue/analytics checks PASS. Final implementation33237dc passed [Platform CI38198741515](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38198741515) including full Worker/browser/history-secret gates. Remote human MFA validation is independently pending in QA-008; see functional ledger.
+
+### MB-QA-008 — Readiness assessment and PR closeout
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-007
+- **Objective:** Readiness assessment and PR closeout.
+- **Scope / required work:** Risk-based reproduction, root-cause correction, regression and authoritative persistence checks for implemented features; see FUNCTIONAL_STABILIZATION_PLAN.md.
+- **Relevant files/systems:** Admin/Portal/API, auth/domain contracts, browser/Worker tests, existing Development resources.
+- **Constraints:** Preserve approved UI, MFA/scopes and business policies; synthetic fixtures only, no staging/production or new paid services.
+- **Verification:** Executed regressions and permitted real Development checks with explicit limits; human MFA status recorded independently.
+- **Completion criteria:** Scoped reproducible defects resolved and evidence recorded; verification gaps never reported as passed.
+- **Human-action conditions:** Owner confirmation received 2026-10-12 in response to the requested normal Development login/MFA/logout/refresh/Back/new-login check: “Everything is fine, continue autonomously motorbaldi.” This is operator attestation, not independent browser observation or proof of every role/mutation. No further QA008 action is required; do not merge automatically.
+- **Evidence:** Owner-reported human validation accepted 2026-10-12 following the explicit secure browser request; no owner secrets or private screenshots collected. Seven reproduced stabilization defects remain fixed; subsequent full817 gate, Development rollout and final documentation head a0d41c9 [CI38242380502](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38242380502) PASS. Fresh PR1 OPEN/unmerged with green verify check; no universal role/mutation coverage or commercial/production-readiness claim. Detailed attestation and limitations in FUNCTIONAL_STABILIZATION_PLAN.md.
+
+## Owner-approved vehicle services workstream — 2026-10-11
+
+Independent of parked QA008/provider boundaries; detailed scope and evidence in [vehicle services plan](VEHICLE_SERVICES_EXECUTION_PLAN.md).
+
+### MB-VS-001 — Approved customer entitlements
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-QA-007
+- **Objective:** Approved customer entitlements.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** Approved shared prices/limits, canonical current entitlement and atomic Premium support gate implemented. Focused109realD1tests PASS across billing/support/vehicles/reminders; no role grants Premium.
+
+### MB-VS-002 — Premium upgrade experience
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-VS-001
+- **Objective:** Premium upgrade experience.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** Four viewport upgrade browser/axe/overflow checks PASS plus six existing Portal workflows. Actual1440/390screenshots reviewed; monthly/annual catalog prices and real pending request, no fake checkout. Main visually reviewed both images.
+
+### MB-VS-003 — Vehicle compliance and history
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-VS-002
+- **Objective:** Vehicle compliance and history.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** Canonical registration/edit/retirement, SOAT/RTM, append-only manual history and scoped Premium summary implemented.29vehicleWorker tests PASS including three reproduced authorization races; real local password/API/D1/browser persistence, limits and non-activating request PASS. Four viewport forms/axe/overflow and actual desktop/mobile review PASS. New commands registered centrally after real browser exposed missing idempotency registration.
+
+### MB-VS-004 — Expiry reminders
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-VS-003
+- **Objective:** Expiry reminders.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** Six realD1/Queue reminder regressions PASS: Free15/Premium30,15,7,1, consent/current permission/coverage/date revision, deduplication, bounded progress and actual Queue retry. Provider policy remains closed; UNAVAILABLE never delivery. Remote cron verification belongs to VS006.
+
+### MB-VS-005 — Unlimited assisted services
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-VS-004
+- **Objective:** Unlimited assisted services.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** 82support regressions PASS, including server/transaction Premium gate, unlimited eligible cases, immutable covered vehicle context, statutory Free channels, downgrade historical access and verified official interactive contact. Actual local support persisted browser readback PASS; no automatic WhatsApp claimed.
+
+### MB-VS-006 — Integrated verification and Development closeout
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-VS-005
+- **Objective:** Integrated verification and Development closeout.
+- **Scope / required work:** Approved Free/Premium directive; see VEHICLE_SERVICES_EXECUTION_PLAN.md.
+- **Relevant files/systems:** Billing, canonical vehicles, support, notifications, Portal and existing Development.
+- **Constraints:** Preserve roles/MFA/history/private media; unlimited assistance; no fake checkout/provider delivery; Development only.
+- **Verification:** Focused canonical domain/browser regressions; evidence recorded in detailed plan.
+- **Completion criteria:** Scoped implementation and executed evidence, with external delivery and human MFA limitations explicit.
+- **Human-action conditions:** Global boundaries only; independent work proceeds while unavailable providers and actual human MFA remain parked.
+- **Evidence:** Final817test pnpm gate PASS (208foundation/555Worker/5automation/49browser), four viewport axe/overflow and actual1440/390image review. Development0020–0023 and final API/Worker/Portal/Admin rollout PASS. Actual final-version cron/outbox/Queue Free15-only UNAVAILABLE/PROCESSED and independently checked fixture cleanup/FK/index PASS; deployed anonymous session/browser/origin/private denial and exact public pricing PASS. Implementation654a60f passed [CI38241277277](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38241277277), including history secret scan. PR1 OPEN/unmerged; owner-reported human validation subsequently closes QA008, while external payments/delivery remain separately parked. Detailed evidence in VEHICLE_SERVICES_EXECUTION_PLAN.md.
+
+### MB-VS-007 — External notification delivery verification
+
+- **Status:** HUMAN ACTION REQUIRED
+- **Dependencies:** MB-VS-006
+- **Objective:** Verify real configured external email/WhatsApp delivery without fabricated success.
+- **Scope / required work:** Approved provider integration, consent, idempotency/retry and actual delivery evidence for expiry reminders; monthly automatic summary delivery separately verified before claiming available.
+- **Relevant files/systems:** Existing notification policy, Messaging, canonical outbox/Queue, approved provider configuration and Development.
+- **Constraints:** No new paid services without approval, no owner secrets in chat, no production changes or weakening delivery/consent gates. Staffed interactive WhatsApp already works and is not blocked by this checkpoint.
+- **Verification:** Real approved provider acceptance/reconciliation/delivery and failure/retry tests; never infer delivery from cron or processed outbox.
+- **Completion criteria:** Actual configured-channel verification with retained privacy-safe audit and current consent, otherwise unavailable state remains explicit.
+- **Human-action conditions:** Owner selected Resend and Meta WhatsApp Cloud API on2026-10-12. Required authorized configuration/domain/template verification and secrets must be provided through approved secure infrastructure, not chat. External delivery policy stays closed until separate authorized activation/real verification. Resume engineering when the authorized integration is available; staffing is already approved.
+- **Evidence:** Final Development cron/Queue correctly records UNAVAILABLE/TRANSPORT_UNAVAILABLE. No external delivery was performed or claimed. Wompi remains MB-P5-005; QA008 is closed by owner attestation, not independently observed human automation.
+
+- **2026-10-12 Meta preparation evidence:** Owner reports app2211755326884841/WABA3073715739631435/v26.0, messages subscription/webhook200 and configured system token; named template/es remains PENDING. Actual anonymous deployed unsigned GET/POST403 corroborate webhook guards only. Added explicit APPROVED-template and hashed Development recipient-allowlist gates, hidden-input GET-only scope/app/WABA/template preflight, exact controlled verification runbook and SOAT/RTM cadence regressions. Full959gate PASS (309foundation/590Worker/5automation/55browser). No real send/general activation or Production change. Wrangler names-only inventory failed for unavailable Cloudflare authentication; source guards not yet deployed. Token scopes/asset access, actual recipient consent/Meta allowlist and E2E remain unverified. Restore authorized local Cloudflare access, deploy Worker with --keep-vars and inspect names; run read-only local preflight. Actual approval plus authorized no-cost account/recipient evidence and a reviewed exact-reminder expiring test permit are prerequisites to real E2E while general policy remains0; no such permit was activated or implemented here. Source CI follows.
+
+- **Subsequent autonomous recovery:** Cloudflare OAuth succeeded; names-only bindings and live redacted GET-only preview independently verify system token/app/both scopes/WABA phone/subscription/v26/es/UTILITY body1,2,3. Actual template PENDING, verified transactional WhatsApp opt-ins0. Found native fetch redirect:error incompatibility; Meta/Resend/Wompi corrected to manual/no-follow, Wompi3xx remain UNKNOWN. Full960 local gate plus final71focused Wompi/typecheck/lint PASS; final CI962 follows. Worker143290f8-2af5-4ce6-a576-60427c9a10a8/API85e10a4c-156d-4bb4-8f14-5c11eed6137b deployed with dashboard vars retained. Policy0/dispatch0, no sends/payments; preview closed. Login/token scopes are resolved. Approval, actual opted-in verified/Meta-allowlisted recipient and reviewed scoped test permission remain required; no general activation or E2E VERIFIED.
+
+- **2026-10-13 current evidence:** Actual GET-only Meta preview now verifies template APPROVED, valid SYSTEM_USER/app/both scopes/WABA phone/subscription/v26/es/UTILITY body3. Development API/Worker approval metadata retained with general policy0/permits0/deliveries0. Genuine verified opt-ins0. Resend API key/webhook secret names absent on both Workers. Approval is resolved; real consent/verified Meta-allowlisted recipient and scoped fresh-MFA controlled permit remain unavoidable prerequisites. No message sent or E2E delivery claimed.
+
+- **Owner recipient continuation:** Recipient reported enabled in Meta; hash-only Development allowlist provisioned on API/Worker, refreshed binding read matches, template APPROVED, controlled/general flags false. Matching canonical phone0/verified preferences0/permits0/deliveries0. Focused122 tests PASS. Genuine account-phone verification/transactional opt-in and human-MFA permit remain; no send/Production change. Status stays HUMAN ACTION REQUIRED, rather than claiming provider delivery from owner setup.
+
+### MB-VS-008 — Product reconciliation and independent provider preparation
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-VS-006
+- **Objective:** Reconcile approved product reality and complete independently implementable provider/Free self-service gaps.
+- **Scope / required work:** Ten-item evidence matrix; selected Resend/Meta Development transports, durable dispatch/status tracking and secure provisioning; genuine Free help/workshop discovery/contact gap corrections. External delivery verification remains VS007; Wompi remains P5-005.
+- **Relevant files/systems:** Messaging provider abstraction, canonical D1/outbox/Queue, Workshop domain, Portal, focused regressions and existing Development.
+- **Constraints:** No paid activation/live financial credentials, no fake delivery or CDA/insurance transaction, no production/DNS/merge; preserve identity/MFA/scopes/history.
+- **Verification:** Focused protocol/ledger/domain/browser tests, full gate, Development fail-closed and actual rendered checks, CI. Provider acceptance/delivery needs actual authorized external evidence before VERIFIED at VS007.
+- **Completion criteria:** Available engineering implementation and executed evidence, with per-feature external/remaining limits recorded accurately.
+- **Human-action conditions:** Global boundaries only; all independent preparation proceeds without Resend/Meta credentials/live number or Wompi keys. Supplied production Wompi credentials are unsuitable for Sandbox and are not used or recorded.
+- **Evidence:** Full936gate PASS (289foundation/588Worker/5automation/54browser), real LOCAL RTM/SOAT/workshop persistence and four viewport/visual review. Selected adapters, signed status tracking/early-callback convergence, secure hidden provisioning, consented Free help/workshop request/reply implemented. Development0024–0026/API/Worker/Portal and remote closed-gate/session/pricing/denial checks plus real cron/Queue/cleanup PASS; source7e0f48d CI38271964112 SUCCESS; final integrated947gate PASS (299foundation/588Worker/5automation/55browser), including billing catalog regression. Ten-item matrix and precise external limits in vehicle services plan.
+
+## Owner-authorized commercial engineering batch — 2026-10-13
+
+### MB-RL-001 — Payment, onboarding and release engineering
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-P5-004, MB-VS-008, MB-QA-008
+- **Objective:** Complete independent T06–T20/T21–T36 engineering while separately retaining actual provider/legal/Production boundaries.
+- **Scope / required work:** Owner V3 prioritizes Wompi Sandbox verification, gated Production code, Portal checkout, Resend/BetterAuth onboarding, scoped notification tests, authorization fixes, privacy foundations, monitoring/release/recovery preparation. Bounded subordinate tasks, not concurrent active checkpoints.
+- **Relevant files/systems:** Existing API/Portal/Worker, packages/payments/auth/messaging/organizations/workshops, canonical D1/audit/outbox, focused tests and docs/production/HUMAN_ACTIONS_REQUIRED.md.
+- **Constraints:** No Production deployment/activation/real money, general external messages, fake consent/provider success, new paid resources or PR merge. Approved prices/vehicle limits/unlimited assistance preserved.
+- **Verification:** Targeted high-risk regressions, coherent integration checks, one final local gate and exact-head CI; live Sandbox evidence only when actual authorized merchant conditions are satisfied.
+- **Completion criteria:** Implemented engineering and executed scoped evidence; external blockers remain explicit and do not falsely close remote validation.
+- **Human-action conditions:** Wompi callback/dashboard interaction, genuinely missing Cloudflare auth, Resend setup, Meta approval/consent, legal/policy and Production authorization. Owner says Sandbox4/4 provisioned; verify names/current environment without retrieving secrets.
+- **Evidence:** Start4b4dec0/baseline962 CI38321156089 SUCCESS. Owner restored OAuth; actual names-only Sandbox4/4 and GET-only merchant read PASS; remote D1 payments0/dispatches0/policy0/FKclean and callback negatives400. Integrated gated gateway/checkout/history, remote auth/resend/consent, controlled reminders, capability guards, export, metrics and release preparation pass focused checks. Final local351foundation/688Worker/5automation PASS; initial browser69/70, readiness-based shell correction8/8 PASS; exact-head CI acceptance remains. Development migration0027/API/Worker/Portal rollout and negative/closed-capability smoke PASS; no live financial/message/private-key result claimed. See latest PROJECT_STATE and HUMAN_ACTIONS_REQUIRED for precise acceptance boundaries.
+
+- **Closeout:** Source a086330 passes [CI38446339321](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38446339321): 351foundation/688Worker/5automation/70browser =1114 tests, all mandatory checks and history secret scan. Actual deployed anonymous mobile Chromium return check passes (forged query removed/login only/no error/no overflow). VERIFIED applies to this independent engineering/Development batch only; actual Sandbox payment cycles, external delivery, human onboarding and Production remain unverified. Recovery returns MB-P5-005 HUMAN ACTION REQUIRED; VS007 remains separately blocked.
+
+### MB-RL-002 — Interaction reliability and release preparation polish
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-RL-001, MB-P5-005
+- **Objective:** Correct reproducible Admin/Portal interaction gaps and improve safe unavailable-service/release preparation behavior.
+- **Scope / required work:** Premium owned-vehicle selection and assistance context, stale async/double-submit guards, honest communications/file availability, actionable artifact/config preparation.
+- **Relevant files/systems:** apps/admin, apps/portal, scripts/release, existing provider abstractions and focused tests
+- **Constraints:** Preserve UI/brand/business rules and server authorization; keep unscanned files private/unavailable, external delivery/release gates closed. No Production/provisioning/DNS/paid activation/merge.
+- **Verification:** Reproducing browser regressions, relevant unit/Worker checks, actual rendered inspection, integrated gate/CI, Development verification where applicable.
+- **Completion criteria:** Confirmed independent defects fixed and tested, release preparation accurately reports missing configuration; external acceptance remains separately parked.
+- **Human-action conditions:** None for independent source/Development work. Real sender/recipient verification, privileged MFA permit, antimalware and Production authorization remain existing separate boundaries.
+
+- **Evidence:** Source0e6240a [CI38623195021](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38623195021) SUCCESS:364foundation/703Worker/5automation/84browser=1156, mandatory static/security/dependency/OpenAPI/execution/artifact checks and full history secret scan. Corrected absolute build output validated for16 targets; all8 release runtime inventories complete,8 source origin/D1 deficiencies remain. Four viewport notification axe/overflow pass; final1440/390 synthetic images inspected after visual refinement. Development API48fbc5bf/Portal089ffda5/Admine548af47 --keep-vars rollout, native protocol guards and hosted anonymous Chromium1440/390 pass. VERIFIED applies only to scoped polish/preparation, not actual external delivery, phone ownership verification, generic external dispatch or Production readiness.

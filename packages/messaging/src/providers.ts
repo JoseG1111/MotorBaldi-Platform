@@ -66,7 +66,7 @@ const logicalId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/);
 const requestId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/);
 const providerReference = z
   .string()
-  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/);
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:=+/-]{0,255}$/);
 const abortSignal = z.custom<AbortSignal>(
   (value) => value instanceof AbortSignal,
 );

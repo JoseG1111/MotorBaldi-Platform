@@ -2,6 +2,11 @@
 // Retains a synthetic suspended subscription/audit history; never calls a payment provider.
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import {
+  assertApprovedDevelopmentPlans,
+  premiumVehicleLimit,
+  additionalVehicleFixtureCount,
+} from "./smoke-policy.mjs";
 
 const adminHost = "motorbaldi-admin-development.josegbarrios2.workers.dev";
 const portalHost = "motorbaldi-portal-development.josegbarrios2.workers.dev";
@@ -28,8 +33,8 @@ async function call(
   } = {},
 ) {
   assert(
-    !verifyOnly || body === undefined,
-    "Verify-only mode prohibits all POST requests",
+    (!verifyOnly && !anonymous) || body === undefined,
+    "Anonymous and verify-only modes prohibit all POST requests",
   );
   const response = await fetch(`https://${adminHost}/api/v1${path}`, {
     method: body === undefined ? "GET" : "POST",
@@ -85,7 +90,10 @@ async function syntheticVehicles() {
     );
     cursor = batch.nextCursor;
   }
-  return { readable: readable.slice(0, 3), inaccessible: inaccessible[0] };
+  return {
+    readable: readable.slice(0, additionalVehicleFixtureCount),
+    inaccessible: inaccessible[0],
+  };
 }
 async function main() {
   assert(
@@ -103,24 +111,17 @@ async function main() {
     "/billing/payment-capabilities",
   ])
     await call(path, undefined, { authenticated: false, status: 401 });
-  if (!verifyOnly && !gatewayClosed)
+  if (!anonymous && !verifyOnly && !gatewayClosed)
     await call(
       "/billing/subscriptions",
       { planCode: "ACOMPANAMIENTO_MONTHLY" },
       { authenticated: false, status: 401 },
     );
   const plans = (await read("/billing/plans")).items;
-  for (const [code, amount] of [
-    ["ACOMPANAMIENTO_MONTHLY", 2990000],
-    ["ACOMPANAMIENTO_ANNUAL", 28800000],
-  ]) {
-    const plan = plans.find((row) => row.code === code);
-    assert(
-      plan?.amount_minor === amount &&
-        plan.currency === "COP" &&
-        plan.vehicle_limit === 2,
-      "Owner-approved server plan mismatch",
-    );
+  try {
+    assertApprovedDevelopmentPlans(plans);
+  } catch {
+    throw new SmokeError("Owner-approved server plan mismatch");
   }
   for (const [host, markers] of [
     [adminHost, ["billing-detail", "commissions-detail"]],
@@ -323,36 +324,36 @@ async function main() {
       console.log(
         "SKIP existing inaccessible synthetic vehicle fixture unavailable.",
       );
-    for (const vehicleId of fixtures.readable.slice(0, 2)) {
+    for (const vehicleId of fixtures.readable.slice(0, premiumVehicleLimit)) {
       state = await own();
       await call(`/billing/subscriptions/${id}/vehicles`, {
         version: state.subscription.version,
         vehicleId,
       });
     }
-    if (fixtures.readable.length === 3) {
+    if (fixtures.readable.length >= additionalVehicleFixtureCount) {
       state = await own();
       await call(
         `/billing/subscriptions/${id}/vehicles`,
         {
           version: state.subscription.version,
-          vehicleId: fixtures.readable[2],
+          vehicleId: fixtures.readable[premiumVehicleLimit],
         },
         { status: 409 },
       );
       assert(
         (await own()).subscription.version === state.subscription.version &&
-          (await own()).vehicles.length === 2,
+          (await own()).vehicles.length === premiumVehicleLimit,
         "Vehicle limit rejection mutated state",
       );
       console.log(
-        "PASS two-vehicle limit with existing exact-authorized fixtures.",
+        `PASS ${premiumVehicleLimit}-vehicle limit with existing exact-authorized fixtures.`,
       );
     } else
       console.log(
-        "SKIP two-vehicle limit: three readable synthetic fixtures required.",
+        `SKIP ${premiumVehicleLimit}-vehicle limit: ${additionalVehicleFixtureCount} readable synthetic fixtures required.`,
       );
-    for (const vehicleId of fixtures.readable.slice(0, 2)) {
+    for (const vehicleId of fixtures.readable.slice(0, premiumVehicleLimit)) {
       state = await own();
       assert(
         state.vehicles.some((row) => row.vehicle_id === vehicleId),

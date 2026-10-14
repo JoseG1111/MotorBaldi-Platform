@@ -21,6 +21,7 @@ import m14 from "../../migrations/0014_notifications.sql?raw";
 import m15 from "../../migrations/0015_support.sql?raw";
 import m16 from "../../migrations/0016_support_history_boundary.sql?raw";
 
+import m20 from "../../migrations/0020_customer_plans.sql?raw";
 const db = (env as unknown as ApiBindings).DB;
 const worker = (
   workerExports as unknown as { default: ExportedHandler<ApiBindings> }
@@ -218,6 +219,7 @@ beforeAll(async () => {
     m14,
     m15,
     m16,
+    m20,
   ])
     await db.exec(migration.replace(/--[^\n]*/g, "").replace(/\n/g, " "));
   await db
@@ -239,6 +241,7 @@ beforeAll(async () => {
 const customer = "/me/support-cases",
   staff = "/admin/support-cases";
 const creation = {
+  purpose: "ACCOUNT",
   subject: "Solicitud general",
   body: "Necesito ayuda con mi cuenta.",
 };
@@ -252,6 +255,31 @@ async function create(client = owner) {
   };
 }
 describe("support API with current customer and verified MFA staff sessions", () => {
+  it("exposes honest assistance availability without a Free WhatsApp entitlement", async () => {
+    expect((await request(null, "/me/assistance")).status).toBe(401);
+    const response = await request(owner, "/me/assistance");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      premium: false,
+      channel: null,
+      automatedDelivery: false,
+    });
+  });
+  it("enforces Premium for technical assistance independently of platform staff roles", async () => {
+    for (const client of [owner, admin])
+      for (const purpose of ["TECHNICAL", "VEHICLE_ASSISTANCE"]) {
+        const response = await request(
+          client,
+          customer,
+          { ...creation, purpose },
+          newId(),
+        );
+        expect(response.status).toBe(403);
+        expect(await response.json()).toMatchObject({
+          code: "PREMIUM_REQUIRED",
+        });
+      }
+  });
   it("requires authentication and trusted Origin/idempotency for mutations", async () => {
     expect((await request(null, customer)).status).toBe(401);
     expect((await request(null, staff)).status).toBe(401);

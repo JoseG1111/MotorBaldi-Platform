@@ -1,6 +1,12 @@
 import { z } from "zod";
+import {
+  hasVehiclePermission,
+  customerVehicleState,
+} from "@motorbaldi/vehicles";
 import { Problem, type Principal } from "@motorbaldi/contracts";
 import {
+  customerPremiumPredicate,
+  getCustomerEntitlements,
   outboxStatement,
   type EventRegistry,
   type PreparedCommand,
@@ -24,6 +30,18 @@ const base = {
 const schemas = {
   "support.case.create": z
     .object({
+      purpose: z
+        .enum([
+          "TECHNICAL",
+          "VEHICLE_ASSISTANCE",
+          "PRIVACY",
+          "SECURITY",
+          "ACCOUNT",
+          "COMPLAINT",
+        ])
+        .optional()
+        .default("TECHNICAL"),
+      vehicleId: id.nullable().optional().default(null),
       subject: text(200),
       body: text(4000),
       previousCaseId: id.nullable().optional().default(null),
@@ -61,6 +79,7 @@ export function parseSupportCommand(
     );
   return result.data;
 }
+const coveredVehicle = `EXISTS(SELECT 1 FROM vehicle_vehicles target JOIN vehicle_relationships own ON own.vehicle_id=target.id WHERE target.id=? AND own.person_id=? AND own.relationship_type='OWNER' AND own.ended_at IS NULL AND own.effective_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now') AND EXISTS(SELECT 1 FROM vehicle_access_grants g WHERE g.vehicle_id=target.id AND g.permission_code='vehicle.read' AND g.revoked_at IS NULL AND g.granted_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now') AND (g.expires_at IS NULL OR g.expires_at>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND (g.person_id=own.person_id OR EXISTS(SELECT 1 FROM org_memberships m JOIN org_organizations o ON o.id=m.organization_id WHERE m.person_id=own.person_id AND m.organization_id=g.organization_id AND m.status='ACTIVE' AND o.status='ACTIVE' AND m.valid_from<=strftime('%Y-%m-%dT%H:%M:%fZ','now') AND (m.valid_to IS NULL OR m.valid_to>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND (g.location_id IS NULL OR (m.location_scope_type='ALL_LOCATIONS' AND EXISTS(SELECT 1 FROM org_locations l WHERE l.id=g.location_id AND l.organization_id=g.organization_id AND l.status='ACTIVE')) OR EXISTS(SELECT 1 FROM org_membership_locations ml JOIN org_locations l ON l.id=ml.location_id AND l.organization_id=ml.organization_id WHERE ml.membership_id=m.id AND ml.organization_id=m.organization_id AND ml.location_id=g.location_id AND l.status='ACTIVE'))))) AND (SELECT COUNT(*) FROM vehicle_vehicles v WHERE EXISTS(SELECT 1 FROM vehicle_relationships r WHERE r.vehicle_id=v.id AND r.person_id=own.person_id AND r.relationship_type='OWNER' AND r.ended_at IS NULL AND r.effective_at<=strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND (v.created_at,v.id)<=(target.created_at,target.id))<=3)`;
 const active = `EXISTS(SELECT 1 FROM iam_accounts a JOIN iam_people p ON p.id=a.person_id WHERE a.id=? AND a.person_id=? AND a.status='ACTIVE' AND p.status='ACTIVE')`;
 const staffRole = `EXISTS(SELECT 1 FROM platform_person_roles pr JOIN authz_roles r ON r.id=pr.role_id WHERE pr.person_id=? AND r.scope='PLATFORM' AND r.code IN ('SUPPORT_AGENT','PLATFORM_SUPERADMIN') AND EXISTS(SELECT 1 FROM iam_accounts a JOIN auth_users u ON u.id=a.id JOIN auth_two_factors tf ON tf.user_id=u.id WHERE a.person_id=pr.person_id AND a.status='ACTIVE' AND u.email_verified=1 AND u.two_factor_enabled=1 AND tf.verified=1))`;
 const eligible = `EXISTS(SELECT 1 FROM iam_accounts a JOIN iam_people p ON p.id=a.person_id JOIN platform_person_roles pr ON pr.person_id=p.id JOIN authz_roles r ON r.id=pr.role_id WHERE p.id=? AND p.status='ACTIVE' AND a.status='ACTIVE' AND EXISTS(SELECT 1 FROM auth_users u WHERE u.id=a.id AND u.email_verified=1 AND u.two_factor_enabled=1 AND EXISTS(SELECT 1 FROM auth_two_factors tf WHERE tf.user_id=u.id AND tf.verified=1)) AND r.scope='PLATFORM' AND r.code IN ('SUPPORT_AGENT','PLATFORM_SUPERADMIN'))`;
@@ -118,6 +137,23 @@ export async function authorizeSupportCommand(
     staff = body.staff === true;
   await requireActor(db, actor, staff);
   if (operation === "support.case.create") {
+    if (
+      ["TECHNICAL", "VEHICLE_ASSISTANCE"].includes(String(body.purpose)) &&
+      !(await getCustomerEntitlements(db, actor)).premium
+    )
+      throw new Problem(
+        403,
+        "PREMIUM_REQUIRED",
+        "MotorBaldi Premium incluye la asistencia personalizada. Las solicitudes de privacidad, seguridad, cuenta y reclamaciones siguen disponibles en Gratis.",
+      );
+    if (body.purpose === "VEHICLE_ASSISTANCE" && !body.vehicleId)
+      throw new Problem(
+        400,
+        "ASSISTANCE_VEHICLE_REQUIRED",
+        "Selecciona el vehículo para la solicitud de asistencia.",
+      );
+    if (body.vehicleId)
+      await assistanceOverview(db, actor, String(body.vehicleId));
     if (body.previousCaseId) {
       const prior = await caseRow(
         db,
@@ -184,17 +220,25 @@ export async function prepareSupportCommand(
     statements.push(
       db
         .prepare(
-          `INSERT INTO support_cases(id,account_id,previous_case_id,subject,status,version,created_at,updated_at,last_actor_account_id) SELECT ?,?,?,?,'OPEN',1,?,?,? WHERE ${active} AND (? IS NULL OR EXISTS(SELECT 1 FROM support_cases WHERE id=? AND account_id=?))`,
+          `INSERT INTO support_cases(id,account_id,previous_case_id,subject,purpose,vehicle_id,status,version,created_at,updated_at,last_actor_account_id) SELECT ?,?,?,?,?,?,'OPEN',1,?,?,? WHERE ${active} AND (? NOT IN ('TECHNICAL','VEHICLE_ASSISTANCE') OR ${customerPremiumPredicate}) AND (? IS NULL OR ${coveredVehicle}) AND (? IS NULL OR EXISTS(SELECT 1 FROM support_cases WHERE id=? AND account_id=?))`,
         )
         .bind(
           caseId,
           actor.accountId,
           body.previousCaseId as string | null,
           String(body.subject),
+          String(body.purpose),
+          body.vehicleId as string | null,
           now,
           now,
           actor.accountId,
           ...actorBindings,
+          String(body.purpose),
+          actor.accountId,
+          actor.personId,
+          body.vehicleId as string | null,
+          body.vehicleId as string | null,
+          actor.personId,
           body.previousCaseId as string | null,
           body.previousCaseId as string | null,
           actor.accountId,
@@ -311,6 +355,8 @@ type SupportRow = {
   account_id: string;
   previous_case_id: string | null;
   subject: string;
+  purpose: string;
+  vehicle_id: string | null;
   status: string;
   assignee_person_id: string | null;
   version: number;
@@ -326,6 +372,8 @@ function present(row: SupportRow) {
     accountId: row.account_id,
     previousCaseId: row.previous_case_id,
     subject: row.subject,
+    purpose: row.purpose,
+    vehicleId: row.vehicle_id,
     status: row.status,
     assigneePersonId: row.assignee_person_id,
     version: row.version,
@@ -437,5 +485,41 @@ export async function getSupportCase(
         action: h.action,
         createdAt: h.created_at,
       })),
+  };
+}
+
+/** Official public contact verified from motorbaldi.com on 2026-10-11.
+ * Click-to-chat opens a customer-initiated conversation; it is not automated delivery. */
+const officialAssistanceWhatsapp = "https://wa.me/573104602615";
+export async function assistanceOverview(
+  db: D1Database,
+  actor: Actor,
+  vehicleId?: string,
+) {
+  const entitlements = await getCustomerEntitlements(db, actor);
+  if (vehicleId) {
+    const parsed = id.parse(vehicleId);
+    if (!(await hasVehiclePermission(db, actor, parsed, "vehicle.read")))
+      throw new Problem(404, "VEHICLE_UNAVAILABLE", "Vehículo no disponible");
+    const state = await customerVehicleState(db, actor, parsed);
+    if (!state.owned || !state.writable)
+      throw new Problem(
+        403,
+        "ASSISTANCE_VEHICLE_NOT_COVERED",
+        "La asistencia corresponde a tus vehículos cubiertos por el plan.",
+      );
+  }
+  return {
+    premium: entitlements.premium,
+    requestQuota: entitlements.premium ? null : 0,
+    ...(vehicleId ? { vehicleId } : {}),
+    channel: entitlements.premium
+      ? { type: "WHATSAPP_CLICK_TO_CHAT", url: officialAssistanceWhatsapp }
+      : null,
+    automatedDelivery: false,
+    availability:
+      "Confirma con el equipo los horarios y la disponibilidad de atención. No es un servicio 24/7.",
+    scope:
+      "Orientación y coordinación de solicitudes elegibles ilimitadas. No incluye reparaciones, seguros, inspecciones, atención de emergencias ni garantiza resultados de terceros.",
   };
 }

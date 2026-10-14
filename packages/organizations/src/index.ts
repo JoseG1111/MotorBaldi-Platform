@@ -370,7 +370,37 @@ export async function setCapabilities(
     if (registered.results.length !== codes.length)
       throw new Problem(400, "INVALID_CAPABILITIES", "Unknown capability");
   }
+  const previous = (
+    await db
+      .prepare(
+        "SELECT code FROM org_capabilities WHERE organization_id=? ORDER BY code",
+      )
+      .bind(organizationId)
+      .all<{ code: string }>()
+  ).results.map((row) => row.code);
+  // The audit guard aborts the entire replacement if authority or the observed set changed before commit.
   const statements = [
+    db
+      .prepare(
+        `INSERT INTO governance_audit_events(id,actor_id,action,resource_type,resource_id,organization_id,request_id)
+      VALUES(?,?,'organization.capabilities.updated','organization',CASE WHEN
+      EXISTS(SELECT 1 FROM iam_accounts a JOIN iam_people p ON p.id=a.person_id JOIN org_memberships m ON m.person_id=p.id JOIN org_organizations o ON o.id=m.organization_id JOIN org_membership_roles mr ON mr.membership_id=m.id JOIN authz_roles r ON r.id=mr.role_id AND r.scope='ORGANIZATION' JOIN authz_role_permissions rp ON rp.role_id=r.id
+      WHERE a.id=? AND p.id=? AND a.status='ACTIVE' AND p.status='ACTIVE' AND o.id=? AND o.status='ACTIVE' AND m.status='ACTIVE' AND m.valid_from<=strftime('%Y-%m-%dT%H:%M:%fZ','now') AND (m.valid_to IS NULL OR m.valid_to>strftime('%Y-%m-%dT%H:%M:%fZ','now')) AND rp.permission_code='org.capability.manage')
+      AND (SELECT json_group_array(code) FROM (SELECT code FROM org_capabilities WHERE organization_id=? ORDER BY code))=?
+      THEN ? ELSE NULL END,?,?)`,
+      )
+      .bind(
+        newId(),
+        actor.accountId,
+        actor.accountId,
+        actor.personId,
+        organizationId,
+        organizationId,
+        JSON.stringify(previous),
+        organizationId,
+        organizationId,
+        requestId,
+      ),
     db
       .prepare("DELETE FROM org_capabilities WHERE organization_id=?")
       .bind(organizationId),
@@ -383,17 +413,12 @@ export async function setCapabilities(
         )
         .bind(organizationId, code),
     );
-  statements.push(
-    auditStatement(db, {
-      actorId: actor.accountId,
-      action: "organization.capabilities.updated",
-      resourceType: "organization",
-      resourceId: organizationId,
-      organizationId,
-      requestId,
-    }),
-  );
-  await db.batch(statements);
+  await guardedBatch(db, statements, {
+    table: "governance_audit_events",
+    column: "resource_id",
+    code: "ORGANIZATION_CAPABILITIES_CONFLICT",
+    message: "Capability authority or configuration changed",
+  });
 }
 function randomToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(32));

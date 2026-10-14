@@ -1,0 +1,2 @@
+CREATE INDEX vehicle_manual_maintenance_person ON vehicle_manual_maintenance(recorded_by_person_id);
+CREATE INDEX vehicle_compliance_due ON vehicle_compliance_entries(expires_on,vehicle_id,document_type);

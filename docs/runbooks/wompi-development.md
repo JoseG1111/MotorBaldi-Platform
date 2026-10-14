@@ -4,7 +4,7 @@ Canonical decisions: [Phase 5 billing contract](../architecture/phase-5-membersh
 
 ## Current technical integration
 
-The API gateway supports **SANDBOX only**. Production and recurring execution are always unavailable. Without all four valid sandbox bindings, checkout and provider processing return `503 PAYMENTS_UNAVAILABLE`; membership benefits never activate from a redirect or client price/status. Customer capabilities contain flags only, never keys. Selecting a plan creates a pending request without a charge.
+Development uses **SANDBOX only**. Production-capable source exists behind the separate disabled release gate; Production activation and recurring execution remain unavailable. Without all four valid sandbox bindings, checkout and provider processing return `503 PAYMENTS_UNAVAILABLE`; membership benefits never activate from a redirect or client price/status. Customer capabilities contain flags only, never keys. Selecting a plan creates a pending request without a charge.
 
 Hosted checkout reserves a D1 payment/period with server-resolved money. Generic replay does not override the current ledger: signing rereads ownership, eligibility and payment status. The signed URL uses Wompi's fixed HTTPS host and a 15-minute expiry. A PENDING/UNKNOWN/APPROVED reservation cannot be offered again as a new charge. Initial payment uses the pending price snapshot; a manual renewal snapshots the current plan. Annual periods are calendar years with one payment.
 
@@ -23,7 +23,13 @@ Sandbox credentials must be available from an authorized Wompi merchant dashboar
 - `WOMPI_INTEGRITY_SECRET` — sandbox checkout integrity secret.
 - `WOMPI_EVENTS_SECRET` — sandbox event validation secret.
 
-Use `pnpm exec wrangler secret put NAME --config apps/api/wrangler.jsonc --env development` for each name. Optional `WOMPI_ENVIRONMENT` must equal `SANDBOX`; omission defaults to sandbox. No production key is accepted by this gateway. Configuring secrets changes checkout availability and must be followed by the remote scenario matrix, not a fabricated successful payment.
+Run this single local provisioning procedure from an interactive terminal:
+
+```bash
+python3 scripts/billing/provision-development-sandbox.py
+```
+
+It prompts invisibly for all four values, validates Sandbox prefixes before writing any binding, then passes each secret exclusively through Wrangler stdin to the existing Development API. Values never enter arguments, environment variables, files or output; failures are redacted. Production-format keys are rejected. The supplied production keys were not used, copied or provisioned. Alternatively use the authorized Cloudflare Development API secret-management interface with the four names above. Optional WOMPI_ENVIRONMENT must equal SANDBOX; omission defaults to sandbox. Provisioning is not a successful payment test.
 
 Configure the merchant **sandbox** event URL to `https://motorbaldi-api-development.josegbarrios2.workers.dev/api/v1/payments/wompi/events`. Manual dashboard interaction is a genuine human-action boundary when no authorized merchant session/credentials exist. It does not justify weakening verification or blocking unrelated implementation.
 
@@ -33,8 +39,41 @@ Focused provider, gateway and D1 tests use synthetic **local** official-protocol
 
 After credentials/onboarding, verify sandbox checkout and authoritative provider confirmation, annual/monthly prices, duplicate notifications, signature/amount/environment mismatch, pending/declined/error outcomes, explicit manual renewal timing, cancellation cutoff, expiry, privilege/MFA/ownership denial, financial audit/outbox/Queue convergence and reconciliation. Use only [official sandbox data](https://docs.wompi.co/docs/colombia/datos-de-prueba-en-sandbox/) and the current [Wompi protocols](https://docs.wompi.co/docs/colombia/transacciones/). Do not create another customer account to bypass existing state or automatically charge a saved source.
 
-`node scripts/billing/development-smoke.mjs --verify-only` reads an existing assured Development session via stdin and performs GET requests only. `--gateway-closed` additionally checks known rejection responses when capabilities are disabled and compares financial snapshots unchanged. The ordinary synthetic membership smoke creates an explicitly finite administrative test entitlement, removes coverage and suspends its own subscription; it does not claim a payment or antimalware verification. Missing three accessible fixtures means the remote two-vehicle-limit scenario is explicitly skipped; its local regression remains evidence only for local behavior.
+`node scripts/billing/development-smoke.mjs --verify-only` reads an existing assured Development session via stdin and performs GET requests only. `--gateway-closed` additionally checks known rejection responses when capabilities are disabled and compares financial snapshots unchanged. The ordinary synthetic membership smoke creates an explicitly finite administrative test entitlement, removes coverage and suspends its own subscription; it does not claim a payment or antimalware verification. Missing four accessible fixtures means the remote three-vehicle-limit (fourth vehicle rejected) scenario is explicitly skipped; its local regression remains evidence only for local behavior.
 
 ## Outstanding production policies
 
-Tax treatment, refunds, grace periods, payment retries, final vehicle limits, recurring authorization and partner commission rates/settlement rules require approval before live billing. Development uses no automatic retries/refunds/proration/grace/partner settlement and no invented rates. Cancellation/dispute/refund-related commission corrections are immutable manual adjustments and settlement dispute tracking, not provider refunds. Real antimalware stays owner-deferred; private R2/quarantine and the prohibition on external production access to unscanned files remain in force.
+Tax treatment, refunds, grace periods, payment retries, recurring authorization and partner commission rates/settlement rules require approval before live billing. Development uses no automatic retries/refunds/proration/grace/partner settlement and no invented rates. Cancellation/dispute/refund-related commission corrections are immutable manual adjustments and settlement dispute tracking, not provider refunds. Real antimalware stays owner-deferred; private R2/quarantine and the prohibition on external production access to unscanned files remain in force.
+
+## Development Sandbox acceptance — 2026-10-13
+
+All four bindings are installed and were retained. Cloudflare OAuth and the real merchant read pass. The configured event URL has delivered genuine signed provider callbacks. Actual private-key transaction reads pass; secrets were never retrieved or printed.
+
+Owner authorizes isolated synthetic customers and autonomous Sandbox transactions. Use the audited fixture harness:
+
+```bash
+node scripts/billing/sandbox-customer-browser.mjs development --execute MONTHLY
+node scripts/billing/sandbox-customer-browser.mjs development --execute ANNUAL
+```
+
+The harness provisions only a nonprivileged synthetic customer through canonical credential tables, then signs in normally through Better Auth. The ephemeral password stays in memory. Operator-set verified email is explicitly audited test provisioning, not evidence of real email delivery/public registration. No sessions are minted, staff permissions assigned, organization membership added or customer consent fabricated. Final cleanup revokes sessions, clears credentials and suspends the test account while preserving financial/domain/audit history. Guarded `--resume-approved`, `--resume-voided` and `--account-only` modes support continuation on these exact audited fixtures, never owner/shared accounts.
+
+Use only official Sandbox test data through the rendered provider checkout; no real card or real-money transaction. Official card4242 approval and card4111 decline, plus the asynchronous Bancolombia simulator, were exercised. Never log checkout URLs, signatures, session cookies or card values. The harness validates trusted provider origin, pub_test prefix, COP and authoritative configured amounts.
+
+| Scenario                                        | Actual evidence                                                                                                                           |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Monthly COP29,900 APPROVED                      | Transaction12190145-1791922785-91817; callback/private reconciliation, confirmation, PAID period, ACTIVE subscription and Portal Premium3 |
+| Annual COP288,000 APPROVED                      | Transaction12190145-1791923051-59015; same authoritative pipeline and annual period                                                       |
+| Monthly DECLINED                                | Transaction12190145-1791923367-73991; no confirmation or paid entitlement                                                                 |
+| Awaiting asynchronous bank decision, then ERROR | No early Premium; final authentic ERROR callback, no confirmation                                                                         |
+| Monthly manual renewal APPROVED                 | Transaction12190145-1791924997-68514; paid end2026-12-13 and retained history                                                             |
+| Cancellation at period end                      | Persisted flag1, paid benefits/history retained; no automatic recurring charge                                                            |
+| Annual Sandbox VOID                             | HTTP201, private GET VOIDED, actual callback; Free entitlement with all3 vehicles/history retained and only oldest vehicle writable       |
+
+A controlled signed-transport exercise grounded in an actually privately re-read approved transaction returned202 for duplicate/replay/delayed observations,409 for signed wrong amount/reference/status,400 for invalid signature/wrong environment; financial snapshot unchanged. These controlled callbacks are distinct from genuine provider-origin retry evidence. Clock expiry, timeout and authorization boundaries also have deterministic local tests; no simulated scenario is labelled live provider verification.
+
+Live testing exposed BUG-QA-008 (stale membership refresh overwrote cancellation controls) and BUG-QA-009 (voided historical periods delayed a later purchase). Generation guards and funded-cutoff/atomicity regressions are implemented. Actual annual recovery transaction12190145-1791935855-30439 starts2026-10-13T23:57:44.016Z, immediately restores Premium3 and all3 writable vehicles/history6. Integrated final gate is tracked in CURRENT_CHECKPOINT; do not infer closeout from this runbook alone.
+
+Production checkout remains gated by platform production, WOMPI_ENVIRONMENT=PRODUCTION, correctly prefixed secrets and WOMPI_PRODUCTION_RELEASE_AUTHORIZED=true. Keep release authorization disabled and rotate/revoke previously exposed Production credentials before any live activation. Tax/refund/grace/automatic renewal/settlement policies and commercial acceptance remain separate owner boundaries. The provider void was an authorized fake-money Sandbox test, not activation of a commercial refund policy.
+
+PAYMENTS_RETURN_URL must equal the approved Portal origin plus /payment-return. Development uses https://motorbaldi-portal-development.josegbarrios2.workers.dev/payment-return. The return page discards provider parameters and reloads authoritative state; client return claims never activate Premium. No Production or general external messaging was changed.

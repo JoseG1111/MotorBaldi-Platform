@@ -8,67 +8,127 @@ import {
   wompiIntegritySignature,
   applyWompiTransaction,
   type WompiTransaction,
+  type WompiEnvironment,
 } from "@motorbaldi/payments";
 import { sha256Hex } from "@motorbaldi/shared";
 
-/** Credentials belong exclusively to Worker bindings; production is deliberately unsupported by this gateway. */
+/** Credentials and the separately authorized production release gate belong exclusively to Worker bindings. */
 export type PaymentGatewayBindings = {
   DB: D1Database;
   ENVIRONMENT: "local" | "development" | "staging" | "production";
+  CORS_ORIGINS?: string;
+  PAYMENTS_RETURN_URL?: string;
   WOMPI_ENVIRONMENT?: string;
+  WOMPI_PRODUCTION_RELEASE_AUTHORIZED?: string;
   WOMPI_PUBLIC_KEY?: string;
   WOMPI_PRIVATE_KEY?: string;
   WOMPI_INTEGRITY_SECRET?: string;
   WOMPI_EVENTS_SECRET?: string;
 };
 type Actor = Principal & { personId: string };
-function sandboxCredentials(bindings: PaymentGatewayBindings) {
+function gatewayCredentials(bindings: PaymentGatewayBindings) {
+  const production = bindings.ENVIRONMENT === "production";
+  const environment: WompiEnvironment = production ? "PRODUCTION" : "SANDBOX";
   if (
-    !["local", "development", "staging"].includes(bindings.ENVIRONMENT) ||
-    (bindings.WOMPI_ENVIRONMENT !== undefined &&
-      bindings.WOMPI_ENVIRONMENT !== "SANDBOX")
+    (production &&
+      (bindings.WOMPI_ENVIRONMENT !== "PRODUCTION" ||
+        bindings.WOMPI_PRODUCTION_RELEASE_AUTHORIZED !== "true")) ||
+    (!production &&
+      (!["local", "development", "staging"].includes(bindings.ENVIRONMENT) ||
+        (bindings.WOMPI_ENVIRONMENT !== undefined &&
+          bindings.WOMPI_ENVIRONMENT !== "SANDBOX")))
   )
     throw new Problem(
       503,
       "PAYMENTS_UNAVAILABLE",
-      "Sandbox payment gateway unavailable",
+      "Payment gateway unavailable",
     );
-  const key = (value: string | undefined, prefix: string) => {
+  const prefix = production ? "prod" : "test";
+  const key = (value: string | undefined, expected: string) => {
     if (
       !value ||
-      !new RegExp("^" + prefix + "[A-Za-z0-9_-]{1,256}$").test(value)
+      !new RegExp("^" + expected + "[A-Za-z0-9_-]{1,256}$").test(value)
     )
       throw new Problem(
         503,
         "PAYMENTS_UNAVAILABLE",
-        "Sandbox payment gateway unavailable",
+        "Payment gateway unavailable",
       );
     return value;
   };
   return {
-    publicKey: key(bindings.WOMPI_PUBLIC_KEY, "pub_test_"),
-    privateKey: key(bindings.WOMPI_PRIVATE_KEY, "prv_test_"),
-    integritySecret: key(bindings.WOMPI_INTEGRITY_SECRET, "test_integrity_"),
-    eventsSecret: key(bindings.WOMPI_EVENTS_SECRET, "test_events_"),
+    environment,
+    productionApproved: production,
+    publicKey: key(bindings.WOMPI_PUBLIC_KEY, "pub_" + prefix + "_"),
+    privateKey: key(bindings.WOMPI_PRIVATE_KEY, "prv_" + prefix + "_"),
+    integritySecret: key(
+      bindings.WOMPI_INTEGRITY_SECRET,
+      prefix + "_integrity_",
+    ),
+    eventsSecret: key(bindings.WOMPI_EVENTS_SECRET, prefix + "_events_"),
   };
 }
-export function sandboxPaymentsConfigured(bindings: PaymentGatewayBindings) {
+export function paymentsConfigured(bindings: PaymentGatewayBindings) {
   try {
-    sandboxCredentials(bindings);
+    gatewayCredentials(bindings);
     return true;
   } catch {
     return false;
   }
 }
-/** Public capability metadata contains no credential values and never promises recurrence or production readiness. */
+function checkoutReturnUrl(bindings: PaymentGatewayBindings) {
+  const raw = bindings.PAYMENTS_RETURN_URL;
+  try {
+    if (!raw) throw new Error("Missing return URL");
+    const url = new URL(raw);
+    const trusted = (bindings.CORS_ORIGINS ?? "")
+      .split(",")
+      .map((origin) => origin.trim());
+    const localHttp =
+      bindings.ENVIRONMENT === "local" &&
+      url.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if (
+      (url.protocol !== "https:" && !localHttp) ||
+      !trusted.includes(url.origin) ||
+      raw !== url.origin + "/payment-return"
+    )
+      throw new Error("Invalid return URL");
+    return raw;
+  } catch {
+    throw new Problem(
+      503,
+      "PAYMENTS_UNAVAILABLE",
+      "Payment checkout unavailable",
+    );
+  }
+}
+/** Checkout additionally requires a fixed trusted Portal return destination; reconciliation stays independent. */
+export function checkoutConfigured(bindings: PaymentGatewayBindings) {
+  try {
+    gatewayCredentials(bindings);
+    checkoutReturnUrl(bindings);
+    return true;
+  } catch {
+    return false;
+  }
+}
+/** Compatibility helper remains sandbox-specific; use paymentsConfigured for gated production support. */
+export function sandboxPaymentsConfigured(bindings: PaymentGatewayBindings) {
+  return bindings.ENVIRONMENT !== "production" && paymentsConfigured(bindings);
+}
+/** Public capability metadata contains no credential values and never promises recurrence. */
 export function paymentGatewayCapabilities(bindings: PaymentGatewayBindings) {
-  const available = sandboxPaymentsConfigured(bindings);
+  const available = paymentsConfigured(bindings);
   return {
-    environment: "SANDBOX",
-    checkoutAvailable: available,
+    environment:
+      bindings.ENVIRONMENT === "production"
+        ? ("PRODUCTION" as const)
+        : ("SANDBOX" as const),
+    checkoutAvailable: checkoutConfigured(bindings),
     manualReconciliationAvailable: available,
     recurringAvailable: false,
-    productionAvailable: false,
+    productionAvailable: available && bindings.ENVIRONMENT === "production",
   };
 }
 const checkoutReservation = z
@@ -92,7 +152,8 @@ export async function buildHostedCheckout(
   reservation: { subscriptionId: string; paymentId: string },
 ) {
   const input = checkoutReservation.parse(reservation),
-    keys = sandboxCredentials(bindings);
+    keys = gatewayCredentials(bindings),
+    returnUrl = checkoutReturnUrl(bindings);
   await authorizeCheckout(bindings.DB, actor, {
     subscriptionId: input.subscriptionId,
   });
@@ -105,11 +166,11 @@ export async function buildHostedCheckout(
     .first<Payment>();
   if (!payment)
     throw new Problem(404, "PAYMENT_NOT_FOUND", "Payment unavailable");
-  if (payment.provider_environment !== "SANDBOX")
+  if (payment.provider_environment !== keys.environment)
     throw new Problem(
       503,
       "PAYMENTS_UNAVAILABLE",
-      "Sandbox payment gateway unavailable",
+      "Payment gateway unavailable",
     );
   const response = {
     paymentId: payment.id,
@@ -133,7 +194,7 @@ export async function buildHostedCheckout(
     );
   const expirationTime = new Date(Date.now() + 15 * 60_000).toISOString();
   const signature = await wompiIntegritySignature({
-    environment: "SANDBOX",
+    environment: keys.environment,
     reference: payment.reference,
     amountMinor: payment.amount_minor,
     currency: "COP",
@@ -143,6 +204,7 @@ export async function buildHostedCheckout(
   const url = new URL("https://checkout.wompi.co/p/");
   for (const [name, value] of Object.entries({
     "public-key": keys.publicKey,
+    "redirect-url": returnUrl,
     currency: "COP",
     "amount-in-cents": String(payment.amount_minor),
     reference: payment.reference,
@@ -169,11 +231,11 @@ export async function reconcilePaymentWebhook(
     fetch?: typeof fetch;
   } = {},
 ) {
-  const keys = sandboxCredentials(bindings);
+  const keys = gatewayCredentials(bindings);
   let signed: Awaited<ReturnType<typeof verifyWompiWebhook>>;
   try {
     signed = await verifyWompiWebhook(payload, {
-      environment: "SANDBOX",
+      environment: keys.environment,
       eventsSecret: keys.eventsSecret,
       ...(options.checksumHeader !== undefined
         ? { checksumHeader: options.checksumHeader }
@@ -187,7 +249,6 @@ export async function reconcilePaymentWebhook(
     );
   }
   const adapter = createWompiAdapter({
-    environment: "SANDBOX",
     ...keys,
     ...(options.fetch ? { fetch: options.fetch } : {}),
   });
@@ -221,11 +282,12 @@ async function applyReconciledEvidence(
   transaction: WompiTransaction,
   requestId: string,
 ) {
+  const transactionEnvironment = gatewayCredentials(bindings).environment;
   // Permanent semantic evidence identity ignores mutable transport timestamps/PII and deduplicates provider observations across webhook deliveries.
   const evidenceHash = await sha256Hex(
     JSON.stringify([
       "WOMPI",
-      "SANDBOX",
+      transactionEnvironment,
       transaction.id,
       transaction.reference,
       transaction.amountMinor,
@@ -238,7 +300,7 @@ async function applyReconciledEvidence(
     transaction,
     evidenceHash,
     requestId,
-    "SANDBOX",
+    transactionEnvironment,
   );
 }
 
@@ -274,7 +336,7 @@ export async function reconcileStoredPayment(
 ) {
   z.string().uuid().parse(paymentId);
   await requireReconciliationAuthority(bindings, actor);
-  const keys = sandboxCredentials(bindings);
+  const keys = gatewayCredentials(bindings);
   const payment = await bindings.DB.prepare(
     "SELECT id,reference,amount_minor,currency,provider_environment,provider_transaction_id FROM billing_payments WHERE id=?",
   )
@@ -289,11 +351,11 @@ export async function reconcileStoredPayment(
     }>();
   if (!payment)
     throw new Problem(404, "PAYMENT_NOT_FOUND", "Payment unavailable");
-  if (payment.provider_environment !== "SANDBOX")
+  if (payment.provider_environment !== keys.environment)
     throw new Problem(
       503,
       "PAYMENTS_UNAVAILABLE",
-      "Sandbox payment gateway unavailable",
+      "Payment gateway unavailable",
     );
   if (!payment.provider_transaction_id)
     throw new Problem(
@@ -302,7 +364,6 @@ export async function reconcileStoredPayment(
       "Provider transaction is unknown; a new charge must not be attempted",
     );
   const adapter = createWompiAdapter({
-    environment: "SANDBOX",
     ...keys,
     ...(options.fetch ? { fetch: options.fetch } : {}),
   });

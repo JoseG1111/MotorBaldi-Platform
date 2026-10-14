@@ -30,11 +30,30 @@ import m7 from "../../migrations/0007_vehicle_commands.sql?raw";
 import m8 from "../../migrations/0008_workshop_operations.sql?raw";
 import billing from "../../migrations/0012_billing_membership.sql?raw";
 
+import notifications from "../../migrations/0014_notifications.sql?raw";
+import support from "../../migrations/0015_support.sql?raw";
+import customerPlans from "../../migrations/0020_customer_plans.sql?raw";
+import { CUSTOMER_PLANS } from "@motorbaldi/shared/customer-plans";
+import { getCustomerEntitlements } from "@motorbaldi/db";
+
 const db = (env as unknown as ApiBindings).DB;
 type Actor = { accountId: string; personId: string; mfaEnabled: boolean };
 let admin: Actor;
 beforeAll(async () => {
-  for (const migration of [m1, m2, m3, m4, m5, m6, m7, m8, billing])
+  for (const migration of [
+    m1,
+    m2,
+    m3,
+    m4,
+    m5,
+    m6,
+    m7,
+    m8,
+    billing,
+    notifications,
+    support,
+    customerPlans,
+  ])
     await db.exec(migration.replace(/\n/g, " "));
   admin = await member();
   await db
@@ -109,6 +128,61 @@ async function grant(
   });
 }
 
+describe("approved customer policy", () => {
+  it("shares approved prices and grants Free without mixing organization permissions", async () => {
+    const actor = await member();
+    expect(await getCustomerEntitlements(db, actor)).toMatchObject({
+      premium: false,
+      vehicleLimit: 1,
+      manualMaintenanceLimit: 5,
+      assistedRequestLimit: 0,
+      personalizedSupport: false,
+      reminderDays: [15],
+    });
+    const plans = (await listPlans(db)) as {
+      code: string;
+      amount_minor: number;
+      vehicle_limit: number;
+    }[];
+    for (const price of Object.values(CUSTOMER_PLANS.prices))
+      expect(plans.find((p) => p.code === price.planCode)).toMatchObject({
+        amount_minor: price.amountMinor,
+        vehicle_limit: 3,
+      });
+    expect((await membershipOverview(db, admin)).premium).toBe(false);
+  });
+  it("gives monthly and annual the same unlimited benefits and preserves histories on downgrade", async () => {
+    for (const price of Object.values(CUSTOMER_PLANS.prices)) {
+      const actor = await member(),
+        subscriptionId = await subscription(actor, price.planCode);
+      expect((await getCustomerEntitlements(db, actor)).premium).toBe(false);
+      await grant(subscriptionId, 1);
+      expect(await getCustomerEntitlements(db, actor)).toMatchObject({
+        premium: true,
+        vehicleLimit: 3,
+        manualMaintenanceLimit: null,
+        assistedRequestLimit: null,
+        personalizedSupport: true,
+        reminderDays: [30, 15, 7, 1],
+      });
+      await command(admin, "billing.admin.suspend", {
+        subscriptionId,
+        version: 2,
+        reason: "Synthetic downgrade regression",
+      });
+      expect((await getCustomerEntitlements(db, actor)).vehicleLimit).toBe(1);
+      expect(
+        await db
+          .prepare(
+            "SELECT count(*) AS n FROM billing_admin_grants WHERE subscription_id=?",
+          )
+          .bind(subscriptionId)
+          .first(),
+      ).toEqual({ n: 1 });
+    }
+  });
+});
+
 describe("account billing domain", () => {
   it("clamps UTC calendar month/year ends and keeps cents as server integers", async () => {
     expect(billingPeriodEnd("2024-01-31T13:14:15.000Z", "MONTHLY")).toBe(
@@ -148,7 +222,7 @@ describe("account billing domain", () => {
     expect(overview).toMatchObject({
       premium: false,
       entitlements: [],
-      vehicleLimit: 2,
+      vehicleLimit: 1,
       checkoutAvailable: false,
       subscription: {
         id: subscriptionId,
@@ -311,7 +385,17 @@ describe("account billing domain", () => {
     const active = await membershipOverview(db, actor);
     expect(active.premium).toBe(true);
     expect(active.entitlements).toHaveLength(8);
-    expect(active.benefits.every((b) => b.available === false)).toBe(true);
+    expect(
+      active.benefits.find((b) => b.code === "monthly_summaries"),
+    ).toMatchObject({ available: true, readiness: "READY" });
+    expect(
+      active.benefits.find((b) => b.code === "support_whatsapp"),
+    ).toMatchObject({ available: true });
+    expect(
+      active.benefits
+        .filter((b) => b.readiness !== "READY")
+        .every((b) => !b.available),
+    ).toBe(true);
     const end = active.subscription!.current_period_end;
     await command(actor, "billing.subscription.cancel", {
       subscriptionId,
@@ -363,12 +447,13 @@ describe("account billing domain", () => {
       await hasVehiclePermission(db, actor, vehicleId, "vehicle.read"),
     ).toBe(true);
   });
-  it("enforces two vehicles, exact grants, CAS and removal history", async () => {
+  it("enforces three covered vehicles, exact grants, CAS and removal history", async () => {
     const actor = await member(),
       subscriptionId = await subscription(actor);
     const a = await vehicle(actor),
       b = await vehicle(actor),
       c = await vehicle(actor),
+      d = await vehicle(actor),
       ungranted = await vehicle(actor, false);
     await expect(
       command(actor, "billing.vehicle.add", {
@@ -394,29 +479,34 @@ describe("account billing domain", () => {
       version: 2,
       vehicleId: b,
     });
+    await command(actor, "billing.vehicle.add", {
+      subscriptionId,
+      version: 3,
+      vehicleId: c,
+    });
     await expect(
       command(actor, "billing.vehicle.add", {
         subscriptionId,
-        version: 3,
-        vehicleId: c,
+        version: 4,
+        vehicleId: d,
       }),
     ).rejects.toMatchObject({ code: "MEMBERSHIP_VEHICLE_LIMIT" });
     expect(
       (await membershipOverview(db, actor)).vehicles.map((v) => v.vehicle_id),
-    ).toEqual([a, b]);
+    ).toEqual([a, b, c]);
     await command(actor, "billing.vehicle.remove", {
       subscriptionId,
-      version: 3,
+      version: 4,
       vehicleId: a,
     });
     await command(actor, "billing.vehicle.add", {
       subscriptionId,
-      version: 4,
-      vehicleId: c,
+      version: 5,
+      vehicleId: d,
     });
     expect(
       (await membershipOverview(db, actor)).vehicles.map((v) => v.vehicle_id),
-    ).toEqual([b, c]);
+    ).toEqual([b, c, d]);
     expect(
       (await db
         .prepare(

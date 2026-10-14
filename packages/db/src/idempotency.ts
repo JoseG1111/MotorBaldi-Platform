@@ -5,6 +5,8 @@ export const maxIdempotencyResponseBytes = 8192;
 
 export const idempotencyOperationRegistry = {
   "foundation.test": 3600,
+  "workshop.contact.create": 604800,
+  "workshop.contact.close": 604800,
   "marketplace.listing.create": 604800,
   "marketplace.listing.submit": 604800,
   "marketplace.listing.approve": 604800,
@@ -48,6 +50,11 @@ export const idempotencyOperationRegistry = {
   "workshop.order.file.attach": 604800,
   "workshop.order.update": 604800,
   "workshop.order.transition": 604800,
+  "vehicle.customer.register": 604800,
+  "vehicle.customer.retire": 604800,
+  "vehicle.registration.update": 604800,
+  "vehicle.compliance.update": 604800,
+  "vehicle.maintenance.append": 604800,
   "vehicle.create": 604800,
   "vehicle.update": 604800,
   "vehicle.identifier.add": 604800,

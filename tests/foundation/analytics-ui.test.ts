@@ -4,6 +4,7 @@ import { portalPage, portalScript } from "../../apps/portal/src/page.js";
 import { adminPage, adminScript } from "../../apps/admin/src/page.js";
 
 type Node = {
+  elements: { purpose: { onchange?: unknown } };
   textContent: string;
   value: string;
   children: Node[];
@@ -87,6 +88,7 @@ async function browser(
   const nodes = new Map<string, Node>(),
     calls: { path: string; init?: RequestInit }[] = [];
   const node = (): Node => ({
+    elements: { purpose: {} },
     textContent: "",
     value: "",
     children: [],
@@ -137,7 +139,12 @@ async function browser(
     URL,
     URLSearchParams,
     crypto: { randomUUID: () => "synthetic-ui-key" },
-    location: { href: "https://portal.test/", pathname: "/", reload() {} },
+    location: {
+      href: "https://portal.test/",
+      pathname: "/",
+      reload() {},
+      replace() {},
+    },
     history: { replaceState() {} },
     FormData: class {
       constructor(private n: Node) {}
@@ -164,8 +171,8 @@ function deferred<T>() {
 }
 describe("Scoped current analytics UI", () => {
   it("keeps internal reports inside authenticated screens and labels read-only current information", () => {
-    expect(adminPage).toContain(
-      'data-permission="platform.audit.read">Estado operativo',
+    expect(adminPage).toMatch(
+      /<button[^>]*data-panel="analytics"[^>]*data-permission="platform.audit.read"[^>]*>[\s\S]*?Estado operativo<\/span><\/button>/,
     );
     expect(adminPage).toContain(
       'id="analytics-canonical-status" role="status"',
@@ -377,7 +384,7 @@ describe("Scoped current analytics UI", () => {
     expect(h.node("analytics-canonical-report").children).toHaveLength(0);
     expect(h.node("analytics-canonical-status").textContent).toBe("");
   });
-  it("clears and invalidates partner reports synchronously before signing out", async () => {
+  it("clears and invalidates partner reports after confirmed signing out", async () => {
     const response = deferred<Response>();
     const h = await browser(portalScript, async (path) =>
       path.endsWith("/locations")
@@ -385,7 +392,7 @@ describe("Scoped current analytics UI", () => {
             items: [{ id: site, name: "Sede", status: "ACTIVE" }],
           })
         : path.endsWith("/auth/sign-out")
-          ? Response.json({ ok: true })
+          ? Response.json({ success: true })
           : response.promise,
     );
     runInContext(`currentOrg='${org}';partsGeneration=1`, h.context);

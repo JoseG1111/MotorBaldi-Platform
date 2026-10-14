@@ -2,6 +2,124 @@ export const openapi = {
   openapi: "3.0.3",
   info: { title: "MotorBaldi Platform Foundation", version: "0.1.0" },
   paths: {
+    "/api/v1/me/vehicles": {
+      get: {
+        summary: "List authorized owner vehicles, preserving read-only history",
+        responses: {
+          "200": { description: "Bounded owner vehicles" },
+          "401": { description: "Authentication required" },
+        },
+      },
+      post: {
+        summary:
+          "Register a user-declared owner vehicle within authoritative Free/Premium limit",
+        responses: {
+          "200": { description: "Canonical vehicle and grants created" },
+          "403": { description: "Plan limit or account denied" },
+        },
+      },
+    },
+    "/api/v1/vehicles/{vehicleId}/services": {
+      parameters: [
+        {
+          name: "vehicleId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      get: {
+        summary:
+          "Authorized compliance, manual history and factual Premium summary",
+        responses: {
+          "200": { description: "History and current entitlement" },
+          "404": { description: "Vehicle unavailable" },
+        },
+      },
+    },
+    "/api/v1/vehicles/{vehicleId}/compliance": {
+      parameters: [
+        {
+          name: "vehicleId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      post: {
+        summary:
+          "Append user-declared SOAT/RTM expiry, never official verification",
+        responses: {
+          "200": { description: "Immutable expiry revision" },
+          "403": { description: "Owner write or plan denied" },
+        },
+      },
+    },
+    "/api/v1/vehicles/{vehicleId}/maintenance": {
+      parameters: [
+        {
+          name: "vehicleId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      post: {
+        summary: "Append manual maintenance with server plan limit",
+        responses: {
+          "200": { description: "Immutable maintenance entry" },
+          "403": { description: "Owner write or plan denied" },
+        },
+      },
+    },
+    "/api/v1/vehicles/{vehicleId}/registration": {
+      parameters: [
+        {
+          name: "vehicleId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      post: {
+        summary: "Update declared registration with optimistic concurrency",
+        responses: {
+          "200": { description: "Registration updated" },
+          "409": { description: "Version conflict" },
+        },
+      },
+    },
+    "/api/v1/vehicles/{vehicleId}/retire": {
+      parameters: [
+        {
+          name: "vehicleId",
+          in: "path",
+          required: true,
+          schema: { type: "string", format: "uuid" },
+        },
+      ],
+      post: {
+        summary:
+          "Retire own active registration preserving authorized historical access",
+        responses: {
+          "200": { description: "Owner relationship ended; history retained" },
+          "404": { description: "Owned vehicle unavailable" },
+        },
+      },
+    },
+    "/api/v1/me/assistance": {
+      get: {
+        summary:
+          "Current customer assistance availability and Premium-only verified interactive contact",
+        responses: {
+          "200": {
+            description:
+              "Entitlement, real configured channel and explicit delivery limitations",
+          },
+          "404": { description: "Optional vehicle context unavailable" },
+        },
+      },
+    },
     "/health": {
       get: { responses: { "200": { description: "Worker responding" } } },
     },
@@ -237,6 +355,28 @@ Object.assign(openapi.paths, {
       [],
       false,
     ),
+  },
+  "/api/v1/auth/capabilities": {
+    get: get(
+      "Public registration and recovery configuration readiness; not email delivery evidence",
+      [],
+      false,
+    ),
+  },
+  "/api/v1/me/privacy/export": {
+    get: get(
+      "Download authorized own-account data; excludes other customers and credentials",
+    ),
+  },
+  "/api/v1/admin/notifications/controlled-whatsapp-permits": {
+    post: command(
+      "Issue an exact expiring Development reminder test permit; separate ungranted permission and human MFA required",
+    ),
+  },
+  "/api/v1/billing/payments": {
+    get: get("Bounded account-scoped payment history", [
+      { name: "cursor", in: "query", schema: id },
+    ]),
   },
   "/api/v1/auth/verify-email": { get: get("Verify email", [], false) },
   "/api/v1/auth/two-factor/enable": { post: command("Begin TOTP enrollment") },
@@ -904,7 +1044,65 @@ Object.assign(openapi.paths, {
     get: {
       responses: {
         "200": {
-          description: "Owned preferences; external delivery unavailable",
+          description:
+            "Owned preferences and channel readiness. Generic external delivery remains unavailable; preference intent may be saved for existing verified contacts. Readiness is advisory and does not grant delivery authority.",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["items", "externalDeliveryAvailable", "channels"],
+                properties: {
+                  items: { type: "array", items: { type: "object" } },
+                  externalDeliveryAvailable: { type: "boolean", enum: [false] },
+                  channels: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      required: [
+                        "channel",
+                        "transportAvailable",
+                        "policyEnabled",
+                        "entitlementEligible",
+                        "verifiedContactMethodIds",
+                        "preferenceConfigurable",
+                        "deliveryAvailable",
+                        "unavailableReasons",
+                      ],
+                      properties: {
+                        channel: {
+                          type: "string",
+                          enum: ["EMAIL", "SMS", "WHATSAPP"],
+                        },
+                        transportAvailable: { type: "boolean" },
+                        policyEnabled: { type: "boolean" },
+                        entitlementEligible: { type: "boolean" },
+                        verifiedContactMethodIds: { type: "array", items: id },
+                        preferenceConfigurable: {
+                          type: "boolean",
+                          description:
+                            "Eligible verified contact exists; saving intent does not enable delivery. Marketing additionally requires current channel consent.",
+                        },
+                        deliveryAvailable: { type: "boolean", enum: [false] },
+                        unavailableReasons: {
+                          type: "array",
+                          items: {
+                            type: "string",
+                            enum: [
+                              "GENERAL_DELIVERY_UNAVAILABLE",
+                              "TRANSPORT_UNAVAILABLE",
+                              "POLICY_DISABLED",
+                              "PREMIUM_REQUIRED",
+                              "VERIFIED_CONTACT_REQUIRED",
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
         "401": problem,
       },
@@ -1545,5 +1743,95 @@ Object.assign(openapi.paths, {
       ),
       [orgId, partsLocation],
     ),
+  },
+});
+
+Object.assign(openapi.paths, {
+  "/api/v1/workshops/discovery": {
+    get: get(
+      "Authenticated self-service verified active workshops, bounded name/cursor search",
+      [
+        { name: "q", in: "query", schema: { type: "string", maxLength: 100 } },
+        { name: "cursor", in: "query", schema: id },
+      ],
+    ),
+  },
+  "/api/v1/me/workshop-contact-requests": {
+    get: get("Owned workshop service-contact history, bounded cursor", [
+      { name: "cursor", in: "query", schema: id },
+    ]),
+  },
+  "/api/v1/workshops/{organizationId}/contact-requests": {
+    post: idempotent(
+      "Consented customer-owned vehicle service-contact request; no membership or vehicle access grant",
+      [orgId],
+    ),
+  },
+  "/api/v1/organizations/{organizationId}/workshop/contact-requests": {
+    get: get(
+      "Exact ALL_LOCATIONS workshop read authority, consented limited inbox",
+      [orgId, { name: "cursor", in: "query", schema: id }],
+    ),
+  },
+  "/api/v1/organizations/{organizationId}/workshop/contact-requests/{requestId}/close":
+    {
+      post: idempotent(
+        "Assured ALL_LOCATIONS workshop management, versioned reply and closure",
+        [orgId, { name: "requestId", in: "path", required: true, schema: id }],
+      ),
+    },
+  "/api/v1/notifications/providers/resend/events": {
+    post: {
+      summary:
+        "Development-only bounded raw-body Svix-authenticated delivery evidence; no browser session",
+      responses: {
+        "200": response("Signed provider status accepted, no implied delivery"),
+        "400": problem,
+        "403": problem,
+        "413": problem,
+        "503": problem,
+      },
+    },
+  },
+  "/api/v1/notifications/providers/meta/events": {
+    get: {
+      summary: "Development-only configured Meta subscription verification",
+      parameters: [
+        {
+          name: "hub.mode",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "hub.challenge",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+        },
+        {
+          name: "hub.verify_token",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+        },
+      ],
+      responses: {
+        "200": response("Verified challenge"),
+        "403": problem,
+        "503": problem,
+      },
+    },
+    post: {
+      summary:
+        "Development-only HMAC-authenticated status evidence for configured phone ID; no inbound content stored",
+      responses: {
+        "200": response("Signed provider status accepted"),
+        "400": problem,
+        "403": problem,
+        "413": problem,
+        "503": problem,
+      },
+    },
   },
 });

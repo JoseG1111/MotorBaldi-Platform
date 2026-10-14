@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@motorbaldi/config": "workspace:*"
+    "@motorbaldi/config": "workspace:*",
+    "@motorbaldi/shared": "workspace:*"
   }
 }

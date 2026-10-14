@@ -261,13 +261,14 @@ export function createWompiAdapter(options: {
         fetcher(base + path, {
           ...init,
           signal: controller.signal,
-          redirect: "error",
+          redirect: "manual",
         }),
         aborted,
       ]);
       if (!response.ok)
         throw new WompiError(
-          response.status >= 500 ||
+          (response.status >= 300 && response.status < 400) ||
+            response.status >= 500 ||
             response.status === 408 ||
             response.status === 429
             ? "WOMPI_REQUEST_UNKNOWN"

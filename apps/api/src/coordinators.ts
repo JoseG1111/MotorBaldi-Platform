@@ -1,4 +1,9 @@
 import {
+  parseCustomerWorkshopCommand,
+  authorizeCustomerWorkshopCommand,
+  prepareCustomerWorkshopCommand,
+} from "@motorbaldi/workshops";
+import {
   automationCommitGuard,
   prepareDevelopmentPartsFixture,
 } from "./development-automation-command.js";
@@ -99,6 +104,10 @@ import {
   type VehicleOperation,
 } from "@motorbaldi/vehicles";
 import { assessAuthenticatedSession } from "@motorbaldi/auth";
+import {
+  checkoutConfigured,
+  paymentGatewayCapabilities,
+} from "./payment-gateway.js";
 
 export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   private tail: Promise<void> = Promise.resolve();
@@ -110,6 +119,14 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ): Promise<PreparedCommand<Json>> {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation.startsWith("workshop.contact."))
+      return prepareCustomerWorkshopCommand(
+        db,
+        actor!,
+        operation as "workshop.contact.create" | "workshop.contact.close",
+        parseCustomerWorkshopCommand(operation, request),
+        requestId,
+      );
     if (operation === "development.fixture.parts.enable")
       return prepareDevelopmentPartsFixture(db, actor!, request, requestId);
     if (operation.startsWith("marketplace.")) {
@@ -152,13 +169,21 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         parseNotificationCommand(operation, request),
         requestId,
       );
-    if (operation === "billing.checkout.create")
+    if (operation === "billing.checkout.create") {
+      if (!checkoutConfigured(this.env))
+        throw new Problem(
+          503,
+          "PAYMENTS_UNAVAILABLE",
+          "Payment gateway unavailable",
+        );
       return prepareCheckout(
         db,
         actor!,
         checkoutInput.parse(request),
         requestId,
+        paymentGatewayCapabilities(this.env).environment,
       );
+    }
     if (operation.startsWith("billing."))
       return prepareBillingCommand(
         db,
@@ -285,6 +310,13 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
   ) {
     const body = request as Record<string, Json>;
     const db = this.env.DB;
+    if (operation.startsWith("workshop.contact."))
+      return authorizeCustomerWorkshopCommand(
+        db,
+        actor,
+        operation as "workshop.contact.create" | "workshop.contact.close",
+        parseCustomerWorkshopCommand(operation, request),
+      );
     if (operation.startsWith("marketplace.")) {
       const op = operation as MarketplaceOperation;
       if (!Object.hasOwn(marketplaceCommandInputs, op))
@@ -321,9 +353,15 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
         operation as NotificationOperation,
         parseNotificationCommand(operation, request),
       );
-    if (operation === "billing.checkout.create")
+    if (operation === "billing.checkout.create") {
+      if (!checkoutConfigured(this.env))
+        throw new Problem(
+          503,
+          "PAYMENTS_UNAVAILABLE",
+          "Payment gateway unavailable",
+        );
       await authorizeCheckout(db, actor, checkoutInput.parse(request));
-    else if (operation.startsWith("billing."))
+    } else if (operation.startsWith("billing."))
       await authorizeBillingCommand(
         db,
         actor,
@@ -543,7 +581,10 @@ export class IdempotencyCoordinator extends DurableObject<ApiBindings> {
     }
     let workshopActor: BusinessPrincipal | null = null;
     let workshopBody: Record<string, Json> | null = null;
-    if (input.scope.operation.startsWith("workshop.")) {
+    if (
+      input.scope.operation.startsWith("workshop.") &&
+      !input.scope.operation.startsWith("workshop.contact.")
+    ) {
       const assurance =
         machine ??
         (input.sessionId

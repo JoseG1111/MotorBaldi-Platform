@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Problem, type Principal } from "@motorbaldi/contracts";
 import {
+  type NotificationTransportBindings,
   listNotificationPreferences,
   listNotificationInbox,
   parseNotificationCommand,
@@ -14,6 +15,7 @@ export async function notificationRoutes(
   execute: (operation: string, body: Json) => Promise<unknown>,
   readBody: () => Promise<unknown>,
   cors: Record<string, string>,
+  bindings?: NotificationTransportBindings,
 ): Promise<Response | null> {
   const url = new URL(request.url);
   const reply = (value: unknown) =>
@@ -24,7 +26,9 @@ export async function notificationRoutes(
   };
   if (url.pathname === "/api/v1/me/notification-preferences") {
     if (request.method === "GET")
-      return reply(await listNotificationPreferences(db, await principal()));
+      return reply(
+        await listNotificationPreferences(db, await principal(), bindings),
+      );
     method("POST");
     await principal();
     return reply(

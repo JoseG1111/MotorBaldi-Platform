@@ -6,7 +6,27 @@ export interface QueueMessage {
   eventId: string;
   requestId: string;
 }
-interface CommonBindings {
+interface NotificationProviderBindings {
+  NOTIFICATION_CONTROLLED_WHATSAPP_TEST_ENABLED?: string;
+  NOTIFICATION_EMAIL_RELEASE_AUTHORIZED?: string;
+  NOTIFICATION_WHATSAPP_RELEASE_AUTHORIZED?: string;
+  META_WHATSAPP_PHONE_NUMBER_KIND?: string;
+  NOTIFICATION_EXTERNAL_DELIVERY_ENABLED?: string;
+  RESEND_API_KEY?: string;
+  RESEND_FROM?: string;
+  RESEND_DOMAIN_VERIFIED?: string;
+  RESEND_WEBHOOK_SECRET?: string;
+  META_WHATSAPP_ACCESS_TOKEN?: string;
+  META_WHATSAPP_PHONE_NUMBER_ID?: string;
+  META_WHATSAPP_API_VERSION?: string;
+  META_WHATSAPP_APPROVED_TEMPLATE?: string;
+  META_WHATSAPP_TEMPLATE_LANGUAGE?: string;
+  META_WHATSAPP_TEMPLATE_STATUS?: string;
+  META_WHATSAPP_TEST_RECIPIENT_SHA256?: string;
+  META_WHATSAPP_APP_SECRET?: string;
+  META_WHATSAPP_WEBHOOK_VERIFY_TOKEN?: string;
+}
+interface CommonBindings extends NotificationProviderBindings {
   ENVIRONMENT: PlatformEnvironment;
 }
 
@@ -29,7 +49,11 @@ export interface ApiBindings extends CommonBindings {
   TURNSTILE_EXPECTED_HOSTNAME?: string;
   TURNSTILE_BYPASS_TOKEN?: string;
   EMAIL_PROVIDER?: string;
+  AUTH_EMAIL_DELIVERY_ENABLED?: string;
+  AUTH_EMAIL_TEST_RECIPIENT_SHA256?: string;
+  WOMPI_PRODUCTION_RELEASE_AUTHORIZED?: string;
   WOMPI_ENVIRONMENT?: string;
+  PAYMENTS_RETURN_URL?: string;
   WOMPI_PUBLIC_KEY?: string;
   WOMPI_PRIVATE_KEY?: string;
   WOMPI_INTEGRITY_SECRET?: string;
@@ -60,7 +84,7 @@ export interface ApiConfig {
   turnstileSecretKey?: string;
   turnstileExpectedHostname?: string;
   turnstileBypassToken?: string;
-  emailProvider: "UNCONFIGURED" | "DEVELOPMENT_SINK";
+  emailProvider: "UNCONFIGURED" | "DEVELOPMENT_SINK" | "RESEND";
 }
 export interface BackgroundWorkerConfig {
   environment: PlatformEnvironment;
@@ -91,7 +115,7 @@ const apiSchema = z.object({
     .optional(),
   TURNSTILE_BYPASS_TOKEN: z.string().optional(),
   EMAIL_PROVIDER: z
-    .enum(["UNCONFIGURED", "DEVELOPMENT_SINK"])
+    .enum(["UNCONFIGURED", "DEVELOPMENT_SINK", "RESEND"])
     .default("UNCONFIGURED"),
 });
 

@@ -174,10 +174,8 @@ describe("Phase 1 browser assets", () => {
     });
     await runInContext("refreshGarage()", context);
     expect(calls).toContain("/api/v1/me/garage");
-    expect(nodes.get("garage-list")!.children).toHaveLength(2);
-    expect(
-      nodes.get("garage-list")!.children[0]!.children[0]!.textContent,
-    ).toContain("Vehículo");
+    expect(text(nodes.get("garage-list")!)).toContain("Vehículo 018f0000");
+    expect(text(nodes.get("garage-list")!)).toContain("Abrir vehículo");
   });
 
   it("shows Admin sign-in for 401 and restricted access only for 403", async () => {
@@ -300,7 +298,11 @@ describe("Phase 1 browser assets", () => {
     );
     await runInContext("showCredentials()", context);
     const credentialBox = nodes.get("credential-queue")!.children[0]!;
-    const verify = credentialBox.children.find(
+    const descendants = (node: FakeNode): FakeNode[] => [
+      node,
+      ...node.children.flatMap(descendants),
+    ];
+    const verify = descendants(credentialBox).find(
       (child) => child.textContent === "Verificar",
     )!;
     await verify.onclick!();
@@ -326,6 +328,8 @@ describe("Phase 1 browser assets", () => {
 });
 
 type FakeNode = {
+  elements: { purpose: { onchange?: unknown } };
+  dataset: Record<string, string>;
   children: FakeNode[];
   textContent: string;
   fields?: Map<string, unknown>;
@@ -347,7 +351,31 @@ type FakeNode = {
   replaceChildren(): void;
   addEventListener(type: string, listener: FakeNode["listeners"][string]): void;
   querySelector(): FakeNode;
+  querySelectorAll(): FakeNode[];
 };
+
+function descendants(node: FakeNode): FakeNode[] {
+  return [node, ...node.children.flatMap(descendants)];
+}
+function text(node: FakeNode): string {
+  return descendants(node)
+    .map((item) => item.textContent)
+    .join("\n");
+}
+
+function formNamed(root: FakeNode, title: string): FakeNode {
+  const flatten = (node: FakeNode): FakeNode[] => [
+    node,
+    ...node.children.flatMap(flatten),
+  ];
+  for (const node of flatten(root)) {
+    if (node.children.some((child) => child.textContent === title)) {
+      const form = node.children.find((child) => "onsubmit" in child);
+      if (form) return form;
+    }
+  }
+  throw new Error("Expected a form in the named disclosure: " + title);
+}
 
 function browserHarness(
   script: string,
@@ -355,6 +383,8 @@ function browserHarness(
 ) {
   const nodes = new Map<string, FakeNode>();
   const node = (): FakeNode => ({
+    elements: { purpose: {} },
+    dataset: {},
     children: [],
     textContent: "",
     listeners: {},
@@ -387,13 +417,21 @@ function browserHarness(
     addEventListener(type, listener) {
       this.listeners[type] = listener;
     },
+    querySelectorAll() {
+      return [];
+    },
     querySelector() {
       return node();
     },
   });
   const document = {
     getElementById(id: string) {
-      if (!nodes.has(id)) nodes.set(id, node());
+      if (!nodes.has(id)) {
+        const element = node();
+        // Match the real HTML: private content starts hidden before bootstrap.
+        if (id === "private") element.classList.add("hidden");
+        nodes.set(id, element);
+      }
       return nodes.get(id)!;
     },
     querySelectorAll() {
@@ -406,6 +444,12 @@ function browserHarness(
   const context = createContext({
     document,
     fetch: (path: string, init?: RequestInit) => {
+      if (path === "/api/v1/billing/payment-capabilities")
+        return Promise.resolve(
+          Response.json({ environment: "SANDBOX", checkoutAvailable: true }),
+        );
+      if (path === "/api/v1/billing/payments")
+        return Promise.resolve(Response.json({ items: [], nextCursor: null }));
       if (
         (!init?.method || init.method === "GET") &&
         (path.startsWith("/api/v1/public/parts") ||
@@ -418,7 +462,7 @@ function browserHarness(
     Response,
     URL,
     URLSearchParams,
-    location: { href: "https://portal.test/", pathname: "/" },
+    location: { href: "https://portal.test/", pathname: "/", replace() {} },
     history: { replaceState() {} },
     crypto: { randomUUID: () => "test-uuid" },
     FormData: class {
@@ -491,23 +535,19 @@ describe("Vehicle browser workflows", () => {
     await runInContext(`openVehicle('${id}')`, context);
     expect(calls).not.toContain("/api/v1/vehicles/" + id + "/records");
     expect(
-      nodes
-        .get("vehicle-detail")!
-        .children.some((n) =>
-          n.children.some((c) => c.textContent === "1250 kilómetros"),
-        ),
+      descendants(nodes.get("vehicle-detail")!).some((n) =>
+        n.children.some((c) => c.textContent === "1250 kilómetros"),
+      ),
     ).toBe(true);
     expect(
-      nodes
-        .get("vehicle-detail")!
-        .children.some(
-          (n) => n.textContent === "Solicitar revisión de relación",
-        ),
+      descendants(nodes.get("vehicle-detail")!).some(
+        (n) => n.textContent === "Solicitar revisión de relación",
+      ),
     ).toBe(true);
     expect(
-      nodes
-        .get("vehicle-detail")!
-        .children.some((n) => n.textContent === "Registrar odómetro"),
+      descendants(nodes.get("vehicle-detail")!).some(
+        (n) => n.textContent === "Registrar odómetro",
+      ),
     ).toBe(false);
   });
 });
@@ -543,9 +583,9 @@ describe("Workshop browser controls", () => {
         "workshopOrg='organization-test';openWorkshopOrder('order-test')",
         context,
       );
-      const titles = nodes
-        .get("workshop-detail")!
-        .children.map((node) => node.textContent);
+      const titles = descendants(nodes.get("workshop-detail")!).map(
+        (node) => node.textContent,
+      );
       expect(titles.includes("Cerrar orden")).toBe(expectedClose);
       expect(titles.includes("Actualizar orden")).toBe(false);
       expect(titles.includes("Cancelar orden")).toBe(false);
@@ -576,9 +616,9 @@ describe("Workshop browser controls", () => {
       "workshopOrg='organization-test';openWorkshopOrder('order-test')",
       context,
     );
-    const titles = nodes
-      .get("workshop-detail")!
-      .children.map((node) => node.textContent);
+    const titles = descendants(nodes.get("workshop-detail")!).map(
+      (node) => node.textContent,
+    );
     expect(titles).toContain("Iniciar trabajo");
     expect(titles).not.toContain("Actualizar orden");
     expect(titles).not.toContain("Cancelar orden");
@@ -613,9 +653,9 @@ describe("Inspection browser authority and media controls", () => {
             : Response.json({ code: "UNAUTHENTICATED" }, { status: 401 }),
       );
       await runInContext("openInspection('report-test')", context);
-      const titles = nodes
-        .get("inspection-detail")!
-        .children.map((node) => node.textContent);
+      const titles = descendants(nodes.get("inspection-detail")!).map(
+        (node) => node.textContent,
+      );
       expect(titles.includes("Finalizar informe")).toBe(finalize);
       expect(titles.includes("Registrar enmienda")).toBe(amend);
       expect(titles.includes("Adjuntar evidencia")).toBe(
@@ -710,10 +750,7 @@ describe("Inspection browser authority and media controls", () => {
           : edit === "finding"
             ? "Enmendar hallazgo"
             : "Ampliar mediante enmienda";
-      const form =
-        root.children[
-          root.children.findIndex((node) => node.textContent === title) + 1
-        ];
+      const form = formNamed(root, title);
       expect(form).toBeDefined();
       if (!form) throw new Error("Correction form is missing");
       form.fields = new Map<string, unknown>([
@@ -850,10 +887,12 @@ describe("Membership browser controls", () => {
     expect(text(nodes.get("membership-detail")!)).toContain(
       "no realiza un cobro",
     );
-    expect(portalPage).toContain("ACOMPAÑAMIENTO MOTORBALDI");
-    expect(portalPage).toContain("TODO SOBRE TU VEHÍCULO. SIEMPRE CONTIGO.");
-    expect(portalPage).toContain("sin membresía");
-    expect(portalPage).toContain("no sustituye un diagnóstico profesional");
+    expect(portalScript).toContain("MotorBaldi Premium");
+    expect(portalScript).toContain(
+      "Tu vehículo tiene quien esté pendiente de él.",
+    );
+    expect(portalScript).toContain("Continuar con Gratis");
+    expect(portalScript).toContain("diagnóstico");
     expect(portalPage).not.toContain("24/7");
     const future = allNodes(nodes.get("membership-benefits")!).find(
       (node) => node.textContent === "Beneficio futuro · próximamente",
@@ -1035,6 +1074,18 @@ describe("Membership browser controls", () => {
             premium: true,
             vehicles: [{ vehicle_id: "included-vehicle" }],
           });
+        if (path === "/api/v1/me/vehicles")
+          return Response.json({
+            items: [
+              {
+                id: "eligible-vehicle",
+                active: true,
+                writable: true,
+                specification: {},
+              },
+            ],
+            nextCursor: null,
+          });
         if (path === "/api/v1/me/garage")
           return Response.json({
             items: [{ id: "included-vehicle" }, { id: "eligible-vehicle" }],
@@ -1074,12 +1125,7 @@ describe("Membership browser controls", () => {
     );
     expect(JSON.parse(String(writes[2]?.init.body))).toEqual({ version: 7 });
     root = nodes.get("membership-detail")!;
-    const form =
-      root.children[
-        root.children.findIndex(
-          (node) => node.textContent === "Incluir vehículo de mi garaje",
-        ) + 1
-      ]!;
+    const form = formNamed(root, "Incluir vehículo en Premium");
     form.fields = new Map([["vehicleId", "eligible-vehicle"]]);
     context.membershipForm = form;
     await runInContext(
@@ -1146,6 +1192,34 @@ describe("Membership browser controls", () => {
     },
   );
 
+  it("rejects malformed financial API results instead of displaying an empty success", async () => {
+    for (const [operation, permission, payload] of [
+      ["showCommissions", "platform.commission.read", { agreements: [] }],
+      [
+        "showCommissions",
+        "platform.commission.read",
+        { agreements: [], entries: null },
+      ],
+      [
+        "showBilling",
+        "platform.billing.read",
+        { subscriptions: [], payments: {} },
+      ],
+    ] as const) {
+      const { context } = browserHarness(adminScript, async () =>
+        Response.json(payload),
+      );
+      await expect(
+        runInContext(
+          `permissions=new Set(['${permission}']);${operation}()`,
+          context,
+        ),
+      ).rejects.toThrow(
+        "La respuesta del servicio no tiene el formato esperado. Vuelve a intentarlo.",
+      );
+    }
+  });
+
   it("keeps the admin financial panels read-only and default-deny", async () => {
     const calls: { path: string; init?: RequestInit }[] = [];
     const { context, nodes } = browserHarness(
@@ -1163,7 +1237,7 @@ describe("Membership browser controls", () => {
         if (path === "/api/v1/admin/commissions")
           return Response.json({
             agreements: [],
-            commissions: [
+            entries: [
               {
                 id: "commission-test",
                 status: "PENDING",
@@ -1171,7 +1245,8 @@ describe("Membership browser controls", () => {
                 currency: "COP",
               },
             ],
-            settlements: [],
+            automaticPaymentsEnabled: false,
+            settlementMode: "MANUAL_TRACKING_ONLY",
           });
         return Response.json({ code: "UNAUTHENTICATED" }, { status: 401 });
       },
@@ -1254,7 +1329,7 @@ describe("private notification inbox and preferences", () => {
     ).toBe(true);
     expect(contents(inbox)).toContain("Sin leer");
     expect(contents(nodes.get("notification-preferences")!)).toContain(
-      "correo, SMS y WhatsApp todavía no está disponible",
+      "Envío externo no disponible.",
     );
     const button = flatten(inbox).find(
       (node) => node.textContent === "Marcar como leída",
