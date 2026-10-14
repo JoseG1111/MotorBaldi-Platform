@@ -553,7 +553,7 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P5-005 — Remote validation
 
-- **Status:** IN PROGRESS
+- **Status:** VERIFIED
 - **Dependencies:** MB-P5-004
 - **Objective:** Validate billing/Wompi in Development sandbox.
 - **Scope / required work:** Validate billing/Wompi in Development sandbox.
@@ -563,7 +563,7 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Completion criteria:** Financial flows and reconciliation pass.
 - **Human-action conditions:** Sandbox4/4 and real merchant read already verified; owner confirms callback saved2026-10-13. Owner now explicitly authorizes creating synthetic Development customers for autonomous tests. Provision an isolated audited nonprivileged fixture with ephemeral credentials, then normal Better Auth login; no session minting, human impersonation or Parts privilege expansion. Synthetic operator provisioning is not public onboarding/email-verification evidence. Provider confirmation, reconciliation and entitlement evidence still required. See Wompi Development runbook; no real-money test or secrets in chat/files/logs.
 
-- **Latest evidence:** Genuine monthly/annual APPROVED, DECLINED, asynchronous waiting/ERROR, manual renewal/cancellation and Sandbox VOID pass through normal synthetic customer login, real provider callbacks/private reconciliation and canonical history. Controlled replay/mismatch transport tests preserve financial state. BUG-QA-008 refresh race and BUG-QA-009 reversal cutoff fixed with targeted regressions; recovery re-purchase and final integrated gate/CI remain in progress. See current cursor and Wompi runbook.
+- **Latest evidence:** Genuine monthly/annual APPROVED, DECLINED, asynchronous waiting/ERROR, manual renewal/cancellation and Sandbox VOID pass through normal synthetic customer login, real provider callbacks/private reconciliation and canonical history. Controlled replay/mismatch transport tests preserve financial state. BUG-QA-008 refresh race and BUG-QA-009 reversal cutoff fixed with targeted regressions; genuine annual re-purchase restores paid benefits immediately. Full1134 local gate and source869f6b6 [CI38487821732](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38487821732) SUCCESS, including history secret scan. All7 fixtures closed/passwords0/sessions0/roles0/org memberships0; outbox266PROCESSED/pending0/DL0/FKclean. VERIFIED is Development Sandbox acceptance only; Production, real recurring charges, clock expiry and human public email/MFA acceptance are not claimed. See current cursor and Wompi runbook.
 
 ## Phase 6 — Communications + Notifications + Support
 
