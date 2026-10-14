@@ -13,6 +13,7 @@ import {
   checkoutInput,
   prepareCheckout,
 } from "../../packages/payments/src/checkout.js";
+import { applyWompiTransaction } from "../../packages/payments/src/payment-lifecycle.js";
 import m1 from "../../migrations/0001_foundation.sql?raw";
 import m2 from "../../migrations/0002_phase1.sql?raw";
 import m3 from "../../migrations/0003_phase1_closeout.sql?raw";
@@ -348,6 +349,87 @@ describe("sandbox checkout ledger reservation", () => {
         .bind(subscriptionId)
         .first(),
     ).toEqual({ status: "PENDING_RENEWAL", auto_renew: 0 });
+  });
+
+  it("reserves immediately after a verified void while preserving historical paid dates", async () => {
+    const owner = await actor(),
+      subscriptionId = await subscription(owner, true),
+      first = await checkout(owner, subscriptionId);
+    await markPaid(owner, subscriptionId, first);
+    const historical = await db
+      .prepare("SELECT * FROM billing_periods WHERE id=?")
+      .bind(first.periodId)
+      .first();
+    const transaction = await db
+      .prepare(
+        "SELECT provider_transaction_id AS id FROM billing_payments WHERE id=?",
+      )
+      .bind(first.paymentId)
+      .first<{ id: string }>();
+    await applyWompiTransaction(
+      db,
+      {
+        id: transaction!.id,
+        reference: String(first.reference),
+        amountMinor: Number(first.amountMinor),
+        currency: "COP",
+        status: "VOIDED",
+      },
+      newId().replace(/-/g, "").padEnd(64, "b"),
+      newId(),
+      "SANDBOX",
+    );
+    expect((await membershipOverview(db, owner)).premium).toBe(false);
+    const before = new Date().toISOString(),
+      replacement = await checkout(owner, subscriptionId),
+      after = new Date().toISOString();
+    const period = await db
+      .prepare(
+        "SELECT sequence,starts_at,ends_at FROM billing_periods WHERE id=?",
+      )
+      .bind(replacement.periodId)
+      .first<{ sequence: number; starts_at: string; ends_at: string }>();
+    expect(period!.sequence).toBe(2);
+    expect(period!.starts_at >= before && period!.starts_at <= after).toBe(
+      true,
+    );
+    expect(period!.starts_at < String(historical!.ends_at)).toBe(true);
+    expect(
+      await db
+        .prepare("SELECT * FROM billing_periods WHERE id=?")
+        .bind(first.periodId)
+        .first(),
+    ).toEqual(historical);
+    expect(await checkout(owner, subscriptionId)).toEqual(replacement);
+  });
+
+  it("rolls back a prepared renewal if its funding is voided before commit", async () => {
+    const owner = await actor(),
+      subscriptionId = await subscription(owner),
+      first = await checkout(owner, subscriptionId);
+    await markPaid(owner, subscriptionId, first);
+    const command = await prepareCheckout(
+      db,
+      owner,
+      { subscriptionId },
+      newId(),
+    );
+    // Approved-to-voided is an allowed ledger transition; it does not update the subscription version.
+    await db
+      .prepare(
+        "UPDATE billing_payments SET status='VOIDED',version=version+1 WHERE id=?",
+      )
+      .bind(first.paymentId)
+      .run();
+    await expect(commitPreparedCommand(db, command)).rejects.toMatchObject({
+      code: "BILLING_CHECKOUT_CONFLICT",
+    });
+    expect(
+      await count(
+        "SELECT count(*) AS n FROM billing_periods WHERE subscription_id=?",
+        subscriptionId,
+      ),
+    ).toBe(1);
   });
 
   it("denies another account and a mismatched or suspended identity without returning ledger metadata", async () => {

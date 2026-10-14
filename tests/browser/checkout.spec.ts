@@ -278,3 +278,84 @@ test("forged APPROVED provider return discards query claims and reads the unchan
     page.getByRole("link", { name: /Continuar a Wompi/ }),
   ).toHaveCount(0);
 });
+
+test("an older status refresh cannot replace a newer saved cancellation", async ({
+  page,
+}) => {
+  const controls = await fixture(page);
+  controls.approve();
+  await page.getByRole("button", { name: "Consultar estado del pago" }).click();
+  await expect(page.locator("#membership-detail")).toContainText(
+    "Acompañamiento activo",
+  );
+  let releaseOld!: () => void, oldStarted!: () => void;
+  const waiting = new Promise<void>((resolve) => (oldStarted = resolve)),
+    release = new Promise<void>((resolve) => (releaseOld = resolve));
+  let reads = 0,
+    cancelled = false;
+  await page.route("**/api/v1/me/membership", async (route) => {
+    const isOld = ++reads === 1;
+    const snapshot = {
+      premium: true,
+      vehicleLimit: 3,
+      vehicles: [],
+      benefits: [],
+      checkoutAvailable: true,
+      subscription: {
+        id: subscriptionId,
+        status: "ACTIVE",
+        plan_code: "ACOMPANAMIENTO_MONTHLY",
+        version: cancelled ? 2 : 1,
+        cancel_at_period_end: cancelled ? 1 : 0,
+        current_period_end: "2099-12-13T10:00:00.000Z",
+      },
+    };
+    if (isOld) {
+      oldStarted();
+      await release;
+    }
+    await route.fulfill({ json: snapshot });
+  });
+  await page.route(
+    `**/api/v1/billing/subscriptions/${subscriptionId}/cancel`,
+    async (route) => {
+      expect(route.request().method()).toBe("POST");
+      expect(route.request().postDataJSON()).toEqual({ version: 1 });
+      cancelled = true;
+      await route.fulfill({
+        json: { subscriptionId, cancelAtPeriodEnd: true, version: 2 },
+      });
+    },
+  );
+  await page.getByRole("button", { name: "Consultar estado del pago" }).click();
+  await waiting;
+  await page
+    .getByRole("button", { name: "Cancelar renovación", exact: true })
+    .click();
+  await expect(page.locator("#membership-detail")).toContainText(
+    "Cancelación programada.",
+  );
+  const lateResponse = page.waitForResponse(
+    (r) => r.url().includes("/me/membership") && r.request().method() === "GET",
+  );
+  releaseOld();
+  await (await lateResponse).finished();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await expect(page.locator("#membership-detail")).toContainText(
+    "Cancelación programada.",
+  );
+  await expect(
+    page.getByRole("button", { name: "Cancelar renovación", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: "Renovar en Wompi (pruebas)",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+});

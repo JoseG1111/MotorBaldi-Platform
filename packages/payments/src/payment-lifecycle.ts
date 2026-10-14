@@ -3,6 +3,7 @@ import { Problem } from "@motorbaldi/contracts";
 import { outboxStatement, type EventRegistry } from "@motorbaldi/db";
 import { newId, utcNow } from "@motorbaldi/shared";
 import { billingPeriodEnd } from "./billing.js";
+import { fundedPeriodEnd, fundedPeriodEndSql } from "./checkout.js";
 import type { WompiTransaction, WompiEnvironment } from "./wompi.js";
 
 const transactionInput = z
@@ -57,7 +58,6 @@ type BoundPayment = {
   ends_at: string;
   subscription_status: string;
   subscription_version: number;
-  current_period_end: string | null;
   account_status: string;
   person_status: string;
   cadence: "MONTH" | "YEAR";
@@ -125,7 +125,7 @@ export async function applyWompiTransaction(
   const payment = await db
     .prepare(
       `SELECT pay.*,p.subscription_id,p.sequence,p.status AS period_status,p.amount_minor AS period_amount_minor,p.currency AS period_currency,p.starts_at,p.ends_at,
-    s.status AS subscription_status,s.version AS subscription_version,s.current_period_end,a.status AS account_status,person.status AS person_status,plan.period AS cadence
+    s.status AS subscription_status,s.version AS subscription_version,a.status AS account_status,person.status AS person_status,plan.period AS cadence
     FROM billing_payments pay JOIN billing_periods p ON p.id=pay.period_id JOIN billing_subscriptions s ON s.id=p.subscription_id
     JOIN iam_accounts a ON a.id=s.account_id JOIN iam_people person ON person.id=a.person_id JOIN billing_plans plan ON plan.code=s.plan_code WHERE pay.reference=?`,
     )
@@ -211,13 +211,11 @@ export async function applyWompiTransaction(
     payment.account_status === "ACTIVE" &&
     payment.person_status === "ACTIVE" &&
     payment.period_status === "PENDING";
-  // A manual renewal begins after the existing paid boundary; a first period begins at verified server time.
-  const startsAt =
-    payment.sequence > 1 &&
-    payment.current_period_end &&
-    payment.current_period_end > now
-      ? payment.current_period_end
-      : now;
+  // Recompute at approval: a reserved renewal's earlier funding may have been voided.
+  const paidEnd = activationAllowed
+    ? await fundedPeriodEnd(db, payment.subscription_id, now)
+    : null;
+  const startsAt = paidEnd && paidEnd > now ? paidEnd : now;
   const endsAt = billingPeriodEnd(
     startsAt,
     payment.cadence === "MONTH" ? "MONTHLY" : "ANNUAL",
@@ -286,9 +284,18 @@ export async function applyWompiTransaction(
     statements.push(
       db
         .prepare(
-          "UPDATE billing_periods SET status='PAID',starts_at=?,ends_at=? WHERE id=? AND status='PENDING'",
+          `UPDATE billing_periods SET status='PAID',starts_at=?,ends_at=? WHERE id=? AND status='PENDING' AND ${fundedPeriodEndSql} IS ?`,
         )
-        .bind(startsAt, endsAt, payment.period_id),
+        .bind(
+          startsAt,
+          endsAt,
+          payment.period_id,
+          payment.subscription_id,
+          payment.subscription_id,
+          now,
+          now,
+          paidEnd,
+        ),
     );
     statements.push(
       guardedAudit(

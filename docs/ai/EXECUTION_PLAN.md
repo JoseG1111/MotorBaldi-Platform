@@ -553,7 +553,7 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 
 ### MB-P5-005 — Remote validation
 
-- **Status:** HUMAN ACTION REQUIRED
+- **Status:** IN PROGRESS
 - **Dependencies:** MB-P5-004
 - **Objective:** Validate billing/Wompi in Development sandbox.
 - **Scope / required work:** Validate billing/Wompi in Development sandbox.
@@ -561,9 +561,9 @@ The historical lead-specific atomic D1 batch did **not** fix generic `Idempotenc
 - **Constraints:** Apply accepted ADRs; use explicit Development environment for remote work.
 - **Verification:** Remote financial scenario matrix and gate
 - **Completion criteria:** Financial flows and reconciliation pass.
-- **Human-action conditions:** Sandbox4/4 and real merchant read already verified; owner confirms callback saved2026-10-13. One legitimate existing customer Portal Sandbox checkout requires normal browser login/MFA; no authorized billing session is available. Do not mint sessions or expand Parts-only automation. Provider confirmation, reconciliation and entitlement evidence still required. See Wompi Development runbook; no real-money test or secrets in chat/files/logs.
+- **Human-action conditions:** Sandbox4/4 and real merchant read already verified; owner confirms callback saved2026-10-13. Owner now explicitly authorizes creating synthetic Development customers for autonomous tests. Provision an isolated audited nonprivileged fixture with ephemeral credentials, then normal Better Auth login; no session minting, human impersonation or Parts privilege expansion. Synthetic operator provisioning is not public onboarding/email-verification evidence. Provider confirmation, reconciliation and entitlement evidence still required. See Wompi Development runbook; no real-money test or secrets in chat/files/logs.
 
-- **Latest evidence:** Owner-reported Sandbox callback saved; actual endpoint unsigned400. Development canonical payments0/provider confirmations0/FKclean; no new transactions or activation. Current boundary is customer checkout, not credentials/callback setup.
+- **Latest evidence:** Genuine monthly/annual APPROVED, DECLINED, asynchronous waiting/ERROR, manual renewal/cancellation and Sandbox VOID pass through normal synthetic customer login, real provider callbacks/private reconciliation and canonical history. Controlled replay/mismatch transport tests preserve financial state. BUG-QA-008 refresh race and BUG-QA-009 reversal cutoff fixed with targeted regressions; recovery re-purchase and final integrated gate/CI remain in progress. See current cursor and Wompi runbook.
 
 ## Phase 6 — Communications + Notifications + Support
 
@@ -1163,6 +1163,8 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **2026-10-12 Meta preparation evidence:** Owner reports app2211755326884841/WABA3073715739631435/v26.0, messages subscription/webhook200 and configured system token; named template/es remains PENDING. Actual anonymous deployed unsigned GET/POST403 corroborate webhook guards only. Added explicit APPROVED-template and hashed Development recipient-allowlist gates, hidden-input GET-only scope/app/WABA/template preflight, exact controlled verification runbook and SOAT/RTM cadence regressions. Full959gate PASS (309foundation/590Worker/5automation/55browser). No real send/general activation or Production change. Wrangler names-only inventory failed for unavailable Cloudflare authentication; source guards not yet deployed. Token scopes/asset access, actual recipient consent/Meta allowlist and E2E remain unverified. Restore authorized local Cloudflare access, deploy Worker with --keep-vars and inspect names; run read-only local preflight. Actual approval plus authorized no-cost account/recipient evidence and a reviewed exact-reminder expiring test permit are prerequisites to real E2E while general policy remains0; no such permit was activated or implemented here. Source CI follows.
 
 - **Subsequent autonomous recovery:** Cloudflare OAuth succeeded; names-only bindings and live redacted GET-only preview independently verify system token/app/both scopes/WABA phone/subscription/v26/es/UTILITY body1,2,3. Actual template PENDING, verified transactional WhatsApp opt-ins0. Found native fetch redirect:error incompatibility; Meta/Resend/Wompi corrected to manual/no-follow, Wompi3xx remain UNKNOWN. Full960 local gate plus final71focused Wompi/typecheck/lint PASS; final CI962 follows. Worker143290f8-2af5-4ce6-a576-60427c9a10a8/API85e10a4c-156d-4bb4-8f14-5c11eed6137b deployed with dashboard vars retained. Policy0/dispatch0, no sends/payments; preview closed. Login/token scopes are resolved. Approval, actual opted-in verified/Meta-allowlisted recipient and reviewed scoped test permission remain required; no general activation or E2E VERIFIED.
+
+- **2026-10-13 current evidence:** Actual GET-only Meta preview now verifies template APPROVED, valid SYSTEM_USER/app/both scopes/WABA phone/subscription/v26/es/UTILITY body3. Development API/Worker approval metadata retained with general policy0/permits0/deliveries0. Genuine verified opt-ins0. Resend API key/webhook secret names absent on both Workers. Approval is resolved; real consent/verified Meta-allowlisted recipient and scoped fresh-MFA controlled permit remain unavoidable prerequisites. No message sent or E2E delivery claimed.
 
 ### MB-VS-008 — Product reconciliation and independent provider preparation
 

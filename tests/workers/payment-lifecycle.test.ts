@@ -14,6 +14,7 @@ import {
   expireMemberships,
 } from "../../packages/payments/src/payment-lifecycle.js";
 import type { WompiTransaction } from "../../packages/payments/src/wompi.js";
+import { prepareCheckout } from "../../packages/payments/src/checkout.js";
 import m1 from "../../migrations/0001_foundation.sql?raw";
 import m2 from "../../migrations/0002_phase1.sql?raw";
 import m3 from "../../migrations/0003_phase1_closeout.sql?raw";
@@ -99,6 +100,31 @@ async function payment(id: string) {
     )
     .bind(id)
     .first();
+}
+async function reservedRenewal(f: Awaited<ReturnType<typeof fixture>>) {
+  const reserved = (await commitPreparedCommand(
+    db,
+    await prepareCheckout(
+      db,
+      f.actor,
+      { subscriptionId: f.subscriptionId },
+      newId(),
+    ),
+  )) as {
+    paymentId: string;
+    periodId: string;
+    reference: string;
+    amountMinor: number;
+  };
+  return {
+    ...reserved,
+    transaction: {
+      ...f.transaction,
+      id: "replacement_" + newId(),
+      reference: reserved.reference,
+      amountMinor: reserved.amountMinor,
+    },
+  };
 }
 async function count(table: string, requestId: string) {
   return (await db
@@ -203,6 +229,271 @@ describe("trusted local provider evidence lifecycle (no remote verification clai
     await expect(
       apply({ ...f.transaction, id: "another_transaction" }),
     ).rejects.toMatchObject({ code: "PROVIDER_TRANSACTION_CONFLICT" });
+  });
+
+  it("reactivates an annual re-purchase immediately after void and retains immutable history", async () => {
+    const f = await fixture("ACOMPANAMIENTO_ANNUAL");
+    await apply(f.transaction);
+    const historical = await db
+      .prepare("SELECT * FROM billing_periods WHERE id=?")
+      .bind(f.periodId)
+      .first();
+    const confirmation = await db
+      .prepare("SELECT * FROM billing_payment_confirmations WHERE payment_id=?")
+      .bind(f.paymentId)
+      .first();
+    const evidence = (
+      await db
+        .prepare("SELECT * FROM billing_provider_events WHERE payment_id=?")
+        .bind(f.paymentId)
+        .all()
+    ).results;
+    await apply({ ...f.transaction, status: "VOIDED" });
+    expect((await membershipOverview(db, f.actor)).premium).toBe(false);
+    const replacement = await reservedRenewal(f),
+      before = new Date().toISOString();
+    expect(await apply(replacement.transaction)).toMatchObject({
+      status: "APPROVED",
+      activated: true,
+    });
+    const after = new Date().toISOString();
+    const period = await db
+      .prepare(
+        "SELECT starts_at,ends_at,status FROM billing_periods WHERE id=?",
+      )
+      .bind(replacement.periodId)
+      .first<{ starts_at: string; ends_at: string; status: string }>();
+    expect(period!.starts_at >= before && period!.starts_at <= after).toBe(
+      true,
+    );
+    expect(period!.ends_at).toBe(billingPeriodEnd(period!.starts_at, "ANNUAL"));
+    expect(period!.status).toBe("PAID");
+    expect((await membershipOverview(db, f.actor)).premium).toBe(true);
+    expect(
+      await db
+        .prepare("SELECT * FROM billing_periods WHERE id=?")
+        .bind(f.periodId)
+        .first(),
+    ).toEqual(historical);
+    expect(
+      await db
+        .prepare(
+          "SELECT * FROM billing_payment_confirmations WHERE payment_id=?",
+        )
+        .bind(f.paymentId)
+        .first(),
+    ).toEqual(confirmation);
+    expect(
+      (
+        await db
+          .prepare("SELECT * FROM billing_provider_events WHERE payment_id=?")
+          .bind(f.paymentId)
+          .all()
+      ).results,
+    ).toEqual(expect.arrayContaining(evidence));
+    expect(await payment(f.paymentId)).toMatchObject({ status: "VOIDED" });
+    // Delayed approval of the old transaction must not restore its funding or move the new cutoff.
+    expect(await apply(f.transaction)).toMatchObject({
+      status: "VOIDED",
+      activated: false,
+    });
+    expect((await membershipOverview(db, f.actor)).premium).toBe(true);
+    expect(
+      await db
+        .prepare(
+          "SELECT current_period_start,current_period_end FROM billing_subscriptions WHERE id=?",
+        )
+        .bind(f.subscriptionId)
+        .first(),
+    ).toEqual({
+      current_period_start: period!.starts_at,
+      current_period_end: period!.ends_at,
+    });
+  });
+
+  it("rebases a reserved renewal at approval when its prior paid funding was voided", async () => {
+    const f = await fixture();
+    await apply(f.transaction);
+    const renewal = await reservedRenewal(f);
+    const reservation = await db
+      .prepare("SELECT starts_at FROM billing_periods WHERE id=?")
+      .bind(renewal.periodId)
+      .first<{ starts_at: string }>();
+    await apply({ ...f.transaction, status: "VOIDED" });
+    const before = new Date().toISOString();
+    expect(await apply(renewal.transaction)).toMatchObject({ activated: true });
+    const after = new Date().toISOString();
+    const funded = await db
+      .prepare("SELECT starts_at FROM billing_periods WHERE id=?")
+      .bind(renewal.periodId)
+      .first<{ starts_at: string }>();
+    expect(funded!.starts_at >= before && funded!.starts_at <= after).toBe(
+      true,
+    );
+    expect(funded!.starts_at < reservation!.starts_at).toBe(true);
+    expect((await membershipOverview(db, f.actor)).premium).toBe(true);
+  });
+
+  it("rolls back approval when earlier funding is voided after the cutoff read, then retries immediately", async () => {
+    const f = await fixture();
+    await apply(f.transaction);
+    const renewal = await reservedRenewal(f),
+      hash = await sha256Hex("cutoff race " + renewal.paymentId),
+      requestId = newId();
+    // Run a real D1 void between lifecycle preparation and its atomic batch.
+    const racingDb = {
+      prepare: (sql: string) => db.prepare(sql),
+      batch: async (statements: D1PreparedStatement[]) => {
+        await apply({ ...f.transaction, status: "VOIDED" });
+        return db.batch(statements);
+      },
+    } as D1Database;
+    await expect(
+      applyWompiTransaction(
+        racingDb,
+        renewal.transaction,
+        hash,
+        requestId,
+        "SANDBOX",
+      ),
+    ).rejects.toMatchObject({ code: "PAYMENT_STATE_CONFLICT" });
+    expect(await payment(renewal.paymentId)).toMatchObject({
+      status: "CREATED",
+      version: 1,
+    });
+    expect(
+      await db
+        .prepare("SELECT status FROM billing_periods WHERE id=?")
+        .bind(renewal.periodId)
+        .first(),
+    ).toEqual({ status: "PENDING" });
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) AS n FROM billing_provider_events WHERE evidence_hash=?",
+        )
+        .bind(hash)
+        .first(),
+    ).toEqual({ n: 0 });
+    expect(
+      await db
+        .prepare(
+          "SELECT count(*) AS n FROM billing_payment_confirmations WHERE payment_id=?",
+        )
+        .bind(renewal.paymentId)
+        .first(),
+    ).toEqual({ n: 0 });
+    for (const table of [
+      "billing_financial_events",
+      "governance_audit_events",
+      "integration_outbox_events",
+    ])
+      expect(await count(table, requestId)).toBe(0);
+    expect(await apply(renewal.transaction, hash, requestId)).toMatchObject({
+      activated: true,
+    });
+    expect((await membershipOverview(db, f.actor)).premium).toBe(true);
+  });
+
+  it("keeps multiple funded renewals sequential even when the subscription pointer is older", async () => {
+    const f = await fixture();
+    await apply(f.transaction);
+    const original = await db
+      .prepare("SELECT starts_at,ends_at FROM billing_periods WHERE id=?")
+      .bind(f.periodId)
+      .first<{ starts_at: string; ends_at: string }>();
+    const second = await reservedRenewal(f);
+    await apply(second.transaction);
+    const funded = await db
+      .prepare("SELECT starts_at,ends_at FROM billing_periods WHERE id=?")
+      .bind(second.periodId)
+      .first<{ starts_at: string; ends_at: string }>();
+    expect(funded!.starts_at).toBe(original!.ends_at);
+    // An older, still evidenced pointer must not override the latest funded period.
+    await db
+      .prepare(
+        "UPDATE billing_subscriptions SET current_period_start=?,current_period_end=?,version=version+1 WHERE id=?",
+      )
+      .bind(original!.starts_at, original!.ends_at, f.subscriptionId)
+      .run();
+    const third = await reservedRenewal(f);
+    expect(
+      await db
+        .prepare("SELECT starts_at FROM billing_periods WHERE id=?")
+        .bind(third.periodId)
+        .first(),
+    ).toEqual({ starts_at: funded!.ends_at });
+    await apply(third.transaction);
+    expect(
+      await db
+        .prepare("SELECT starts_at,ends_at FROM billing_periods WHERE id=?")
+        .bind(third.periodId)
+        .first(),
+    ).toEqual({
+      starts_at: funded!.ends_at,
+      ends_at: billingPeriodEnd(funded!.ends_at, "MONTHLY"),
+    });
+    expect((await membershipOverview(db, f.actor)).premium).toBe(true);
+  });
+
+  it("anchors approval to an active finite grant even for the first paid sequence", async () => {
+    const f = await fixture(),
+      start = new Date(Date.now() - 86400000).toISOString(),
+      end = new Date(Date.now() + 86400000).toISOString();
+    await commitPreparedCommand(
+      db,
+      await prepareBillingCommand(
+        db,
+        admin,
+        "billing.admin.grant",
+        {
+          subscriptionId: f.subscriptionId,
+          version: 1,
+          startsAt: start,
+          endsAt: end,
+          reason: "Finite development entitlement",
+        },
+        newId(),
+      ),
+    );
+    expect(await apply(f.transaction)).toMatchObject({ activated: true });
+    expect(
+      await db
+        .prepare("SELECT starts_at FROM billing_periods WHERE id=?")
+        .bind(f.periodId)
+        .first(),
+    ).toEqual({ starts_at: end });
+    expect((await membershipOverview(db, f.actor)).premium).toBe(true);
+  });
+
+  it("ignores a future grant that provides no current coverage", async () => {
+    const f = await fixture(),
+      start = new Date(Date.now() + 86400000).toISOString(),
+      end = new Date(Date.now() + 172800000).toISOString();
+    await commitPreparedCommand(
+      db,
+      await prepareBillingCommand(
+        db,
+        admin,
+        "billing.admin.grant",
+        {
+          subscriptionId: f.subscriptionId,
+          version: 1,
+          startsAt: start,
+          endsAt: end,
+          reason: "Future development entitlement",
+        },
+        newId(),
+      ),
+    );
+    const before = new Date().toISOString();
+    expect(await apply(f.transaction)).toMatchObject({ activated: true });
+    const period = await db
+      .prepare("SELECT starts_at FROM billing_periods WHERE id=?")
+      .bind(f.periodId)
+      .first<{ starts_at: string }>();
+    expect(period!.starts_at >= before && period!.starts_at < start).toBe(true);
+    expect((await membershipOverview(db, f.actor)).premium).toBe(true);
   });
   it("preserves paid access after cancellation but never activates a cancelled pending subscription", async () => {
     const paid = await fixture();

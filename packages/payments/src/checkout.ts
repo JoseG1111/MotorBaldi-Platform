@@ -19,7 +19,6 @@ type Subscription = {
   status: string;
   version: number;
   cancel_at_period_end: number;
-  current_period_end: string | null;
   plan_code: string;
 };
 type Period = {
@@ -61,6 +60,33 @@ const eligibleStatuses = [
   "PAST_DUE",
   "EXPIRED",
 ];
+/** Renewal coverage comes from live funding, never historical subscription pointers.
+ * Four bindings: subscription ID twice, observation time twice. Future paid renewals
+ * remain sequential; an administrative grant must already have started. */
+export const fundedPeriodEndSql = `(SELECT max(ends_at) FROM (
+ SELECT period.ends_at FROM billing_periods period
+ JOIN billing_payments pay ON pay.period_id=period.id
+ JOIN billing_payment_confirmations confirmation ON confirmation.payment_id=pay.id
+ WHERE period.subscription_id=? AND period.status='PAID' AND pay.status='APPROVED'
+ AND confirmation.amount_minor=period.amount_minor AND pay.amount_minor=period.amount_minor
+ AND confirmation.currency=period.currency AND pay.currency=period.currency
+ AND confirmation.provider_environment=pay.provider_environment
+ AND confirmation.provider_transaction_id=pay.provider_transaction_id
+ UNION ALL SELECT ends_at FROM billing_admin_grants
+ WHERE subscription_id=? AND starts_at<=? AND ends_at>?))`;
+
+export async function fundedPeriodEnd(
+  db: D1Database,
+  subscriptionId: string,
+  now: string,
+) {
+  const row = await db
+    .prepare(`SELECT ${fundedPeriodEndSql} AS ends_at`)
+    .bind(subscriptionId, subscriptionId, now, now)
+    .first<{ ends_at: string | null }>();
+  return row?.ends_at ?? null;
+}
+
 async function subscriptionFor(db: D1Database, actor: Actor, input: Input) {
   const active = await db
     .prepare(
@@ -76,7 +102,7 @@ async function subscriptionFor(db: D1Database, actor: Actor, input: Input) {
     );
   const subscription = await db
     .prepare(
-      "SELECT id,status,version,cancel_at_period_end,current_period_end,plan_code FROM billing_subscriptions WHERE id=? AND account_id=?",
+      "SELECT id,status,version,cancel_at_period_end,plan_code FROM billing_subscriptions WHERE id=? AND account_id=?",
     )
     .bind(input.subscriptionId, actor.accountId)
     .first<Subscription>();
@@ -183,19 +209,8 @@ export async function prepareCheckout(
       };
   }
   const now = utcNow();
-  const paidEnd = await db
-    .prepare(
-      "SELECT max(ends_at) AS ends_at FROM billing_periods WHERE subscription_id=? AND status='PAID'",
-    )
-    .bind(subscription.id)
-    .first<{ ends_at: string | null }>();
-  const startsAt = [
-    now,
-    subscription.current_period_end ?? now,
-    paidEnd?.ends_at ?? now,
-  ]
-    .sort()
-    .at(-1)!;
+  const paidEnd = await fundedPeriodEnd(db, subscription.id, now);
+  const startsAt = paidEnd && paidEnd > now ? paidEnd : now;
   const endsAt = billingPeriodEnd(
     startsAt,
     plan.period === "YEAR" ? "ANNUAL" : "MONTHLY",
@@ -223,6 +238,7 @@ export async function prepareCheckout(
       AND (status<>'EXPIRED' OR NOT EXISTS(SELECT 1 FROM billing_subscriptions other WHERE other.account_id=billing_subscriptions.account_id AND other.id<>billing_subscriptions.id AND other.status NOT IN ('CANCELLED','EXPIRED')))
       AND EXISTS(SELECT 1 FROM billing_plans p WHERE p.code=billing_subscriptions.plan_code AND p.active=1 AND p.version=? AND p.period=? AND p.amount_minor=? AND p.currency=?)
       AND NOT EXISTS(SELECT 1 FROM billing_payments pay JOIN billing_periods per ON per.id=pay.period_id WHERE per.subscription_id=billing_subscriptions.id AND per.status='PENDING' AND pay.status IN ('CREATED','PENDING','UNKNOWN','APPROVED'))
+      AND ${fundedPeriodEndSql} IS ?
       ${pending ? "AND EXISTS(SELECT 1 FROM billing_periods per WHERE per.id=? AND per.subscription_id=billing_subscriptions.id AND per.status='PENDING')" : "AND NOT EXISTS(SELECT 1 FROM billing_periods per WHERE per.subscription_id=billing_subscriptions.id AND per.status='PENDING')"}`,
       )
       .bind(
@@ -237,6 +253,11 @@ export async function prepareCheckout(
         plan.period,
         plan.amount_minor,
         plan.currency,
+        subscription.id,
+        subscription.id,
+        now,
+        now,
+        paidEnd,
         ...(pending ? [pending.id] : []),
       ),
     db
