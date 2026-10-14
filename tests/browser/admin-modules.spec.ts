@@ -424,3 +424,169 @@ test("Vehicle access picker reaches later authorized targets without unbounded l
   expect(evidence.errors).toEqual([]);
   expect(evidence.unexpected).toEqual([]);
 });
+
+test("Organization detail ignores an older response after a new selection", async ({
+  page,
+}) => {
+  const later = {
+    ...org,
+    id: "00000000-0000-4000-8000-000000000011",
+    display_name: "Taller sintético Sur",
+  };
+  let release: (() => void) | undefined;
+  let firstRequested = false;
+  const evidence = await setup(page, async (route, path) => {
+    if (path === "/admin/organizations") {
+      await route.fulfill({ json: { items: [org, later], nextCursor: null } });
+      return true;
+    }
+    if (path === `/admin/organizations/${org.id}`) {
+      firstRequested = true;
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await route.fulfill({ json: responses[path] });
+      return true;
+    }
+    if (path === `/admin/organizations/${later.id}`) {
+      await route.fulfill({
+        json: {
+          ...(responses[`/admin/organizations/${org.id}`] as object),
+          organization: later,
+        },
+      });
+      return true;
+    }
+    return false;
+  });
+  await navigate(page, "organizations");
+  await page
+    .locator("#organization-list")
+    .getByRole("button", { name: org.display_name, exact: true })
+    .click();
+  await expect.poll(() => firstRequested).toBe(true);
+  await page
+    .locator("#organization-list")
+    .getByRole("button", { name: later.display_name, exact: true })
+    .click();
+  await expect(page.locator("#organization-detail h3")).toHaveText(
+    later.display_name,
+  );
+  release!();
+  await page.waitForResponse((response) =>
+    new URL(response.url()).pathname.endsWith(`/organizations/${org.id}`),
+  );
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await expect(page.locator("#organization-detail h3")).toHaveText(
+    later.display_name,
+  );
+  expect(evidence.errors).toEqual([]);
+  expect(evidence.unexpected).toEqual([]);
+});
+
+test("Vehicle registration prevents concurrent submits and preserves fields for retry", async ({
+  page,
+}) => {
+  let requests = 0;
+  let release: (() => void) | undefined;
+  const evidence = await setup(page, async (route, path) => {
+    if (path !== "/admin/vehicles" || route.request().method() !== "POST")
+      return false;
+    requests++;
+    if (requests === 1) {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await route.fulfill({
+        status: 503,
+        json: { code: "SERVICE_UNAVAILABLE" },
+      });
+    } else await route.fulfill({ json: { vehicleId } });
+    return true;
+  });
+  await navigate(page, "vehicles");
+  await page
+    .locator("#vehicles-panel summary")
+    .filter({ hasText: /^Registrar vehículo$/ })
+    .click();
+  const form = page.locator("#vehicle-create-form");
+  const submit = form.getByRole("button", {
+    name: "Registrar vehículo",
+    exact: true,
+  });
+  await form
+    .getByLabel("Motivo del registro")
+    .fill("Registro sintético para prueba");
+  await submit.click();
+  await expect.poll(() => requests).toBe(1);
+  await expect(submit).toBeDisabled();
+  await form.dispatchEvent("submit");
+  release!();
+  await expect(submit).toBeEnabled();
+  expect(requests).toBe(1);
+  await expect(form.getByLabel("Motivo del registro")).toHaveValue(
+    "Registro sintético para prueba",
+  );
+  await expect(page.locator("#notice")).toContainText(
+    "No fue posible completar",
+  );
+  await submit.click();
+  await expect(page.locator("#vehicle-detail")).toContainText("Modelo Norte");
+  expect(requests).toBe(2);
+  expect(evidence.errors).toEqual([]);
+  expect(evidence.unexpected).toEqual([]);
+});
+
+test("Credential evidence disables its pending download and recovers after unavailable service", async ({
+  page,
+}) => {
+  let requests = 0;
+  let release: (() => void) | undefined;
+  const evidence = await setup(page, async (route, path) => {
+    if (path === "/admin/professionals/credentials") {
+      await route.fulfill({
+        json: [
+          {
+            ...(responses[path] as object[])[0],
+            evidence_file_id: "qa-existing-file",
+          },
+        ],
+      });
+      return true;
+    }
+    if (path.endsWith("/evidence")) {
+      requests++;
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await route.fulfill({
+        status: 503,
+        json: { code: "SERVICE_UNAVAILABLE" },
+      });
+      return true;
+    }
+    return false;
+  });
+  await navigate(page, "professionals");
+  const download = page.getByRole("button", {
+    name: "Descargar evidencia",
+    exact: true,
+  });
+  await download.click();
+  await expect.poll(() => requests).toBe(1);
+  await expect(download).toBeDisabled();
+  await download.dispatchEvent("click");
+  release!();
+  await expect(download).toBeEnabled();
+  await expect(page.locator("#notice")).toContainText(
+    "No fue posible descargar la evidencia",
+  );
+  expect(requests).toBe(1);
+  expect(evidence.errors).toEqual([]);
+  expect(evidence.unexpected).toEqual([]);
+});

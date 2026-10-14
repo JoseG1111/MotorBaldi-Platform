@@ -413,6 +413,20 @@ describe("read-only release source readiness", () => {
     });
     expect(excluded.files).toHaveLength(2);
   });
+  it("requires nonempty runtime artifacts rather than metadata or static assets alone", () => {
+    const root = directory();
+    writeFileSync(join(root, "metadata.json"), '{"build":"fixture"}');
+    writeFileSync(join(root, "worker.js.map"), "{}");
+    writeFileSync(join(root, "styles.css"), "body{}");
+    expect(inventoryFiles(root, "artifacts").issues).toContainEqual({
+      code: "MISSING_RUNTIME_ARTIFACT",
+      path: ".",
+    });
+    writeFileSync(join(root, "worker.js"), "");
+    expect(inventoryFiles(root, "artifacts").complete).toBe(false);
+    writeFileSync(join(root, "worker.js"), "export default {};");
+    expect(inventoryFiles(root, "artifacts").complete).toBe(true);
+  });
   it("detects empty and noncontiguous SQL migration inventories", () => {
     const root = directory();
     expect(inventoryFiles(root, "migrations").complete).toBe(false);
@@ -434,6 +448,43 @@ describe("read-only release source readiness", () => {
     );
     expect(inventoryFiles(root, "migrations").complete).toBe(true);
   });
+  it("reports actionable source locations without echoing configured credential values", () => {
+    const root = directory();
+    const manifests = fixture();
+    manifests.api.env.production.vars.AUTH_BASE_URL =
+      "https://REPLACE_WITH_ORIGIN";
+    Object.assign(manifests.api.env.production.vars, {
+      AUTH_SECRET: "synthetic-private-next-action-value",
+    });
+    for (const [app, manifest] of Object.entries(manifests)) {
+      mkdirSync(join(root, "apps", app), { recursive: true });
+      writeFileSync(
+        join(root, "apps", app, "wrangler.jsonc"),
+        JSON.stringify(manifest),
+      );
+    }
+    const result = collectReleaseReadiness(root);
+    expect(result.nextActions).toContainEqual(
+      expect.objectContaining({
+        path: "apps/api/wrangler.jsonc",
+        environment: "production",
+        field: "vars.AUTH_BASE_URL",
+        action:
+          "Supply operator-confirmed exact HTTPS origins; do not invent domains.",
+      }),
+    );
+    expect(result.nextActions).toContainEqual(
+      expect.objectContaining({
+        field: "vars.AUTH_SECRET",
+        action:
+          "Remove source credential values; use the protected secret-management workflow.",
+      }),
+    );
+    expect(JSON.stringify(result)).not.toContain(
+      "synthetic-private-next-action-value",
+    );
+    expect(result.remoteVerification).toBe("NOT_PERFORMED");
+  });
   it("collects missing source/build/git evidence as explicit deficiencies without creating resources", () => {
     const root = directory();
     const result = collectReleaseReadiness(root);
@@ -452,6 +503,28 @@ describe("read-only release source readiness", () => {
     expect(result.inventory.migrations.complete).toBe(false);
     expect(result.inventory.artifacts["api-production"].complete).toBe(false);
     expect(result.inventory.git.contentMatchToArtifacts).toBe("UNVERIFIED");
+    expect(result.artifactProvenance.status).toBe("UNVERIFIED");
+    expect(result.nextActions).toContainEqual(
+      expect.objectContaining({
+        environment: "production",
+        app: "api",
+        path: "apps/api/wrangler.jsonc",
+        field: "env.production",
+        code: "MISSING_ENVIRONMENT_MANIFEST",
+      }),
+    );
+    expect(result.nextActions).toContainEqual(
+      expect.objectContaining({
+        path: "dist/api-production/.",
+        code: "MISSING_RUNTIME_ARTIFACT",
+      }),
+    );
+    expect(result.nextActions).toContainEqual(
+      expect.objectContaining({
+        path: ".",
+        code: "GIT_REVISION_UNAVAILABLE",
+      }),
+    );
     expect(result.inventorySha256).toMatch(/^[a-f0-9]{64}$/);
     expect(result.operationalPrerequisites).toContain(
       "Separate authorization for production deployment and any destructive operation",

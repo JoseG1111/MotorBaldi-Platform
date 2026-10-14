@@ -1197,3 +1197,15 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Evidence:** Start4b4dec0/baseline962 CI38321156089 SUCCESS. Owner restored OAuth; actual names-only Sandbox4/4 and GET-only merchant read PASS; remote D1 payments0/dispatches0/policy0/FKclean and callback negatives400. Integrated gated gateway/checkout/history, remote auth/resend/consent, controlled reminders, capability guards, export, metrics and release preparation pass focused checks. Final local351foundation/688Worker/5automation PASS; initial browser69/70, readiness-based shell correction8/8 PASS; exact-head CI acceptance remains. Development migration0027/API/Worker/Portal rollout and negative/closed-capability smoke PASS; no live financial/message/private-key result claimed. See latest PROJECT_STATE and HUMAN_ACTIONS_REQUIRED for precise acceptance boundaries.
 
 - **Closeout:** Source a086330 passes [CI38446339321](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38446339321): 351foundation/688Worker/5automation/70browser =1114 tests, all mandatory checks and history secret scan. Actual deployed anonymous mobile Chromium return check passes (forged query removed/login only/no error/no overflow). VERIFIED applies to this independent engineering/Development batch only; actual Sandbox payment cycles, external delivery, human onboarding and Production remain unverified. Recovery returns MB-P5-005 HUMAN ACTION REQUIRED; VS007 remains separately blocked.
+
+### MB-RL-002 — Interaction reliability and release preparation polish
+
+- **Status:** IN PROGRESS
+- **Dependencies:** MB-RL-001, MB-P5-005
+- **Objective:** Correct reproducible Admin/Portal interaction gaps and improve safe unavailable-service/release preparation behavior.
+- **Scope / required work:** Premium owned-vehicle selection and assistance context, stale async/double-submit guards, honest communications/file availability, actionable artifact/config preparation.
+- **Relevant files/systems:** apps/admin, apps/portal, scripts/release, existing provider abstractions and focused tests
+- **Constraints:** Preserve UI/brand/business rules and server authorization; keep unscanned files private/unavailable, external delivery/release gates closed. No Production/provisioning/DNS/paid activation/merge.
+- **Verification:** Reproducing browser regressions, relevant unit/Worker checks, actual rendered inspection, integrated gate/CI, Development verification where applicable.
+- **Completion criteria:** Confirmed independent defects fixed and tested, release preparation accurately reports missing configuration; external acceptance remains separately parked.
+- **Human-action conditions:** None for independent source/Development work. Real sender/recipient verification, privileged MFA permit, antimalware and Production authorization remain existing separate boundaries.

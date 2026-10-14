@@ -50,12 +50,20 @@ for (const port of [4183, 4184, 8787]) {
 await mkdir(root, { recursive: true });
 await rm(runtime, { recursive: true, force: true });
 await writeFile(configPath, JSON.stringify(config));
+// Keep this local harness independent of optional registry/update and telemetry calls.
+// Wrangler's banner update check can leave its network socket alive after local D1 completes.
+const localWranglerEnvironment = {
+  ...process.env,
+  WRANGLER_HIDE_BANNER: "true",
+  WRANGLER_SEND_METRICS: "false",
+  WRANGLER_NO_SKILLS_UPDATE_PROMPTS: "true",
+};
 async function wrangler(args: string[]) {
   await new Promise<void>((accept, reject) => {
     const child = spawn(
       "pnpm",
       ["exec", "wrangler", ...args, "--config", configPath],
-      { stdio: "ignore" },
+      { stdio: "ignore", env: localWranglerEnvironment },
     );
     child.on("error", reject);
     child.on("exit", (code) =>
@@ -129,7 +137,7 @@ const api = spawn(
     "--ip",
     "127.0.0.1",
   ],
-  { stdio: "ignore", detached: true },
+  { stdio: "ignore", detached: true, env: localWranglerEnvironment },
 );
 const servers: ReturnType<typeof createServer>[] = [];
 function stop() {

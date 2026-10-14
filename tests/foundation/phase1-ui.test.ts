@@ -1074,6 +1074,18 @@ describe("Membership browser controls", () => {
             premium: true,
             vehicles: [{ vehicle_id: "included-vehicle" }],
           });
+        if (path === "/api/v1/me/vehicles")
+          return Response.json({
+            items: [
+              {
+                id: "eligible-vehicle",
+                active: true,
+                writable: true,
+                specification: {},
+              },
+            ],
+            nextCursor: null,
+          });
         if (path === "/api/v1/me/garage")
           return Response.json({
             items: [{ id: "included-vehicle" }, { id: "eligible-vehicle" }],
@@ -1113,7 +1125,7 @@ describe("Membership browser controls", () => {
     );
     expect(JSON.parse(String(writes[2]?.init.body))).toEqual({ version: 7 });
     root = nodes.get("membership-detail")!;
-    const form = formNamed(root, "Incluir vehículo de mi garaje");
+    const form = formNamed(root, "Incluir vehículo en Premium");
     form.fields = new Map([["vehicleId", "eligible-vehicle"]]);
     context.membershipForm = form;
     await runInContext(
@@ -1317,7 +1329,7 @@ describe("private notification inbox and preferences", () => {
     ).toBe(true);
     expect(contents(inbox)).toContain("Sin leer");
     expect(contents(nodes.get("notification-preferences")!)).toContain(
-      "correo, SMS y WhatsApp todavía no está disponible",
+      "Envío externo no disponible.",
     );
     const button = flatten(inbox).find(
       (node) => node.textContent === "Marcar como leída",

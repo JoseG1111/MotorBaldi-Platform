@@ -379,6 +379,61 @@ function webhookPost(path: string, body = "{}") {
     },
   });
 }
+async function signedWebhook(
+  path: (typeof webhookPaths)[number],
+  body: string,
+  secret: string,
+) {
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const eventId = "signed-" + crypto.randomUUID();
+  const keyBytes =
+    path === webhookPaths[0]
+      ? Uint8Array.from(atob(secret.slice(6)), (value) => value.charCodeAt(0))
+      : new TextEncoder().encode(secret);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyBytes,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signed = new Uint8Array(
+    await crypto.subtle.sign(
+      "HMAC",
+      key,
+      new TextEncoder().encode(
+        path === webhookPaths[0] ? `${eventId}.${timestamp}.${body}` : body,
+      ),
+    ),
+  );
+  return new Request("https://api.test" + path, {
+    method: "POST",
+    body,
+    headers:
+      path === webhookPaths[0]
+        ? {
+            "svix-id": eventId,
+            "svix-timestamp": timestamp,
+            "svix-signature": "v1," + btoa(String.fromCharCode(...signed)),
+          }
+        : {
+            "x-hub-signature-256":
+              "sha256=" +
+              Array.from(signed, (value) =>
+                value.toString(16).padStart(2, "0"),
+              ).join(""),
+          },
+  });
+}
+function releasedWebhookBindings() {
+  return {
+    ...webhookBindings("production"),
+    NOTIFICATION_EMAIL_RELEASE_AUTHORIZED: "true",
+    NOTIFICATION_WHATSAPP_RELEASE_AUTHORIZED: "true",
+    META_WHATSAPP_PHONE_NUMBER_KIND: "BUSINESS",
+    META_WHATSAPP_TEST_RECIPIENT_SHA256: undefined,
+  } as ApiBindings;
+}
 describe("notification provider route boundaries without transport calls", () => {
   it.each(webhookPaths)(
     "requires development webhook configuration for exact path %s",
@@ -445,6 +500,178 @@ describe("notification provider route boundaries without transport calls", () =>
           status: 503,
           code: "NOTIFICATIONS_UNAVAILABLE",
         });
+    },
+  );
+  it("processes released Production Resend status and rejects a foreign environment secret", async () => {
+    const f = await acceptedFixture();
+    const bindings = releasedWebhookBindings();
+    const body = JSON.stringify({
+      type: "email.delivered",
+      created_at: new Date().toISOString(),
+      data: { email_id: f.reference },
+    });
+    const foreign = await signedWebhook(
+      webhookPaths[0],
+      body,
+      "whsec_" + btoa("foreign-environment-secret"),
+    );
+    await expect(
+      notificationProviderRoutes(foreign, bindings, "foreign-signature"),
+    ).rejects.toMatchObject({
+      status: 403,
+      code: "INVALID_PROVIDER_SIGNATURE",
+    });
+    expect((await ledger(f.options.request.id))?.delivery_status).toBe(
+      "PENDING",
+    );
+    const response = await notificationProviderRoutes(
+      await signedWebhook(
+        webhookPaths[0],
+        body,
+        bindings.RESEND_WEBHOOK_SECRET!,
+      ),
+      bindings,
+      "production-signed",
+    );
+    expect(await response?.json()).toEqual({ accepted: true });
+    expect((await ledger(f.options.request.id))?.delivery_status).toBe(
+      "DELIVERED",
+    );
+    expect(f.sendMock).toHaveBeenCalledOnce();
+  });
+  it("processes released Production Meta status and rejects a different environment phone", async () => {
+    const f = await fixture();
+    const reference = "production-meta-" + crypto.randomUUID();
+    // Reserve through the normal local dispatch path, then model a Meta acceptance in the ledger.
+    await f.dispatch();
+    await db
+      .prepare(
+        "UPDATE notification_external_deliveries SET provider='META_WHATSAPP',channel='WHATSAPP',provider_reference=? WHERE id=?",
+      )
+      .bind(reference, f.options.request.id)
+      .run();
+    const bindings = releasedWebhookBindings();
+    const bodyFor = (phone: string) =>
+      JSON.stringify({
+        object: "whatsapp_business_account",
+        entry: [
+          {
+            changes: [
+              {
+                field: "messages",
+                value: {
+                  messaging_product: "whatsapp",
+                  metadata: { phone_number_id: phone },
+                  statuses: [
+                    {
+                      id: reference,
+                      status: "delivered",
+                      timestamp: String(Math.floor(Date.now() / 1000)),
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      });
+    const foreign = bodyFor("987654321");
+    await expect(
+      notificationProviderRoutes(
+        await signedWebhook(
+          webhookPaths[1],
+          foreign,
+          bindings.META_WHATSAPP_APP_SECRET!,
+        ),
+        bindings,
+        "foreign-phone",
+      ),
+    ).rejects.toMatchObject({ status: 400, code: "INVALID_PROVIDER_PAYLOAD" });
+    const body = bodyFor(bindings.META_WHATSAPP_PHONE_NUMBER_ID!);
+    expect(
+      (
+        await notificationProviderRoutes(
+          await signedWebhook(
+            webhookPaths[1],
+            body,
+            bindings.META_WHATSAPP_APP_SECRET!,
+          ),
+          bindings,
+          "production-meta",
+        )
+      )?.status,
+    ).toBe(200);
+    expect((await ledger(f.options.request.id))?.delivery_status).toBe(
+      "DELIVERED",
+    );
+  });
+  it("requires separate channel release authority and a business Meta phone", async () => {
+    await expect(
+      notificationProviderRoutes(
+        webhookPost(webhookPaths[1]),
+        {
+          ...releasedWebhookBindings(),
+          NOTIFICATION_WHATSAPP_RELEASE_AUTHORIZED: "false",
+        },
+        "email-only-release",
+      ),
+    ).rejects.toMatchObject({ status: 503 });
+    await expect(
+      notificationProviderRoutes(
+        webhookPost(webhookPaths[0]),
+        {
+          ...releasedWebhookBindings(),
+          NOTIFICATION_EMAIL_RELEASE_AUTHORIZED: "false",
+        },
+        "whatsapp-only-release",
+      ),
+    ).rejects.toMatchObject({ status: 503 });
+    await expect(
+      notificationProviderRoutes(
+        webhookPost(webhookPaths[1]),
+        {
+          ...releasedWebhookBindings(),
+          META_WHATSAPP_PHONE_NUMBER_KIND: "TEST",
+        },
+        "test-phone",
+      ),
+    ).rejects.toMatchObject({ status: 503 });
+    for (const path of webhookPaths)
+      await expect(
+        notificationProviderRoutes(
+          webhookPost(path),
+          releasedWebhookBindings(),
+          "released-bad-signature",
+        ),
+      ).rejects.toMatchObject({
+        status: 403,
+        code: "INVALID_PROVIDER_SIGNATURE",
+      });
+  });
+  it("keeps staging closed even with independent release flags", async () => {
+    for (const path of webhookPaths)
+      await expect(
+        notificationProviderRoutes(
+          webhookPost(path),
+          { ...releasedWebhookBindings(), ENVIRONMENT: "staging" },
+          "staging-release-flags",
+        ),
+      ).rejects.toMatchObject({ status: 503 });
+  });
+  it.each(["TEST", "BUSINESS"])(
+    "rejects Production Meta configuration with test recipients and %s phone",
+    async (kind) => {
+      await expect(
+        notificationProviderRoutes(
+          webhookPost(webhookPaths[1]),
+          {
+            ...releasedWebhookBindings(),
+            META_WHATSAPP_PHONE_NUMBER_KIND: kind,
+            META_WHATSAPP_TEST_RECIPIENT_SHA256: "a".repeat(64),
+          },
+          "test-production",
+        ),
+      ).rejects.toMatchObject({ status: 503 });
     },
   );
   it("returns a plain no-store Meta verification challenge for the correct synthetic token", async () => {

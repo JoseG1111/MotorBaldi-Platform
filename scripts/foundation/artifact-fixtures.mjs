@@ -1,4 +1,10 @@
-import { rmSync, writeFileSync, unlinkSync } from "node:fs";
+import {
+  rmSync,
+  writeFileSync,
+  unlinkSync,
+  readdirSync,
+  statSync,
+} from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
@@ -27,6 +33,19 @@ assert.match(
 for (const app of ["portal", "admin", "api", "worker"])
   command([`build:${app}`]);
 command(["build:environments"]);
+for (const app of ["api", "worker", "portal", "admin"]) {
+  for (const suffix of ["", "-development", "-staging", "-production"]) {
+    const directory = join(dist, app + suffix);
+    assert.ok(
+      readdirSync(directory).some(
+        (name) =>
+          /\.(js|mjs|wasm)$/.test(name) &&
+          statSync(join(directory, name)).size > 0,
+      ),
+      "missing executable root artifact: " + directory,
+    );
+  }
+}
 command(["security:scan:dist"]);
 try {
   writeFileSync(synthetic, `const credential = "${secret}";\n`);

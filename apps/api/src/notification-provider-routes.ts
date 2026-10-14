@@ -46,11 +46,19 @@ export async function notificationProviderRoutes(
     url.pathname === "/api/v1/notifications/providers/resend/events";
   const meta = url.pathname === "/api/v1/notifications/providers/meta/events";
   if (!resend && !meta) return null;
-  if (env.ENVIRONMENT !== "development")
+  const productionAuthorized =
+    env.ENVIRONMENT === "production" &&
+    (resend
+      ? env.NOTIFICATION_EMAIL_RELEASE_AUTHORIZED === "true"
+      : env.NOTIFICATION_WHATSAPP_RELEASE_AUTHORIZED === "true" &&
+        env.META_WHATSAPP_PHONE_NUMBER_KIND === "BUSINESS" &&
+        env.META_WHATSAPP_TEST_RECIPIENT_SHA256 === undefined);
+  // Status ingestion cannot authorize sending. Staging and unreleased Production stay closed.
+  if (env.ENVIRONMENT !== "development" && !productionAuthorized)
     throw new Problem(
       503,
       "NOTIFICATIONS_UNAVAILABLE",
-      "Development provider integration unavailable",
+      "Provider status integration unavailable",
     );
   if (meta && request.method === "GET") {
     const token = url.searchParams.get("hub.verify_token") ?? "";

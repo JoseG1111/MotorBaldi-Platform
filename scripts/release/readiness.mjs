@@ -673,6 +673,13 @@ export function inventoryFiles(root, kind) {
     issues.push({ code: "MISSING_OR_UNREADABLE_INVENTORY", path: "." });
   }
   if (!files.length) issues.push({ code: "EMPTY_INVENTORY", path: "." });
+  if (
+    kind === "artifacts" &&
+    !files.some(
+      (file) => /\.(?:js|mjs|wasm)$/i.test(file.path) && file.bytes > 0,
+    )
+  )
+    issues.push({ code: "MISSING_RUNTIME_ARTIFACT", path: "." });
   if (kind === "migrations") {
     const prefixes = files.map((file) => Number(file.path.slice(0, 4)));
     if (
@@ -757,6 +764,48 @@ export function collectReleaseReadiness(root) {
     };
     loadingIssues.push({ code: "GIT_REVISION_UNAVAILABLE", path: "." });
   }
+  const nextActions = report.issues.map((item) => ({
+    ...item,
+    path: `apps/${item.app}/wrangler.jsonc`,
+    field: item.field,
+    action:
+      item.code === "CREDENTIAL_IN_SOURCE_VARS"
+        ? "Remove source credential values; use the protected secret-management workflow."
+        : item.code.includes("GATE")
+          ? "Leave external delivery/release gates absent or explicitly false."
+          : item.code.includes("ORIGIN")
+            ? "Supply operator-confirmed exact HTTPS origins; do not invent domains."
+            : item.code.includes("RESOURCE") ||
+                item.code.includes("DATABASE_ID")
+              ? "Use operator-confirmed isolated resource identities; this report does not authorize provisioning."
+              : "Correct the declared source field against the release runbook and canonical environment configuration.",
+  }));
+  for (const item of loadingIssues)
+    nextActions.push({
+      ...item,
+      action:
+        item.code === "GIT_REVISION_UNAVAILABLE"
+          ? "Run from a repository with an available reviewed Git revision."
+          : "Restore a readable regular Wrangler manifest; do not substitute credentials.",
+    });
+  for (const [path, item, action] of [
+    [
+      "migrations",
+      migrations,
+      "Restore the complete contiguous reviewed SQL inventory; no migrations are applied by this check.",
+    ],
+    ...Object.entries(artifacts).map(([target, item]) => [
+      `dist/${target}`,
+      item,
+      "Generate the explicit environment dry-run artifacts and retain CI/build provenance; no remote verification is performed.",
+    ]),
+  ])
+    for (const deficiency of item.issues)
+      nextActions.push({
+        code: deficiency.code,
+        path: `${path}/${deficiency.path}`,
+        action,
+      });
   const inventory = {
     git,
     manifests: manifestInventory,
@@ -771,6 +820,17 @@ export function collectReleaseReadiness(root) {
       migrations.complete &&
       Object.values(artifacts).every((item) => item.complete),
     loadingIssues,
+    nextActions,
+    artifactProvenance: {
+      status: "UNVERIFIED",
+      reason:
+        "Artifact hashes and current Git metadata do not attest which source, toolchain or build produced these files.",
+      requiredEvidence: [
+        "Reviewed source revision and clean/dirty build worktree status",
+        "Build command, explicit environment and toolchain versions",
+        "CI/build record associating the source revision with these artifact hashes",
+      ],
+    },
     inventory,
     inventorySha256: sha256(JSON.stringify(inventory)),
     operationalPrerequisites: [

@@ -1044,7 +1044,65 @@ Object.assign(openapi.paths, {
     get: {
       responses: {
         "200": {
-          description: "Owned preferences; external delivery unavailable",
+          description:
+            "Owned preferences and channel readiness. Generic external delivery remains unavailable; preference intent may be saved for existing verified contacts. Readiness is advisory and does not grant delivery authority.",
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["items", "externalDeliveryAvailable", "channels"],
+                properties: {
+                  items: { type: "array", items: { type: "object" } },
+                  externalDeliveryAvailable: { type: "boolean", enum: [false] },
+                  channels: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      required: [
+                        "channel",
+                        "transportAvailable",
+                        "policyEnabled",
+                        "entitlementEligible",
+                        "verifiedContactMethodIds",
+                        "preferenceConfigurable",
+                        "deliveryAvailable",
+                        "unavailableReasons",
+                      ],
+                      properties: {
+                        channel: {
+                          type: "string",
+                          enum: ["EMAIL", "SMS", "WHATSAPP"],
+                        },
+                        transportAvailable: { type: "boolean" },
+                        policyEnabled: { type: "boolean" },
+                        entitlementEligible: { type: "boolean" },
+                        verifiedContactMethodIds: { type: "array", items: id },
+                        preferenceConfigurable: {
+                          type: "boolean",
+                          description:
+                            "Eligible verified contact exists; saving intent does not enable delivery. Marketing additionally requires current channel consent.",
+                        },
+                        deliveryAvailable: { type: "boolean", enum: [false] },
+                        unavailableReasons: {
+                          type: "array",
+                          items: {
+                            type: "string",
+                            enum: [
+                              "GENERAL_DELIVERY_UNAVAILABLE",
+                              "TRANSPORT_UNAVAILABLE",
+                              "POLICY_DISABLED",
+                              "PREMIUM_REQUIRED",
+                              "VERIFIED_CONTACT_REQUIRED",
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
         "401": problem,
       },

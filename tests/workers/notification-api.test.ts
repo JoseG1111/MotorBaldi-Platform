@@ -218,6 +218,24 @@ describe("notification API with real verified non-MFA sessions", () => {
     expect(preferences.status).toBe(200);
     expect(await preferences.json()).toMatchObject({
       externalDeliveryAvailable: false,
+      channels: expect.arrayContaining([
+        expect.objectContaining({
+          channel: "EMAIL",
+          verifiedContactMethodIds: [owner.contactId],
+          preferenceConfigurable: true,
+          deliveryAvailable: false,
+          unavailableReasons: expect.arrayContaining([
+            "GENERAL_DELIVERY_UNAVAILABLE",
+            "POLICY_DISABLED",
+          ]),
+        }),
+        expect.objectContaining({
+          channel: "WHATSAPP",
+          preferenceConfigurable: false,
+          entitlementEligible: false,
+          verifiedContactMethodIds: [],
+        }),
+      ]),
       items: expect.arrayContaining([
         expect.objectContaining({
           category: "TRANSACTIONAL",

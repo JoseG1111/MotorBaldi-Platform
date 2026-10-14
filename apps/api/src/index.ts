@@ -793,6 +793,7 @@ async function route(
       ),
     () => boundedJson(request),
     cors,
+    env,
   );
   if (notificationResponse) return notificationResponse;
   const billingResponse = await billingRoutes(

@@ -2,10 +2,16 @@ import { z } from "zod";
 import { Problem, type Principal } from "@motorbaldi/contracts";
 import {
   outboxStatement,
+  getCustomerEntitlements,
   type EventRegistry,
   type PreparedCommand,
 } from "@motorbaldi/db";
 import { newId, utcNow, type Json } from "@motorbaldi/shared";
+
+import {
+  configuredNotificationTransport,
+  type NotificationTransportBindings,
+} from "./configured-transports.js";
 
 type Actor = Principal & { personId: string };
 const category = z.enum(["TRANSACTIONAL", "SUPPORT", "MARKETING"]);
@@ -335,10 +341,11 @@ export async function prepareNotificationCommand(
   };
 }
 
-/** Saved external preferences record intent; no configured delivery transport exists. */
+/** Account-owned intent and readiness only. Generic external dispatch remains hard-closed. */
 export async function listNotificationPreferences(
   db: D1Database,
   actor: Actor,
+  bindings: NotificationTransportBindings = { ENVIRONMENT: "unconfigured" },
 ) {
   await requireActiveActor(db, actor);
   const saved = (
@@ -403,7 +410,59 @@ export async function listNotificationPreferences(
         externalAvailable: false,
       });
     }
-  return { items, externalDeliveryAvailable: false };
+  const policy = await db
+    .prepare(
+      "SELECT external_delivery_enabled FROM notification_policy WHERE singleton=1",
+    )
+    .first<{ external_delivery_enabled: number }>();
+  const entitlements = await getCustomerEntitlements(db, actor);
+  // Only IDs are returned. No addresses, phone values, configuration or provider identifiers.
+  const contacts = (
+    await db
+      .prepare(
+        `SELECT c.id,c.type FROM iam_contact_methods c
+    WHERE c.person_id=? AND c.verification_status='VERIFIED' AND c.verified_at IS NOT NULL
+    AND (c.source<>'AUTH' OR EXISTS(SELECT 1 FROM auth_users u WHERE u.id=?
+      AND u.email_verified=1 AND c.type='EMAIL' AND lower(trim(u.email))=c.normalized_value))`,
+      )
+      .bind(actor.personId, actor.accountId)
+      .all<{ id: string; type: string }>()
+  ).results;
+  const channels = (["EMAIL", "SMS", "WHATSAPP"] as const).map((channel) => {
+    const transport =
+      channel === "SMS"
+        ? null
+        : configuredNotificationTransport(bindings, channel);
+    const transportAvailable =
+      transport?.capabilities.availability === "AVAILABLE";
+    const policyEnabled = policy?.external_delivery_enabled === 1;
+    const entitlementEligible = channel !== "WHATSAPP" || entitlements.premium;
+    const verifiedContactMethodIds = contacts
+      .filter(
+        (contact) => contact.type === (channel === "EMAIL" ? "EMAIL" : "PHONE"),
+      )
+      .map((contact) => contact.id);
+    return {
+      channel,
+      transportAvailable,
+      policyEnabled,
+      entitlementEligible,
+      verifiedContactMethodIds,
+      preferenceConfigurable:
+        entitlementEligible && verifiedContactMethodIds.length > 0,
+      deliveryAvailable: false,
+      unavailableReasons: [
+        "GENERAL_DELIVERY_UNAVAILABLE",
+        ...(!transportAvailable ? ["TRANSPORT_UNAVAILABLE"] : []),
+        ...(!policyEnabled ? ["POLICY_DISABLED"] : []),
+        ...(!entitlementEligible ? ["PREMIUM_REQUIRED"] : []),
+        ...(verifiedContactMethodIds.length === 0
+          ? ["VERIFIED_CONTACT_REQUIRED"]
+          : []),
+      ],
+    };
+  });
+  return { items, externalDeliveryAvailable: false, channels };
 }
 
 /** UUID cursor belongs to this inbox; other accounts' cursors cannot probe their notifications. */

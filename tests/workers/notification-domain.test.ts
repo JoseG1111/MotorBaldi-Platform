@@ -181,6 +181,69 @@ describe("account notification intent and private inbox", () => {
     ).toMatchObject({ id: null, version: 0, enabled: false });
   });
 
+  it("reports configured transport separately from closed policy and account readiness", async () => {
+    const actor = await member();
+    const contactId = await email(actor);
+    const bindings = {
+      ENVIRONMENT: "production",
+      NOTIFICATION_EMAIL_RELEASE_AUTHORIZED: "true",
+      RESEND_API_KEY: "synthetic-key",
+      RESEND_FROM: "notifications@example.test",
+      RESEND_DOMAIN_VERIFIED: "true",
+    };
+    const overview = await listNotificationPreferences(db, actor, bindings);
+    expect(
+      overview.channels.find((channel) => channel.channel === "EMAIL"),
+    ).toEqual({
+      channel: "EMAIL",
+      transportAvailable: true,
+      policyEnabled: false,
+      entitlementEligible: true,
+      verifiedContactMethodIds: [contactId],
+      preferenceConfigurable: true,
+      deliveryAvailable: false,
+      unavailableReasons: ["GENERAL_DELIVERY_UNAVAILABLE", "POLICY_DISABLED"],
+    });
+    expect(
+      overview.channels.find((channel) => channel.channel === "WHATSAPP"),
+    ).toMatchObject({
+      entitlementEligible: false,
+      verifiedContactMethodIds: [],
+      preferenceConfigurable: false,
+      deliveryAvailable: false,
+    });
+    expect(
+      overview.channels.find((channel) => channel.channel === "SMS"),
+    ).toMatchObject({ transportAvailable: false });
+    expect(JSON.stringify(overview)).not.toContain("synthetic-key");
+    expect(JSON.stringify(overview)).not.toContain(
+      "notifications@example.test",
+    );
+    const other = await member();
+    expect(
+      (await listNotificationPreferences(db, other, bindings)).channels[0]
+        ?.verifiedContactMethodIds,
+    ).not.toContain(contactId);
+    await db
+      .prepare("UPDATE auth_users SET email_verified=0 WHERE id=?")
+      .bind(actor.accountId)
+      .run();
+    expect(
+      (await listNotificationPreferences(db, actor, bindings)).channels[0],
+    ).toMatchObject({
+      verifiedContactMethodIds: [],
+      preferenceConfigurable: false,
+    });
+    expect(
+      (
+        await listNotificationPreferences(db, other, {
+          ...bindings,
+          ENVIRONMENT: "staging",
+        })
+      ).channels[0]?.transportAvailable,
+    ).toBe(false);
+  });
+
   it("returns private defaults without premium or MFA gates", async () => {
     const actor = await member(),
       overview = await listNotificationPreferences(db, actor);
