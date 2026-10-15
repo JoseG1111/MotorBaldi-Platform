@@ -1211,3 +1211,29 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Human-action conditions:** None for independent source/Development work. Real sender/recipient verification, privileged MFA permit, antimalware and Production authorization remain existing separate boundaries.
 
 - **Evidence:** Source0e6240a [CI38623195021](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38623195021) SUCCESS:364foundation/703Worker/5automation/84browser=1156, mandatory static/security/dependency/OpenAPI/execution/artifact checks and full history secret scan. Corrected absolute build output validated for16 targets; all8 release runtime inventories complete,8 source origin/D1 deficiencies remain. Four viewport notification axe/overflow pass; final1440/390 synthetic images inspected after visual refinement. Development API48fbc5bf/Portal089ffda5/Admine548af47 --keep-vars rollout, native protocol guards and hosted anonymous Chromium1440/390 pass. VERIFIED applies only to scoped polish/preparation, not actual external delivery, phone ownership verification, generic external dispatch or Production readiness.
+
+### MB-ID-001 — Self-service phone ownership verification
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-RL-002
+- **Objective:** Prove possession of an own-account phone through the existing signed Meta inbound channel.
+- **Scope / required work:** Short-lived random challenge bound to account/contact/normalized phone, signed inbound sender matching, atomic single-use verification/audit, rate limiting and Portal controls. User initiates the message; no platform outbound send.
+- **Constraints:** Separate default-closed Development capability; no provider activation, fabricated verification, consent grants, Production change or merge. Existing notification consent and human-MFA permit remain independent.
+- **Verification:** Focused real D1 challenge isolation/expiry/replay/race tests, webhook authentication tests and Portal browser regressions; integration checks.
+- **Completion criteria:** Secure gated source workflow with executed local evidence; actual user/provider acceptance explicitly separate.
+- **Human-action conditions:** Real inbound acceptance requires owner authorization for the capability and genuine user interaction with the configured business number.
+
+- **Evidence:** Source41be3fb [CI38688929788](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38688929788) SUCCESS including history secret scan. Local integrated1209 PASS (379foundation/735Worker/5automation/90browser), four viewport axe/overflow and actual1440/390 synthetic review. Real D1 covers rollback, session/account/contact changes, replay/concurrency; authenticated Development-configured API tests cover ownership/CSRF/cooldown/allowlist/network limiting. Migration0028/API99a36484/Portal8755ce55 deployed Development with --keep-vars and phone capability explicitly false. Actual health200/phone anonymous401/unsigned Meta403, source presence and D1 challenges0/policy0/FKclean PASS. VERIFIED applies to gated engineering/closed Development rollout only. Real inbound phone possession and notification delivery remain VS007 human acceptance.
+
+### MB-NT-001 — Responsive notifications and complete in-app event coverage
+
+- **Status:** VERIFIED
+- **Dependencies:** MB-ID-001
+- **Objective:** Correct owner-reported vehicle/notification layout and missing customer inbox producers.
+- **Scope / required work:** Remove SMS UI per owner deferral, separate in-app/external controls, responsive buttons/cards; add canonical support/payment/expiry/vehicle reminder inbox paths with opt-out/isolation/deduplication.
+- **Constraints:** No external delivery/Production/provider activation or merge. Preserve historical preferences; no SMS UI or new SMS implementation.
+- **Verification:** Focused D1 event/authority regressions, desktop/mobile browser geometry/axe/visual checks, integration gate and closed Development rollout/CI.
+- **Completion criteria:** Executed responsive and notification correctness evidence; remote actual-user acceptance limits stated.
+- **Human-action conditions:** Existing VS007 external acceptance only; independent in-app work proceeds.
+
+- **Evidence:** Final sourcecccf9f3 [CI38779686389](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38779686389) SUCCESS including history secret scan. Integrated local1242 PASS (379foundation/768Worker/5automation/90browser); final natural-height vehicle refinement6focused browser PASS. Fourviewport axe/overflow/control geometry and actual1440/390 notification/vehicle screenshots reviewed. Development migration0029 preserves10inbox/1read/version11, templates2→6/FKclean; Worker284c217b/Portal58d840a2 --keep-vars deployed, anonymous protected401/assets200 and grouping/SMS absence/layout pass. Actual deployed cron creates1account-linked VEHICLE_EXPIRY inbox and PROCESSED source; total11inbox/1read/version12, policy0/FKclean. Local D1/Queue tests verify Free/Premium, consent-independent in-app defaults/opt-outs, grants/rank, lifecycle/source isolation, rollback and replay; no universal real-customer UI exercise, historical backfill, native push or external delivery claimed.

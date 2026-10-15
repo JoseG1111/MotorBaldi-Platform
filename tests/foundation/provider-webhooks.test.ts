@@ -2,6 +2,7 @@ import { createHmac, createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   verifyMetaStatuses,
+  verifyMetaPhoneChallenges,
   verifyResendStatus,
 } from "../../packages/messaging/src/provider-webhooks.js";
 const now = new Date("2026-10-12T12:00:00Z");
@@ -237,5 +238,141 @@ describe("signed provider status normalization", () => {
     expect(
       await verifyMetaStatuses(raw, metaHeaders(raw), appSecret, "12345"),
     ).toEqual([]);
+  });
+});
+
+describe("signed inbound Meta phone challenges", () => {
+  const token = "a".repeat(64);
+  const message = {
+    type: "text",
+    text: { body: `MotorBaldi ${token}` },
+    from: "573001234567",
+    id: "wamid.challenge==",
+    timestamp: String(now.getTime() / 1000),
+  };
+  function inbound(items: unknown[] = [message], phone = "12345", changes = 1) {
+    return JSON.stringify({
+      object: "whatsapp_business_account",
+      entry: [
+        {
+          changes: Array.from({ length: changes }, () => ({
+            field: "messages",
+            value: {
+              messaging_product: "whatsapp",
+              metadata: { phone_number_id: phone },
+              messages: items,
+            },
+          })),
+        },
+      ],
+    });
+  }
+  const verify = (raw: string) =>
+    verifyMetaPhoneChallenges(raw, metaHeaders(raw), appSecret, "12345", now);
+  it("returns only the exact recent inbound challenge fields", async () => {
+    const raw = inbound([
+      { ...message, text: { body: `  MotorBaldi ${token}\n` } },
+    ]);
+    expect(await verify(raw)).toEqual([
+      {
+        token,
+        sender: "+573001234567",
+        providerReference: message.id,
+        occurredAt: now.toISOString(),
+      },
+    ]);
+  });
+  it("rejects forged signatures before parsing", async () => {
+    await expect(
+      verifyMetaPhoneChallenges(
+        "bad json",
+        metaHeaders(inbound()),
+        appSecret,
+        "12345",
+        now,
+      ),
+    ).rejects.toThrow("INVALID_PROVIDER_SIGNATURE");
+    const raw = inbound();
+    await expect(
+      verifyMetaPhoneChallenges(
+        raw + " ",
+        metaHeaders(raw),
+        appSecret,
+        "12345",
+        now,
+      ),
+    ).rejects.toThrow("INVALID_PROVIDER_SIGNATURE");
+  });
+  it("rejects wrong phone metadata", async () => {
+    await expect(verify(inbound([message], "67890"))).rejects.toThrow(
+      "INVALID_PROVIDER_PAYLOAD",
+    );
+  });
+  it.each([-601, 31])(
+    "rejects a challenge outside the time window (%s)",
+    async (offset) => {
+      await expect(
+        verify(
+          inbound([
+            { ...message, timestamp: String(now.getTime() / 1000 + offset) },
+          ]),
+        ),
+      ).rejects.toThrow("INVALID_PROVIDER_PAYLOAD");
+    },
+  );
+  it.each([-600, 30])("accepts the timestamp boundary (%s)", async (offset) => {
+    expect(
+      await verify(
+        inbound([
+          { ...message, timestamp: String(now.getTime() / 1000 + offset) },
+        ]),
+      ),
+    ).toHaveLength(1);
+  });
+  it.each([
+    "012345678",
+    "+573001234567",
+    "1234567",
+    "1234567890123456",
+    "sender",
+  ])("rejects invalid sender %s", async (from) => {
+    await expect(verify(inbound([{ ...message, from }]))).rejects.toThrow(
+      "INVALID_PROVIDER_PAYLOAD",
+    );
+  });
+  it("rejects invalid provider references", async () => {
+    await expect(
+      verify(inbound([{ ...message, id: "invalid reference" }])),
+    ).rejects.toThrow("INVALID_PROVIDER_PAYLOAD");
+  });
+  it("ignores unrelated text and message types", async () => {
+    expect(
+      await verify(
+        inbound([
+          { type: "image" },
+          { ...message, text: { body: "hello" } },
+          { ...message, text: { body: `MotorBaldi ${token.toUpperCase()}` } },
+          { ...message, text: { body: `MotorBaldi ${token} extra` } },
+        ]),
+      ),
+    ).toEqual([]);
+  });
+  it("bounds body bytes, messages and changes across entries", async () => {
+    for (const raw of [
+      "é".repeat(32769),
+      inbound(Array.from({ length: 101 }, () => message)),
+      inbound([message, message], "12345", 51),
+      inbound([], "12345", 101),
+    ]) {
+      await expect(verify(raw)).rejects.toThrow("INVALID_PROVIDER_PAYLOAD");
+    }
+    const body = JSON.parse(inbound([], "12345", 51));
+    body.entry.push(body.entry[0]);
+    await expect(verify(JSON.stringify(body))).rejects.toThrow(
+      "INVALID_PROVIDER_PAYLOAD",
+    );
+    expect(
+      await verify(inbound(Array.from({ length: 100 }, () => message))),
+    ).toHaveLength(100);
   });
 });

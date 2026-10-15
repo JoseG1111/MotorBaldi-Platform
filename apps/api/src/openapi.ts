@@ -447,6 +447,14 @@ Object.assign(openapi.paths, {
     get: get("Current person profile"),
     patch: command("Update current person profile with version"),
   },
+  "/api/v1/me/phone-verification/capability": {
+    get: get("Current phone ownership verification availability"),
+  },
+  "/api/v1/me/phone-verification/challenges": {
+    post: command(
+      "Issue a short-lived own-contact phone challenge (human session required)",
+    ),
+  },
   "/api/v1/me/contact-methods": {
     get: get("List personal contact methods"),
     post: command("Add an unverified contact method"),

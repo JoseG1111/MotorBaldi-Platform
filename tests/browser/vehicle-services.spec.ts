@@ -52,6 +52,17 @@ for (const viewport of [
                 },
                 writable: true,
               },
+              {
+                id: "00000000-0000-7000-8000-000000000002",
+                kind_code: "CAR",
+                version: 1,
+                specification: {
+                  make: "Vehículo histórico",
+                  model:
+                    "ModeloConNombreMuyLargoSinEspaciosParaComprobarElAjusteEnPantallasPequeñas",
+                },
+                writable: false,
+              },
             ],
             nextCursor: null,
           },
@@ -121,12 +132,45 @@ for (const viewport of [
         "href",
         "https://www.runt.gov.co/directorio-de-actores",
       );
+      const selectors = page.locator("#customer-vehicle-list > button");
+      await expect(selectors).toHaveCount(2);
+      await expect(selectors.first()).toHaveAttribute("aria-pressed", "false");
+      await expect(selectors.nth(1)).toHaveClass(/secondary/);
+      const geometry = await selectors.evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const box = button.getBoundingClientRect();
+          return {
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+            right: box.right,
+            bottom: box.bottom,
+          };
+        }),
+      );
+      expect(
+        geometry.every(
+          (box) =>
+            box.height >= 44 &&
+            box.width <= (viewport.width > 600 ? 320 : viewport.width),
+        ),
+      ).toBe(true);
+      expect(geometry[0]!.height).toBeLessThanOrEqual(60);
+      const gap =
+        viewport.width <= 600
+          ? geometry[1]!.y - geometry[0]!.bottom
+          : geometry[1]!.x - geometry[0]!.right;
+      expect(gap).toBeGreaterThanOrEqual(12);
       await page
         .getByRole("button", {
           name: "Marca sintética · Modelo de prueba",
           exact: true,
         })
         .click();
+      await expect(selectors.first()).toHaveAttribute("aria-pressed", "true");
+      await expect(selectors.first()).not.toHaveClass(/secondary/);
+      await expect(selectors.nth(1)).toHaveAttribute("aria-pressed", "false");
       const soat = page.locator("#customer-vehicle-services section").filter({
         has: page.getByRole("heading", { name: "SOAT", exact: true }),
       });

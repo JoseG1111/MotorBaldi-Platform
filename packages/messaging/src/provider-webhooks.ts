@@ -153,14 +153,11 @@ export async function verifyResendStatus(
     },
   ];
 }
-/** Meta signs the raw body without a replay timestamp; durable evidence deduplication is required. */
-export async function verifyMetaStatuses(
+async function verifyMetaSignature(
   raw: string,
   headers: Headers,
   appSecret: string,
-  phoneNumberId: string,
-): Promise<NormalizedProviderStatus[]> {
-  bounded(raw);
+): Promise<void> {
   try {
     const signature = headers.get("x-hub-signature-256");
     if (
@@ -179,6 +176,16 @@ export async function verifyMetaStatuses(
   } catch {
     throw invalidSignature();
   }
+}
+/** Meta signs the raw body without a replay timestamp; durable evidence deduplication is required. */
+export async function verifyMetaStatuses(
+  raw: string,
+  headers: Headers,
+  appSecret: string,
+  phoneNumberId: string,
+): Promise<NormalizedProviderStatus[]> {
+  bounded(raw);
+  await verifyMetaSignature(raw, headers, appSecret);
   if (!/^\d{1,32}$/.test(phoneNumberId)) throw invalidPayload();
   const body = parse(raw);
   if (body.object !== "whatsapp_business_account") throw invalidPayload();
@@ -237,6 +244,75 @@ export async function verifyMetaStatuses(
           status,
           occurredAt: new Date(milliseconds).toISOString(),
           payloadSha256,
+        });
+      }
+    }
+  }
+  return result;
+}
+
+export interface NormalizedMetaPhoneChallenge {
+  token: string;
+  sender: string;
+  providerReference: string;
+  occurredAt: string;
+}
+
+/** Only authenticated, recent inbound messages may prove control of a phone. */
+export async function verifyMetaPhoneChallenges(
+  raw: string,
+  headers: Headers,
+  appSecret: string,
+  phoneNumberId: string,
+  now: Date = new Date(),
+): Promise<NormalizedMetaPhoneChallenge[]> {
+  bounded(raw);
+  await verifyMetaSignature(raw, headers, appSecret);
+  if (!/^\d{1,32}$/.test(phoneNumberId) || !Number.isFinite(now.getTime()))
+    throw invalidPayload();
+  const body = parse(raw);
+  if (body.object !== "whatsapp_business_account") throw invalidPayload();
+  const result: NormalizedMetaPhoneChallenge[] = [];
+  let changeCount = 0;
+  let messageCount = 0;
+  for (const entry of array(body.entry)) {
+    for (const change of array(record(entry).changes)) {
+      if (++changeCount > 100) throw invalidPayload();
+      const changed = record(change);
+      if (changed.field !== "messages") continue;
+      const value = record(changed.value);
+      if (
+        value.messaging_product !== "whatsapp" ||
+        record(value.metadata).phone_number_id !== phoneNumberId
+      )
+        throw invalidPayload();
+      if (value.messages === undefined) continue;
+      for (const item of array(value.messages)) {
+        if (++messageCount > 100) throw invalidPayload();
+        const message = record(item);
+        if (message.type !== "text") continue;
+        const text = record(message.text);
+        if (typeof text.body !== "string") throw invalidPayload();
+        const match = /^MotorBaldi ([a-f0-9]{64})$/.exec(text.body.trim());
+        if (!match) continue;
+        if (
+          typeof message.from !== "string" ||
+          !/^[1-9]\d{7,14}$/.test(message.from) ||
+          typeof message.timestamp !== "string" ||
+          !/^\d{1,12}$/.test(message.timestamp)
+        )
+          throw invalidPayload();
+        const milliseconds = Number(message.timestamp) * 1000;
+        if (
+          milliseconds < now.getTime() - 600000 ||
+          milliseconds > now.getTime() + 30000
+        )
+          throw invalidPayload();
+        result.push({
+          token: match[1]!,
+          sender: `+${message.from}`,
+          providerReference: id(message.id),
+          occurredAt: new Date(milliseconds).toISOString(),
         });
       }
     }

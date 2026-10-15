@@ -1,7 +1,13 @@
+import { consumePhoneOwnershipChallenge } from "@motorbaldi/identity";
+import {
+  phoneOwnershipAvailable,
+  phoneOwnershipRecipientAllowed,
+} from "./phone-ownership-routes.js";
 import {
   applyProviderDeliveryStatus,
   verifyResendStatus,
   verifyMetaStatuses,
+  verifyMetaPhoneChallenges,
 } from "@motorbaldi/messaging";
 import type { ApiBindings } from "@motorbaldi/config";
 import { Problem } from "@motorbaldi/contracts";
@@ -99,6 +105,8 @@ export async function notificationProviderRoutes(
     );
   const raw = await rawBody(request);
   let evidence;
+  let phoneChallenges: Awaited<ReturnType<typeof verifyMetaPhoneChallenges>> =
+    [];
   try {
     evidence = resend
       ? await verifyResendStatus(
@@ -112,6 +120,13 @@ export async function notificationProviderRoutes(
           env.META_WHATSAPP_APP_SECRET!,
           env.META_WHATSAPP_PHONE_NUMBER_ID!,
         );
+    if (meta && phoneOwnershipAvailable(env))
+      phoneChallenges = await verifyMetaPhoneChallenges(
+        raw,
+        request.headers,
+        env.META_WHATSAPP_APP_SECRET!,
+        env.META_WHATSAPP_PHONE_NUMBER_ID!,
+      );
   } catch (error) {
     const signature =
       error instanceof Error && error.message === "INVALID_PROVIDER_SIGNATURE";
@@ -123,6 +138,9 @@ export async function notificationProviderRoutes(
   }
   for (const item of evidence)
     await applyProviderDeliveryStatus(env.DB, item, requestId);
+  for (const challenge of phoneChallenges)
+    if (await phoneOwnershipRecipientAllowed(env, challenge.sender))
+      await consumePhoneOwnershipChallenge(env.DB, challenge, requestId);
   return Response.json(
     { accepted: true },
     { headers: { "cache-control": "no-store" } },
