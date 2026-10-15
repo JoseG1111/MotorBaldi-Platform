@@ -156,6 +156,7 @@ for (const viewport of [
             box.width <= (viewport.width > 600 ? 320 : viewport.width),
         ),
       ).toBe(true);
+      expect(geometry[0]!.height).toBeLessThanOrEqual(60);
       const gap =
         viewport.width <= 600
           ? geometry[1]!.y - geometry[0]!.bottom
