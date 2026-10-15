@@ -1214,7 +1214,7 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 
 ### MB-ID-001 — Self-service phone ownership verification
 
-- **Status:** IMPLEMENTED — NOT VERIFIED
+- **Status:** VERIFIED
 - **Dependencies:** MB-RL-002
 - **Objective:** Prove possession of an own-account phone through the existing signed Meta inbound channel.
 - **Scope / required work:** Short-lived random challenge bound to account/contact/normalized phone, signed inbound sender matching, atomic single-use verification/audit, rate limiting and Portal controls. User initiates the message; no platform outbound send.
@@ -1222,3 +1222,5 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Verification:** Focused real D1 challenge isolation/expiry/replay/race tests, webhook authentication tests and Portal browser regressions; integration checks.
 - **Completion criteria:** Secure gated source workflow with executed local evidence; actual user/provider acceptance explicitly separate.
 - **Human-action conditions:** Real inbound acceptance requires owner authorization for the capability and genuine user interaction with the configured business number.
+
+- **Evidence:** Source41be3fb [CI38688929788](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38688929788) SUCCESS including history secret scan. Local integrated1209 PASS (379foundation/735Worker/5automation/90browser), four viewport axe/overflow and actual1440/390 synthetic review. Real D1 covers rollback, session/account/contact changes, replay/concurrency; authenticated Development-configured API tests cover ownership/CSRF/cooldown/allowlist/network limiting. Migration0028/API99a36484/Portal8755ce55 deployed Development with --keep-vars and phone capability explicitly false. Actual health200/phone anonymous401/unsigned Meta403, source presence and D1 challenges0/policy0/FKclean PASS. VERIFIED applies to gated engineering/closed Development rollout only. Real inbound phone possession and notification delivery remain VS007 human acceptance.
