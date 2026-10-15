@@ -1211,3 +1211,14 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Human-action conditions:** None for independent source/Development work. Real sender/recipient verification, privileged MFA permit, antimalware and Production authorization remain existing separate boundaries.
 
 - **Evidence:** Source0e6240a [CI38623195021](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38623195021) SUCCESS:364foundation/703Worker/5automation/84browser=1156, mandatory static/security/dependency/OpenAPI/execution/artifact checks and full history secret scan. Corrected absolute build output validated for16 targets; all8 release runtime inventories complete,8 source origin/D1 deficiencies remain. Four viewport notification axe/overflow pass; final1440/390 synthetic images inspected after visual refinement. Development API48fbc5bf/Portal089ffda5/Admine548af47 --keep-vars rollout, native protocol guards and hosted anonymous Chromium1440/390 pass. VERIFIED applies only to scoped polish/preparation, not actual external delivery, phone ownership verification, generic external dispatch or Production readiness.
+
+### MB-ID-001 — Self-service phone ownership verification
+
+- **Status:** IMPLEMENTED — NOT VERIFIED
+- **Dependencies:** MB-RL-002
+- **Objective:** Prove possession of an own-account phone through the existing signed Meta inbound channel.
+- **Scope / required work:** Short-lived random challenge bound to account/contact/normalized phone, signed inbound sender matching, atomic single-use verification/audit, rate limiting and Portal controls. User initiates the message; no platform outbound send.
+- **Constraints:** Separate default-closed Development capability; no provider activation, fabricated verification, consent grants, Production change or merge. Existing notification consent and human-MFA permit remain independent.
+- **Verification:** Focused real D1 challenge isolation/expiry/replay/race tests, webhook authentication tests and Portal browser regressions; integration checks.
+- **Completion criteria:** Secure gated source workflow with executed local evidence; actual user/provider acceptance explicitly separate.
+- **Human-action conditions:** Real inbound acceptance requires owner authorization for the capability and genuine user interaction with the configured business number.

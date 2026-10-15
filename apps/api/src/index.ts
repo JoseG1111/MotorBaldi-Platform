@@ -1,3 +1,9 @@
+import {
+  phoneOwnershipAvailable,
+  phoneOwnershipRecipientAllowed,
+  requirePhoneOwnershipAvailable,
+} from "./phone-ownership-routes.js";
+import { issuePhoneOwnershipChallenge } from "@motorbaldi/identity";
 import { customerWorkshopRoutes } from "./customer-workshop-routes.js";
 import { notificationProviderRoutes } from "./notification-provider-routes.js";
 import {
@@ -997,7 +1003,11 @@ async function route(
     return json(
       url.pathname.endsWith("/workspaces")
         ? await workspaces(env.DB, principal.personId)
-        : principal,
+        : {
+            accountId: principal.accountId,
+            personId: principal.personId,
+            mfaEnabled: principal.mfaEnabled,
+          },
       { headers: cors },
     );
   }
@@ -1197,6 +1207,41 @@ async function route(
     if (result.meta.changes !== 1)
       throw new Problem(409, "VERSION_CONFLICT", "Stale profile version");
     return json({ version: body.version + 1 }, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/me/phone-verification/capability") {
+    requireMethod("GET");
+    await businessPrincipal();
+    return json({ available: phoneOwnershipAvailable(env) }, { headers: cors });
+  }
+  if (url.pathname === "/api/v1/me/phone-verification/challenges") {
+    requireMethod("POST");
+    const actor = await businessPrincipal();
+    requirePhoneOwnershipAvailable(env);
+    await rateLimit(env, request, true);
+    const body = z
+      .object({ contactMethodId: z.string().uuid() })
+      .strict()
+      .parse(await boundedJson(request));
+    const contact = await env.DB.prepare(
+      "SELECT normalized_value FROM iam_contact_methods WHERE id=? AND person_id=? AND type='PHONE'",
+    )
+      .bind(body.contactMethodId, actor.personId)
+      .first<{ normalized_value: string }>();
+    if (
+      !contact ||
+      !(await phoneOwnershipRecipientAllowed(env, contact.normalized_value))
+    )
+      throw new Problem(404, "CONTACT_UNAVAILABLE", "Contact unavailable");
+    const challenge = await issuePhoneOwnershipChallenge(
+      env.DB,
+      actor,
+      body.contactMethodId,
+      requestId,
+    );
+    return json(
+      { ...challenge, destination: env.PHONE_OWNERSHIP_WHATSAPP_DESTINATION },
+      { status: 201, headers: cors },
+    );
   }
   if (url.pathname === "/api/v1/me/contact-methods") {
     const actor = await businessPrincipal();
@@ -2610,7 +2655,14 @@ async function route(
     const principal = await auth.principal(request.headers);
     if (!principal)
       throw new Problem(401, "UNAUTHENTICATED", "Authentication required");
-    return json(principal, { headers: cors });
+    return json(
+      {
+        accountId: principal.accountId,
+        personId: principal.personId,
+        mfaEnabled: principal.mfaEnabled,
+      },
+      { headers: cors },
+    );
   }
   if (url.pathname.startsWith("/api/v1/auth/")) {
     const path = url.pathname.slice("/api/v1/auth".length);

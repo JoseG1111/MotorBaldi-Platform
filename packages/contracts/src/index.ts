@@ -18,6 +18,8 @@ export interface ProblemDetails {
 }
 export interface Principal {
   accountId: string;
+  /** Current human session; absent for machine principals. */
+  sessionId?: string;
   personId: string | null;
   mfaEnabled: boolean;
   /** Verified Development machine context, distinct from human MFA. */

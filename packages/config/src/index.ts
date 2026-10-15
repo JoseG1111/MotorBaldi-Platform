@@ -31,6 +31,8 @@ interface CommonBindings extends NotificationProviderBindings {
 }
 
 export interface ApiBindings extends CommonBindings {
+  PHONE_OWNERSHIP_VERIFICATION_ENABLED?: string;
+  PHONE_OWNERSHIP_WHATSAPP_DESTINATION?: string;
   DB: D1Database;
   PRIVATE_BUCKET: R2Bucket;
   EVENTS_QUEUE: Queue<QueueMessage>;

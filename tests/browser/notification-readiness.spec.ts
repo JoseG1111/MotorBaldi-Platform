@@ -38,6 +38,7 @@ async function setup(page: Page, enabled = false) {
       { id: "PERSONAL", type: "PERSONAL", name: "Mi espacio" },
     ],
     "/me/profile": { given_name: "Ana", family_name: "García", version: 1 },
+    "/me/phone-verification/capability": { available: false },
     "/me/contact-methods": [
       {
         id: emailId,

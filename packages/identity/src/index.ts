@@ -626,3 +626,8 @@ export {
   exportOwnAccountData,
   type OwnAccountDataExport,
 } from "./privacy-export.js";
+
+export {
+  issuePhoneOwnershipChallenge,
+  consumePhoneOwnershipChallenge,
+} from "./phone-ownership.js";

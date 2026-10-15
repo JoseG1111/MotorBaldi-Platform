@@ -167,6 +167,7 @@ export function authentication(
       );
       return {
         accountId: session.user.id,
+        sessionId: session.session.id,
         personId: account.personId,
         mfaEnabled: assurance.mfaEnabled,
       };
