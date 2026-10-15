@@ -1224,3 +1224,14 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Human-action conditions:** Real inbound acceptance requires owner authorization for the capability and genuine user interaction with the configured business number.
 
 - **Evidence:** Source41be3fb [CI38688929788](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38688929788) SUCCESS including history secret scan. Local integrated1209 PASS (379foundation/735Worker/5automation/90browser), four viewport axe/overflow and actual1440/390 synthetic review. Real D1 covers rollback, session/account/contact changes, replay/concurrency; authenticated Development-configured API tests cover ownership/CSRF/cooldown/allowlist/network limiting. Migration0028/API99a36484/Portal8755ce55 deployed Development with --keep-vars and phone capability explicitly false. Actual health200/phone anonymous401/unsigned Meta403, source presence and D1 challenges0/policy0/FKclean PASS. VERIFIED applies to gated engineering/closed Development rollout only. Real inbound phone possession and notification delivery remain VS007 human acceptance.
+
+### MB-NT-001 — Responsive notifications and complete in-app event coverage
+
+- **Status:** IMPLEMENTED — NOT VERIFIED
+- **Dependencies:** MB-ID-001
+- **Objective:** Correct owner-reported vehicle/notification layout and missing customer inbox producers.
+- **Scope / required work:** Remove SMS UI per owner deferral, separate in-app/external controls, responsive buttons/cards; add canonical support/payment/expiry/vehicle reminder inbox paths with opt-out/isolation/deduplication.
+- **Constraints:** No external delivery/Production/provider activation or merge. Preserve historical preferences; no SMS UI or new SMS implementation.
+- **Verification:** Focused D1 event/authority regressions, desktop/mobile browser geometry/axe/visual checks, integration gate and closed Development rollout/CI.
+- **Completion criteria:** Executed responsive and notification correctness evidence; remote actual-user acceptance limits stated.
+- **Human-action conditions:** Existing VS007 external acceptance only; independent in-app work proceeds.

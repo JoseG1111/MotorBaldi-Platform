@@ -14,6 +14,8 @@ import {
   vehicleReminderEventRegistry,
   vehicleReminderEventHandlers,
   scheduleVehicleReminders,
+  scheduleInAppVehicleReminders,
+  inAppVehicleReminderEventRegistry,
   dispatchControlledVehicleReminders,
   type Handler,
 } from "@motorbaldi/messaging";
@@ -200,6 +202,7 @@ for (const [key, contract] of [
   ...membershipNotificationEventRegistry,
   ...notificationCommandEventRegistry,
   ...vehicleReminderEventRegistry,
+  ...inAppVehicleReminderEventRegistry,
   ...customerWorkshopEventContracts,
 ])
   registry.set(key, contract);
@@ -253,13 +256,19 @@ export default {
       scopedHandlers.set(key, handler);
     for (const key of [
       ...membershipNotificationEventRegistry.keys(),
+      ...inAppVehicleReminderEventRegistry.keys(),
       ...notificationCommandEventRegistry.keys(),
       ...customerWorkshopEventContracts.keys(),
     ])
       scopedHandlers.set(key.split(":")[0]!, async () => {});
-    scopedHandlers.set("billing.subscription.changed.v1", async (event) => {
-      await createMembershipNotification(env.DB, event);
-    });
+    for (const type of [
+      "billing.subscription.changed.v1",
+      "billing.payment.changed.v1",
+      "billing.subscription.expired.v1",
+    ])
+      scopedHandlers.set(type, async (event) => {
+        await createMembershipNotification(env.DB, event);
+      });
     for (const message of batch.messages) {
       const result = await processEvent(
         env.DB,
@@ -318,6 +327,7 @@ export default {
     ctx.waitUntil(expireCredentials(env.DB));
     ctx.waitUntil(expireMemberships(env.DB, newId()));
     ctx.waitUntil(scheduleVehicleReminders(env.DB));
+    ctx.waitUntil(scheduleInAppVehicleReminders(env.DB));
     ctx.waitUntil(dispatchControlledVehicleReminders(env.DB, env));
     if (env.OUTBOX_COORDINATOR) {
       ctx.waitUntil(

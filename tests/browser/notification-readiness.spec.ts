@@ -129,7 +129,10 @@ test("saves verified email intent with CAS while delivery stays unavailable", as
   const email = page.locator('[data-notification-channel="EMAIL"]');
   await expect(email.getByRole("combobox")).toHaveValue(emailId);
   await expect(email.getByRole("option")).toHaveText(["ana@example.test"]);
-  await expect(email).toContainText("Envío externo no disponible.");
+  await expect(page.locator(".notification-channel-note")).toContainText(
+    "El envío por correo y WhatsApp aún no está disponible.",
+  );
+  await expect(email.getByRole("button")).toHaveText("Guardar preferencia");
   await email
     .getByRole("button", { name: "Guardar preferencia de correo electrónico" })
     .click();
@@ -200,7 +203,9 @@ test("can save WhatsApp intent only when readiness supplies an existing verified
     contactMethodId: phoneId,
     version: 0,
   });
-  await expect(whatsapp).toContainText("Envío externo no disponible.");
+  await expect(page.locator(".notification-channel-note")).toContainText(
+    "eso no activa el envío",
+  );
 });
 
 test("does not claim a save after version conflict and permits refresh recovery", async ({
@@ -277,6 +282,66 @@ test("notification readiness stays accessible and contained across supported vie
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
+    await expect(page.locator('[data-notification-channel="SMS"]')).toHaveCount(
+      0,
+    );
+    await expect(page.locator("#notification-preferences")).not.toContainText(
+      "SMS",
+    );
+    const cards = await page
+      .locator("#notification-preferences > section")
+      .evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const box = node.getBoundingClientRect();
+          return { x: box.x, y: box.y, right: box.right, bottom: box.bottom };
+        }),
+      );
+    expect(cards).toHaveLength(4);
+    if (viewport.width > 640) {
+      expect(cards[0]!.y).toBe(cards[1]!.y);
+      expect(cards[1]!.x - cards[0]!.right).toBeGreaterThanOrEqual(16);
+    } else {
+      expect(cards[0]!.x).toBe(cards[1]!.x);
+      expect(cards[1]!.y - cards[0]!.bottom).toBeGreaterThanOrEqual(16);
+    }
+    const buttons = await page
+      .locator("#notifications-panel button")
+      .evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const box = node.getBoundingClientRect(),
+            style = getComputedStyle(node);
+          return {
+            height: box.height,
+            lineHeight: Number.parseFloat(style.lineHeight),
+            padding:
+              Number.parseFloat(style.paddingTop) +
+              Number.parseFloat(style.paddingBottom),
+            border:
+              Number.parseFloat(style.borderTopWidth) +
+              Number.parseFloat(style.borderBottomWidth),
+          };
+        }),
+      );
+    expect(
+      buttons.every((button) => button.height >= 44 && button.height <= 60),
+    ).toBe(true);
+    expect(
+      buttons.every(
+        (button) =>
+          button.height - button.padding - button.border <
+          button.lineHeight * 1.5,
+      ),
+    ).toBe(true);
+    await expect(
+      page.locator('[data-notification-channel="EMAIL"] button'),
+    ).toHaveAttribute(
+      "aria-label",
+      "Guardar preferencia de correo electrónico",
+    );
+    await expect(
+      page.locator('[data-notification-channel="WHATSAPP"] button'),
+    ).toHaveAttribute("aria-label", "Guardar preferencia de WhatsApp");
+
     const accessibility = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
       .analyze();

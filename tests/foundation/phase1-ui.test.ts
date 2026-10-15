@@ -328,6 +328,8 @@ describe("Phase 1 browser assets", () => {
 });
 
 type FakeNode = {
+  attributes: Record<string, string>;
+  setAttribute(name: string, value: string): void;
   elements: { purpose: { onchange?: unknown } };
   dataset: Record<string, string>;
   children: FakeNode[];
@@ -383,6 +385,10 @@ function browserHarness(
 ) {
   const nodes = new Map<string, FakeNode>();
   const node = (): FakeNode => ({
+    attributes: {},
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
     elements: { purpose: {} },
     dataset: {},
     children: [],
@@ -1329,7 +1335,7 @@ describe("private notification inbox and preferences", () => {
     ).toBe(true);
     expect(contents(inbox)).toContain("Sin leer");
     expect(contents(nodes.get("notification-preferences")!)).toContain(
-      "Envío externo no disponible.",
+      "El envío por correo y WhatsApp aún no está disponible.",
     );
     const button = flatten(inbox).find(
       (node) => node.textContent === "Marcar como leída",
@@ -1346,7 +1352,7 @@ describe("private notification inbox and preferences", () => {
     expect(contents(inbox)).toContain("Leída");
     expect(contents(inbox)).not.toContain("Marcar como leída");
     expect(portalPage).toContain('data-panel="notifications"');
-    expect(portalPage).toContain("acceso básico gratuito");
+    expect(portalPage).toContain("Disponible para cuentas Gratis y Premium");
   });
 
   it("defaults in-app preferences on and preserves the idempotency key across failed saves", async () => {
@@ -1390,7 +1396,8 @@ describe("private notification inbox and preferences", () => {
       "No tienes notificaciones",
     );
     const button = flatten(preferences).find(
-      (node) => node.textContent === "Desactivar avisos de soporte",
+      (node) =>
+        node.attributes["aria-label"] === "Desactivar avisos de soporte",
     )!;
     await button.onclick!();
     await button.onclick!();
@@ -1406,7 +1413,11 @@ describe("private notification inbox and preferences", () => {
       new Headers(writes[1]?.headers).get("idempotency-key"),
     );
     expect(contents(preferences)).toContain("Desactivados");
-    expect(contents(preferences)).toContain("Activar avisos de soporte");
+    expect(
+      flatten(preferences).some(
+        (node) => node.attributes["aria-label"] === "Activar avisos de soporte",
+      ),
+    ).toBe(true);
     expect(contents(preferences)).not.toContain("MARKETING");
   });
 

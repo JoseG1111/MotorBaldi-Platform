@@ -1,3 +1,4 @@
+import { createSupportNotification } from "./notification-templates.js";
 import { z } from "zod";
 import type { Event } from "@motorbaldi/db";
 import { HandlerFailure, type Handler } from "./handler.js";
@@ -45,7 +46,10 @@ export function supportEventHandlers(
   return new Map(
     [...supportCommandEventRegistry.keys()].map((key) => [
       key.split(":")[0]!,
-      async (event: Event) => validateSupportEvent(db, event),
+      async (event: Event) => {
+        await validateSupportEvent(db, event);
+        await createSupportNotification(db, event);
+      },
     ]),
   );
 }
