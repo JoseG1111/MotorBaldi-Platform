@@ -1227,7 +1227,7 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 
 ### MB-NT-001 — Responsive notifications and complete in-app event coverage
 
-- **Status:** IMPLEMENTED — NOT VERIFIED
+- **Status:** VERIFIED
 - **Dependencies:** MB-ID-001
 - **Objective:** Correct owner-reported vehicle/notification layout and missing customer inbox producers.
 - **Scope / required work:** Remove SMS UI per owner deferral, separate in-app/external controls, responsive buttons/cards; add canonical support/payment/expiry/vehicle reminder inbox paths with opt-out/isolation/deduplication.
@@ -1235,3 +1235,5 @@ Independent of parked QA008/provider boundaries; detailed scope and evidence in 
 - **Verification:** Focused D1 event/authority regressions, desktop/mobile browser geometry/axe/visual checks, integration gate and closed Development rollout/CI.
 - **Completion criteria:** Executed responsive and notification correctness evidence; remote actual-user acceptance limits stated.
 - **Human-action conditions:** Existing VS007 external acceptance only; independent in-app work proceeds.
+
+- **Evidence:** Final sourcecccf9f3 [CI38779686389](https://github.com/JoseG1111/MotorBaldi-Platform/actions/runs/38779686389) SUCCESS including history secret scan. Integrated local1242 PASS (379foundation/768Worker/5automation/90browser); final natural-height vehicle refinement6focused browser PASS. Fourviewport axe/overflow/control geometry and actual1440/390 notification/vehicle screenshots reviewed. Development migration0029 preserves10inbox/1read/version11, templates2→6/FKclean; Worker284c217b/Portal58d840a2 --keep-vars deployed, anonymous protected401/assets200 and grouping/SMS absence/layout pass. Actual deployed cron creates1account-linked VEHICLE_EXPIRY inbox and PROCESSED source; total11inbox/1read/version12, policy0/FKclean. Local D1/Queue tests verify Free/Premium, consent-independent in-app defaults/opt-outs, grants/rank, lifecycle/source isolation, rollback and replay; no universal real-customer UI exercise, historical backfill, native push or external delivery claimed.
